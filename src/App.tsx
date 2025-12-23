@@ -13,6 +13,13 @@ import Analisis from "@/pages/Analisis";
 import Proyecciones from "@/pages/Proyecciones";
 import Herramientas from "@/pages/Herramientas";
 import Configuracion from "@/pages/Configuracion";
+import Facturador from "@/pages/Facturador";
+import Agenda from "@/pages/Agenda";
+import MiniCRM from "@/pages/MiniCRM";
+import Metas from "@/pages/Metas";
+import PreciosDinamicos from "@/pages/PreciosDinamicos";
+import Deudas from "@/pages/Deudas";
+import PostsRedes from "@/pages/PostsRedes";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +40,13 @@ const App = () => (
               <Route path="/analisis" element={<Analisis />} />
               <Route path="/proyecciones" element={<Proyecciones />} />
               <Route path="/herramientas" element={<Herramientas />} />
+              <Route path="/herramientas/facturador" element={<Facturador />} />
+              <Route path="/herramientas/agenda" element={<Agenda />} />
+              <Route path="/herramientas/crm" element={<MiniCRM />} />
+              <Route path="/herramientas/metas" element={<Metas />} />
+              <Route path="/herramientas/precios" element={<PreciosDinamicos />} />
+              <Route path="/herramientas/deudas" element={<Deudas />} />
+              <Route path="/herramientas/posts" element={<PostsRedes />} />
               <Route path="/configuracion" element={<Configuracion />} />
             </Route>
             <Route path="*" element={<NotFound />} />

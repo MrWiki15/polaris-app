@@ -5,14 +5,14 @@ import {
   Download,
   Plus,
   Trash2,
-  Check,
-  X
+  Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatCurrency, Sale } from '@/lib/storage';
+import { formatCurrency } from '@/lib/storage';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 
 interface InvoiceItem {
@@ -22,17 +22,33 @@ interface InvoiceItem {
 }
 
 export const Facturador: React.FC = () => {
-  const { data } = useApp();
-  const { settings, products, sales } = data;
+  const { data, addSale } = useApp();
+  const { settings, products, clients } = data;
 
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [items, setItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, price: 0 }]);
   const [invoiceNumber, setInvoiceNumber] = useState(`FAC-${Date.now().toString().slice(-6)}`);
+  const [registerAsSale, setRegisterAsSale] = useState(true);
+
+  const customerClients = useMemo(() => 
+    clients.filter(c => c.type === 'cliente'), 
+    [clients]
+  );
 
   const total = useMemo(() => {
     return items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
   }, [items]);
+
+  const handleSelectClient = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (client) {
+      setSelectedClientId(clientId);
+      setClientName(client.name);
+      setClientPhone(client.phone || '');
+    }
+  };
 
   const addItem = () => {
     setItems([...items, { description: '', quantity: 1, price: 0 }]);
@@ -55,11 +71,18 @@ export const Facturador: React.FC = () => {
   };
 
   const addProductToInvoice = (product: typeof products[0]) => {
-    setItems([...items.filter(i => i.description), { 
-      description: product.name, 
-      quantity: 1, 
-      price: product.price 
-    }]);
+    const existingIndex = items.findIndex(i => i.description === product.name);
+    if (existingIndex >= 0) {
+      const newItems = [...items];
+      newItems[existingIndex].quantity += 1;
+      setItems(newItems);
+    } else {
+      setItems([...items.filter(i => i.description), { 
+        description: product.name, 
+        quantity: 1, 
+        price: product.price 
+      }]);
+    }
   };
 
   const generatePDF = () => {
@@ -147,6 +170,32 @@ export const Facturador: React.FC = () => {
 
     // Save
     doc.save(`factura_${invoiceNumber}.pdf`);
+
+    // Register as sale if enabled
+    if (registerAsSale && total > 0) {
+      addSale({
+        date: new Date().toISOString().split('T')[0],
+        amount: total,
+        category: 'Ventas',
+        description: `Factura ${invoiceNumber}${clientName ? ` - ${clientName}` : ''}`,
+      });
+      toast({
+        title: 'Venta registrada',
+        description: `Se registró una venta por ${formatCurrency(total, settings.currencySymbol)}`,
+      });
+    }
+
+    // Reset for next invoice
+    setInvoiceNumber(`FAC-${Date.now().toString().slice(-6)}`);
+    setItems([{ description: '', quantity: 1, price: 0 }]);
+    setClientName('');
+    setClientPhone('');
+    setSelectedClientId('');
+
+    toast({
+      title: 'Factura generada',
+      description: 'El PDF se ha descargado correctamente',
+    });
   };
 
   return (
@@ -160,7 +209,7 @@ export const Facturador: React.FC = () => {
           <h2 className="text-lg sm:text-xl font-bold">Facturador Offline</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Genera facturas en PDF sin conexión a internet
+          Genera facturas PDF y regístralas automáticamente como ventas
         </p>
       </div>
 
@@ -186,10 +235,13 @@ export const Facturador: React.FC = () => {
                   id="clientName"
                   placeholder="Cliente general"
                   value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
+                  onChange={(e) => {
+                    setClientName(e.target.value);
+                    setSelectedClientId('');
+                  }}
                 />
               </div>
-              <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+              <div className="space-y-2">
                 <Label htmlFor="clientPhone">Teléfono (opcional)</Label>
                 <Input
                   id="clientPhone"
@@ -197,6 +249,21 @@ export const Facturador: React.FC = () => {
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Registrar como venta</Label>
+                <button
+                  type="button"
+                  onClick={() => setRegisterAsSale(!registerAsSale)}
+                  className={cn(
+                    'w-full p-3 rounded-xl border-2 transition-all text-sm font-medium',
+                    registerAsSale
+                      ? 'border-success bg-success/10 text-success'
+                      : 'border-border text-muted-foreground'
+                  )}
+                >
+                  {registerAsSale ? '✓ Sí, registrar venta' : 'No registrar venta'}
+                </button>
               </div>
             </div>
           </div>
@@ -278,11 +345,43 @@ export const Facturador: React.FC = () => {
           </Button>
         </div>
 
-        {/* Products Sidebar */}
+        {/* Sidebar */}
         <div className="space-y-4">
+          {/* Clients from CRM */}
+          {customerClients.length > 0 && (
+            <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Clientes del CRM
+              </h3>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                {customerClients.map((client) => (
+                  <button
+                    key={client.id}
+                    onClick={() => handleSelectClient(client.id)}
+                    className={cn(
+                      'w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left',
+                      selectedClientId === client.id
+                        ? 'bg-primary/10 border-2 border-primary'
+                        : 'bg-muted hover:bg-muted/80 border-2 border-transparent'
+                    )}
+                  >
+                    <div>
+                      <span className="font-medium text-sm">{client.name}</span>
+                      {client.phone && (
+                        <span className="block text-xs text-muted-foreground">{client.phone}</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Products */}
           <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
             <h3 className="font-semibold mb-3">Agregar del inventario</h3>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {products.length > 0 ? (
                 products.map((product) => (
                   <button
