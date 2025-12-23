@@ -42,6 +42,29 @@ export interface Product {
   price: number;
   category?: string;
   minStock?: number;
+  expirationDate?: string;
+  barcode?: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface SupplierOrder {
+  id: string;
+  supplierId: string;
+  items: { productId?: string; productName: string; quantity: number; cost: number }[];
+  status: 'pending' | 'ordered' | 'received' | 'cancelled';
+  totalAmount: number;
+  expectedDate?: string;
+  notes?: string;
+  createdAt: string;
 }
 
 export interface Client {
@@ -95,6 +118,8 @@ export interface AppData {
   goals: FinancialGoal[];
   debts: Debt[];
   recurringPayments: RecurringPayment[];
+  suppliers: Supplier[];
+  supplierOrders: SupplierOrder[];
   customTags: string[];
   settings: {
     currency: string;
@@ -119,6 +144,8 @@ const defaultData: AppData = {
   goals: [],
   debts: [],
   recurringPayments: [],
+  suppliers: [],
+  supplierOrders: [],
   customTags: ['Promoción', 'Delivery', 'Compra de insumos', 'Servicio', 'Temporada'],
   settings: {
     currency: 'CUP',
@@ -211,6 +238,8 @@ const generateDemoData = (): AppData => {
     goals,
     debts,
     recurringPayments,
+    suppliers: [{ id: 's1', name: 'Distribuidora El Sol', phone: '5355987654', createdAt: today.toISOString() }],
+    supplierOrders: [],
     customTags,
     settings: defaultData.settings,
   };
@@ -230,6 +259,8 @@ export const loadData = (): AppData => {
         goals: parsed.goals || [],
         debts: parsed.debts || [],
         recurringPayments: parsed.recurringPayments || [],
+        suppliers: parsed.suppliers || [],
+        supplierOrders: parsed.supplierOrders || [],
         customTags: parsed.customTags || defaultData.customTags,
       };
     }
@@ -419,4 +450,46 @@ export const getRecurringPaymentCompliance = (
     paid,
     percentage: total > 0 ? (paid / total) * 100 : 100
   };
+};
+
+// Expiration alerts helper
+export const getExpiringProducts = (products: Product[], daysAhead: number = 7): { product: Product; daysUntilExpiration: number; status: 'expired' | 'critical' | 'warning' }[] => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  return products
+    .filter(p => p.expirationDate)
+    .map(p => {
+      const expDate = new Date(p.expirationDate!);
+      expDate.setHours(0, 0, 0, 0);
+      const diffTime = expDate.getTime() - today.getTime();
+      const daysUntilExpiration = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      let status: 'expired' | 'critical' | 'warning' = 'warning';
+      if (daysUntilExpiration <= 0) status = 'expired';
+      else if (daysUntilExpiration <= 3) status = 'critical';
+      
+      return { product: p, daysUntilExpiration, status };
+    })
+    .filter(item => item.daysUntilExpiration <= daysAhead)
+    .sort((a, b) => a.daysUntilExpiration - b.daysUntilExpiration);
+};
+
+// Pending orders helper
+export const getPendingOrders = (orders: SupplierOrder[]): SupplierOrder[] => {
+  return orders.filter(o => o.status === 'pending' || o.status === 'ordered');
+};
+
+// Critical stock helper (products with low stock and no pending orders)
+export const getCriticalStockProducts = (products: Product[], orders: SupplierOrder[]): Product[] => {
+  const pendingProductIds = new Set(
+    orders
+      .filter(o => o.status === 'pending' || o.status === 'ordered')
+      .flatMap(o => o.items.map(i => i.productId).filter(Boolean))
+  );
+  
+  return products.filter(p => 
+    p.quantity <= (p.minStock || 10) && 
+    !pendingProductIds.has(p.id)
+  );
 };
