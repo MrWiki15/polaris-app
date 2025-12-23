@@ -20,6 +20,7 @@ import Metas from "@/pages/Metas";
 import PreciosDinamicos from "@/pages/PreciosDinamicos";
 import Deudas from "@/pages/Deudas";
 import PostsRedes from "@/pages/PostsRedes";
+import PagosRecurrentes from "@/pages/PagosRecurrentes";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
               <Route path="/herramientas/precios" element={<PreciosDinamicos />} />
               <Route path="/herramientas/deudas" element={<Deudas />} />
               <Route path="/herramientas/posts" element={<PostsRedes />} />
+              <Route path="/herramientas/pagos-recurrentes" element={<PagosRecurrentes />} />
               <Route path="/configuracion" element={<Configuracion />} />
             </Route>
             <Route path="*" element={<NotFound />} />

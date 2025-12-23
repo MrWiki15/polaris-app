@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TagSelector } from '@/components/forms/TagSelector';
 import { useApp } from '@/contexts/AppContext';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +15,7 @@ interface ExpenseFormProps {
     amount: number;
     category: string;
     description?: string;
+    tags?: string[];
   };
 }
 
@@ -26,6 +28,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onClose, editingExpens
     amount: editingExpense?.amount?.toString() || '',
     category: editingExpense?.category || categories[0],
     description: editingExpense?.description || '',
+    tags: editingExpense?.tags || [],
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -36,6 +39,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onClose, editingExpens
       amount: parseFloat(formData.amount),
       category: formData.category,
       description: formData.description || undefined,
+      tags: formData.tags.length > 0 ? formData.tags : undefined,
     };
 
     if (editingExpense) {
@@ -123,6 +127,12 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onClose, editingExpens
               ))}
             </div>
           </div>
+
+          {/* Tags */}
+          <TagSelector
+            selectedTags={formData.tags}
+            onTagsChange={(tags) => setFormData(prev => ({ ...prev, tags }))}
+          />
 
           <div className="space-y-2">
             <Label htmlFor="description">Descripción (opcional)</Label>

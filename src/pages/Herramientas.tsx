@@ -9,6 +9,7 @@ import {
   CreditCard, 
   Share2, 
   Database,
+  RefreshCw,
   ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,7 @@ const tools = [
   { icon: Calendar, title: 'Agenda / Calendario', description: 'Recordatorios y citas para tu negocio', color: 'text-warning', bgColor: 'bg-warning/10', link: '/herramientas/agenda' },
   { icon: Users, title: 'Mini CRM', description: 'Gestiona clientes y proveedores', color: 'text-success', bgColor: 'bg-success/10', link: '/herramientas/crm' },
   { icon: Target, title: 'Metas Financieras', description: 'Define y sigue el progreso de tus objetivos', color: 'text-info', bgColor: 'bg-info/10', link: '/herramientas/metas' },
+  { icon: RefreshCw, title: 'Pagos Recurrentes', description: 'Controla gastos fijos mensuales', color: 'text-chart-3', bgColor: 'bg-chart-3/10', link: '/herramientas/pagos-recurrentes' },
   { icon: Tag, title: 'Precios Dinámicos', description: 'Calcula precios óptimos de venta', color: 'text-chart-5', bgColor: 'bg-chart-5/10', link: '/herramientas/precios' },
   { icon: CreditCard, title: 'Control de Deudas', description: 'Registra créditos y deudas pendientes', color: 'text-destructive', bgColor: 'bg-destructive/10', link: '/herramientas/deudas' },
   { icon: Share2, title: 'Posts para Redes', description: 'Genera contenido para promocionar tu negocio', color: 'text-primary', bgColor: 'bg-primary/10', link: '/herramientas/posts' },
