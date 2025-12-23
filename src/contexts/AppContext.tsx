@@ -9,6 +9,8 @@ import {
   FinancialGoal,
   Debt,
   RecurringPayment,
+  Supplier,
+  SupplierOrder,
   loadData, 
   saveData, 
   generateId 
@@ -49,6 +51,15 @@ interface AppContextType {
   updateRecurringPayment: (id: string, payment: Partial<RecurringPayment>) => void;
   deleteRecurringPayment: (id: string) => void;
   payRecurringPayment: (paymentId: string) => void;
+  // Suppliers
+  addSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => void;
+  updateSupplier: (id: string, supplier: Partial<Supplier>) => void;
+  deleteSupplier: (id: string) => void;
+  // Supplier Orders
+  addSupplierOrder: (order: Omit<SupplierOrder, 'id' | 'createdAt'>) => void;
+  updateSupplierOrder: (id: string, order: Partial<SupplierOrder>) => void;
+  deleteSupplierOrder: (id: string) => void;
+  receiveSupplierOrder: (orderId: string) => void;
   // Custom Tags
   addCustomTag: (tag: string) => void;
   deleteCustomTag: (tag: string) => void;
@@ -315,6 +326,66 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }));
   };
 
+  // Suppliers operations
+  const addSupplier = (supplier: Omit<Supplier, 'id' | 'createdAt'>) => {
+    const newSupplier: Supplier = { ...supplier, id: generateId(), createdAt: new Date().toISOString() };
+    setData(prev => ({ ...prev, suppliers: [newSupplier, ...prev.suppliers] }));
+  };
+
+  const updateSupplier = (id: string, supplierUpdate: Partial<Supplier>) => {
+    setData(prev => ({
+      ...prev,
+      suppliers: prev.suppliers.map(s => s.id === id ? { ...s, ...supplierUpdate } : s)
+    }));
+  };
+
+  const deleteSupplier = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      suppliers: prev.suppliers.filter(s => s.id !== id)
+    }));
+  };
+
+  // Supplier Orders operations
+  const addSupplierOrder = (order: Omit<SupplierOrder, 'id' | 'createdAt'>) => {
+    const newOrder: SupplierOrder = { ...order, id: generateId(), createdAt: new Date().toISOString() };
+    setData(prev => ({ ...prev, supplierOrders: [newOrder, ...prev.supplierOrders] }));
+  };
+
+  const updateSupplierOrder = (id: string, orderUpdate: Partial<SupplierOrder>) => {
+    setData(prev => ({
+      ...prev,
+      supplierOrders: prev.supplierOrders.map(o => o.id === id ? { ...o, ...orderUpdate } : o)
+    }));
+  };
+
+  const deleteSupplierOrder = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      supplierOrders: prev.supplierOrders.filter(o => o.id !== id)
+    }));
+  };
+
+  const receiveSupplierOrder = (orderId: string) => {
+    const order = data.supplierOrders.find(o => o.id === orderId);
+    if (!order) return;
+    
+    // Update inventory with received items
+    setData(prev => ({
+      ...prev,
+      supplierOrders: prev.supplierOrders.map(o => 
+        o.id === orderId ? { ...o, status: 'received' as const } : o
+      ),
+      products: prev.products.map(p => {
+        const orderedItem = order.items.find(i => i.productId === p.id);
+        if (orderedItem) {
+          return { ...p, quantity: p.quantity + orderedItem.quantity };
+        }
+        return p;
+      })
+    }));
+  };
+
   // Settings operations
   const updateSettings = (settings: Partial<AppData['settings']>) => {
     setData(prev => ({
@@ -351,6 +422,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       updateRecurringPayment,
       deleteRecurringPayment,
       payRecurringPayment,
+      addSupplier,
+      updateSupplier,
+      deleteSupplier,
+      addSupplierOrder,
+      updateSupplierOrder,
+      deleteSupplierOrder,
+      receiveSupplierOrder,
       addCustomTag,
       deleteCustomTag,
       updateSettings,
