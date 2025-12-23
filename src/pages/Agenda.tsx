@@ -9,7 +9,9 @@ import {
   CreditCard,
   MoreHorizontal,
   Trash2,
-  Edit2
+  Edit2,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +28,7 @@ const eventTypes = [
 
 export const Agenda: React.FC = () => {
   const { data, addEvent, updateEvent, deleteEvent } = useApp();
-  const { events } = data;
+  const { events, debts, goals } = data;
 
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -39,6 +41,50 @@ export const Agenda: React.FC = () => {
   });
 
   const today = new Date().toISOString().split('T')[0];
+
+  // Auto-generate alerts from debts and goals
+  const autoAlerts = useMemo(() => {
+    const alerts: { title: string; date: string; type: 'debt' | 'goal'; id: string }[] = [];
+    
+    // Overdue debts
+    debts.filter(d => !d.paid && d.dueDate && d.dueDate <= today).forEach(debt => {
+      alerts.push({
+        title: `Deuda vencida: ${debt.personName}`,
+        date: debt.dueDate!,
+        type: 'debt',
+        id: debt.id,
+      });
+    });
+
+    // Upcoming debts (next 7 days)
+    const weekFromNow = new Date();
+    weekFromNow.setDate(weekFromNow.getDate() + 7);
+    const weekStr = weekFromNow.toISOString().split('T')[0];
+    
+    debts.filter(d => !d.paid && d.dueDate && d.dueDate > today && d.dueDate <= weekStr).forEach(debt => {
+      alerts.push({
+        title: `Pago próximo: ${debt.personName}`,
+        date: debt.dueDate!,
+        type: 'debt',
+        id: debt.id,
+      });
+    });
+
+    // Goals deadlines
+    goals.filter(g => g.deadline >= today).forEach(goal => {
+      const daysLeft = Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysLeft <= 7 && daysLeft > 0) {
+        alerts.push({
+          title: `Meta por vencer: ${goal.title}`,
+          date: goal.deadline,
+          type: 'goal',
+          id: goal.id,
+        });
+      }
+    });
+
+    return alerts;
+  }, [debts, goals, today]);
 
   // Organize events by date
   const organizedEvents = useMemo(() => {
@@ -208,6 +254,36 @@ export const Agenda: React.FC = () => {
         </div>
       </div>
 
+      {/* Auto Alerts from Debts & Goals */}
+      {autoAlerts.length > 0 && (
+        <div className="bg-destructive/5 border border-destructive/20 rounded-2xl p-4">
+          <h3 className="font-semibold text-destructive mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            Alertas automáticas
+          </h3>
+          <div className="space-y-2">
+            {autoAlerts.map((alert, idx) => (
+              <div
+                key={`${alert.type}-${alert.id}-${idx}`}
+                className="flex items-center gap-3 p-3 bg-card rounded-xl border border-border"
+              >
+                {alert.type === 'debt' ? (
+                  <CreditCard className="w-4 h-4 text-destructive" />
+                ) : (
+                  <Bell className="w-4 h-4 text-warning" />
+                )}
+                <div className="flex-1">
+                  <span className="font-medium text-sm">{alert.title}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {formatDate(alert.date)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -225,7 +301,7 @@ export const Agenda: React.FC = () => {
                 {editingEvent ? 'Editar Evento' : 'Nuevo Evento'}
               </h3>
               <Button size="icon" variant="ghost" onClick={resetForm}>
-                <Trash2 className="w-4 h-4" />
+                <X className="w-4 h-4" />
               </Button>
             </div>
 
