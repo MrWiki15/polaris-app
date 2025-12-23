@@ -8,6 +8,7 @@ export interface Sale {
   description?: string;
   productId?: string;
   quantity?: number;
+  tags?: string[];
 }
 
 export interface Expense {
@@ -16,6 +17,21 @@ export interface Expense {
   amount: number;
   category: string;
   description?: string;
+  tags?: string[];
+  isRecurring?: boolean;
+  recurringId?: string;
+}
+
+export interface RecurringPayment {
+  id: string;
+  name: string;
+  amount: number;
+  category: string;
+  frequency: 'weekly' | 'monthly' | 'yearly';
+  dayOfMonth?: number;
+  isActive: boolean;
+  lastPaidDate?: string;
+  createdAt: string;
 }
 
 export interface Product {
@@ -78,6 +94,8 @@ export interface AppData {
   events: CalendarEvent[];
   goals: FinancialGoal[];
   debts: Debt[];
+  recurringPayments: RecurringPayment[];
+  customTags: string[];
   settings: {
     currency: string;
     currencySymbol: string;
@@ -100,6 +118,8 @@ const defaultData: AppData = {
   events: [],
   goals: [],
   debts: [],
+  recurringPayments: [],
+  customTags: ['Promoción', 'Delivery', 'Compra de insumos', 'Servicio', 'Temporada'],
   settings: {
     currency: 'CUP',
     currencySymbol: '$',
@@ -137,6 +157,13 @@ const generateDemoData = (): AppData => {
   ];
 
   const debts: Debt[] = [];
+  
+  const recurringPayments: RecurringPayment[] = [
+    { id: 'rp1', name: 'Alquiler local', amount: 5000, category: 'Alquiler', frequency: 'monthly', dayOfMonth: 1, isActive: true, createdAt: today.toISOString() },
+    { id: 'rp2', name: 'Electricidad', amount: 1200, category: 'Servicios', frequency: 'monthly', dayOfMonth: 15, isActive: true, createdAt: today.toISOString() },
+  ];
+  
+  const customTags = ['Promoción', 'Delivery', 'Compra de insumos', 'Servicio', 'Temporada', 'Mayoreo', 'Online'];
 
   const saleCategories = ['Alimentos', 'Bebidas', 'Higiene', 'Limpieza', 'Otros'];
   const expenseCategories = ['Compras', 'Transporte', 'Servicios', 'Salarios', 'Otros'];
@@ -183,6 +210,8 @@ const generateDemoData = (): AppData => {
     events,
     goals,
     debts,
+    recurringPayments,
+    customTags,
     settings: defaultData.settings,
   };
 };
@@ -200,6 +229,8 @@ export const loadData = (): AppData => {
         events: parsed.events || [],
         goals: parsed.goals || [],
         debts: parsed.debts || [],
+        recurringPayments: parsed.recurringPayments || [],
+        customTags: parsed.customTags || defaultData.customTags,
       };
     }
     // First time: generate demo data
@@ -288,4 +319,104 @@ export const formatCurrency = (amount: number, symbol: string = '$'): string => 
 
 export const calculateOptimalPrice = (cost: number, targetMargin: number = 30): number => {
   return Math.ceil(cost * (1 + targetMargin / 100));
+};
+
+// Cash flow projection helpers
+export const getDailyBalance = (sales: Sale[], expenses: Expense[], date: string): number => {
+  const daySales = sales.filter(s => s.date === date).reduce((sum, s) => sum + s.amount, 0);
+  const dayExpenses = expenses.filter(e => e.date === date).reduce((sum, e) => sum + e.amount, 0);
+  return daySales - dayExpenses;
+};
+
+export const getBalanceHistory = (sales: Sale[], expenses: Expense[], days: number = 30): { date: string; balance: number; cumulative: number }[] => {
+  const history: { date: string; balance: number; cumulative: number }[] = [];
+  let cumulative = 0;
+  
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    const dailyBalance = getDailyBalance(sales, expenses, dateStr);
+    cumulative += dailyBalance;
+    history.push({ date: dateStr, balance: dailyBalance, cumulative });
+  }
+  
+  return history;
+};
+
+export const projectCashFlow = (
+  sales: Sale[], 
+  expenses: Expense[], 
+  recurringPayments: RecurringPayment[], 
+  daysAhead: number = 7
+): { date: string; projectedBalance: number; alerts: string[] }[] => {
+  const projections: { date: string; projectedBalance: number; alerts: string[] }[] = [];
+  
+  // Calculate average daily sales from last 30 days
+  const last30DaysSales = sales.filter(s => {
+    const saleDate = new Date(s.date);
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    return saleDate >= thirtyDaysAgo;
+  });
+  const avgDailySales = last30DaysSales.reduce((sum, s) => sum + s.amount, 0) / 30;
+  
+  // Get current balance
+  const currentBalance = sales.reduce((sum, s) => sum + s.amount, 0) - expenses.reduce((sum, e) => sum + e.amount, 0);
+  let runningBalance = currentBalance;
+  
+  for (let i = 1; i <= daysAhead; i++) {
+    const date = new Date();
+    date.setDate(date.getDate() + i);
+    const dateStr = date.toISOString().split('T')[0];
+    const dayOfMonth = date.getDate();
+    const alerts: string[] = [];
+    
+    // Add projected sales
+    runningBalance += avgDailySales;
+    
+    // Subtract recurring payments due
+    recurringPayments.filter(rp => rp.isActive && rp.dayOfMonth === dayOfMonth).forEach(rp => {
+      runningBalance -= rp.amount;
+      alerts.push(`Pago: ${rp.name} (${formatCurrency(rp.amount)})`);
+    });
+    
+    // Check for negative balance
+    if (runningBalance < 0) {
+      alerts.unshift('⚠️ Balance proyectado negativo');
+    } else if (runningBalance < avgDailySales * 2) {
+      alerts.unshift('⚡ Balance bajo');
+    }
+    
+    projections.push({ date: dateStr, projectedBalance: runningBalance, alerts });
+  }
+  
+  return projections;
+};
+
+export const getRecurringPaymentCompliance = (
+  recurringPayments: RecurringPayment[], 
+  expenses: Expense[]
+): { total: number; paid: number; percentage: number } => {
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
+  
+  const monthlyRecurring = recurringPayments.filter(rp => rp.isActive && rp.frequency === 'monthly');
+  const total = monthlyRecurring.length;
+  
+  // Check which recurring payments have been paid this month
+  const paid = monthlyRecurring.filter(rp => {
+    return expenses.some(e => 
+      e.recurringId === rp.id && 
+      new Date(e.date).getMonth() === currentMonth &&
+      new Date(e.date).getFullYear() === currentYear
+    );
+  }).length;
+  
+  return {
+    total,
+    paid,
+    percentage: total > 0 ? (paid / total) * 100 : 100
+  };
 };
