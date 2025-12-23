@@ -8,6 +8,7 @@ import {
   CalendarEvent,
   FinancialGoal,
   Debt,
+  RecurringPayment,
   loadData, 
   saveData, 
   generateId 
@@ -43,6 +44,14 @@ interface AppContextType {
   addDebt: (debt: Omit<Debt, 'id' | 'createdAt'>) => void;
   updateDebt: (id: string, debt: Partial<Debt>) => void;
   deleteDebt: (id: string) => void;
+  // Recurring Payments
+  addRecurringPayment: (payment: Omit<RecurringPayment, 'id' | 'createdAt'>) => void;
+  updateRecurringPayment: (id: string, payment: Partial<RecurringPayment>) => void;
+  deleteRecurringPayment: (id: string) => void;
+  payRecurringPayment: (paymentId: string) => void;
+  // Custom Tags
+  addCustomTag: (tag: string) => void;
+  deleteCustomTag: (tag: string) => void;
   // Settings
   updateSettings: (settings: Partial<AppData['settings']>) => void;
   // Theme
@@ -248,6 +257,64 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }));
   };
 
+  // Recurring Payments operations
+  const addRecurringPayment = (payment: Omit<RecurringPayment, 'id' | 'createdAt'>) => {
+    const newPayment: RecurringPayment = { ...payment, id: generateId(), createdAt: new Date().toISOString() };
+    setData(prev => ({ ...prev, recurringPayments: [newPayment, ...prev.recurringPayments] }));
+  };
+
+  const updateRecurringPayment = (id: string, paymentUpdate: Partial<RecurringPayment>) => {
+    setData(prev => ({
+      ...prev,
+      recurringPayments: prev.recurringPayments.map(rp => rp.id === id ? { ...rp, ...paymentUpdate } : rp)
+    }));
+  };
+
+  const deleteRecurringPayment = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      recurringPayments: prev.recurringPayments.filter(rp => rp.id !== id)
+    }));
+  };
+
+  const payRecurringPayment = (paymentId: string) => {
+    const payment = data.recurringPayments.find(rp => rp.id === paymentId);
+    if (!payment) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    const newExpense: Expense = {
+      id: generateId(),
+      date: today,
+      amount: payment.amount,
+      category: payment.category,
+      description: `Pago recurrente: ${payment.name}`,
+      isRecurring: true,
+      recurringId: payment.id
+    };
+    
+    setData(prev => ({
+      ...prev,
+      expenses: [newExpense, ...prev.expenses],
+      recurringPayments: prev.recurringPayments.map(rp => 
+        rp.id === paymentId ? { ...rp, lastPaidDate: today } : rp
+      )
+    }));
+  };
+
+  // Custom Tags operations
+  const addCustomTag = (tag: string) => {
+    if (!data.customTags.includes(tag)) {
+      setData(prev => ({ ...prev, customTags: [...prev.customTags, tag] }));
+    }
+  };
+
+  const deleteCustomTag = (tag: string) => {
+    setData(prev => ({
+      ...prev,
+      customTags: prev.customTags.filter(t => t !== tag)
+    }));
+  };
+
   // Settings operations
   const updateSettings = (settings: Partial<AppData['settings']>) => {
     setData(prev => ({
@@ -280,6 +347,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       addDebt,
       updateDebt,
       deleteDebt,
+      addRecurringPayment,
+      updateRecurringPayment,
+      deleteRecurringPayment,
+      payRecurringPayment,
+      addCustomTag,
+      deleteCustomTag,
       updateSettings,
       theme,
       toggleTheme,
