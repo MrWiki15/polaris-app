@@ -3,7 +3,11 @@ import {
   AppData, 
   Sale, 
   Expense, 
-  Product, 
+  Product,
+  Client,
+  CalendarEvent,
+  FinancialGoal,
+  Debt,
   loadData, 
   saveData, 
   generateId 
@@ -23,6 +27,22 @@ interface AppContextType {
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (id: string, product: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
+  // Clients
+  addClient: (client: Omit<Client, 'id' | 'createdAt'>) => void;
+  updateClient: (id: string, client: Partial<Client>) => void;
+  deleteClient: (id: string) => void;
+  // Events
+  addEvent: (event: Omit<CalendarEvent, 'id'>) => void;
+  updateEvent: (id: string, event: Partial<CalendarEvent>) => void;
+  deleteEvent: (id: string) => void;
+  // Goals
+  addGoal: (goal: Omit<FinancialGoal, 'id' | 'createdAt'>) => void;
+  updateGoal: (id: string, goal: Partial<FinancialGoal>) => void;
+  deleteGoal: (id: string) => void;
+  // Debts
+  addDebt: (debt: Omit<Debt, 'id' | 'createdAt'>) => void;
+  updateDebt: (id: string, debt: Partial<Debt>) => void;
+  deleteDebt: (id: string) => void;
   // Settings
   updateSettings: (settings: Partial<AppData['settings']>) => void;
   // Theme
@@ -77,7 +97,21 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // Sales operations
   const addSale = (sale: Omit<Sale, 'id'>) => {
     const newSale: Sale = { ...sale, id: generateId() };
-    setData(prev => ({ ...prev, sales: [newSale, ...prev.sales] }));
+    
+    // If sale has a productId, update inventory
+    if (sale.productId && sale.quantity) {
+      setData(prev => ({
+        ...prev,
+        sales: [newSale, ...prev.sales],
+        products: prev.products.map(p => 
+          p.id === sale.productId 
+            ? { ...p, quantity: Math.max(0, p.quantity - (sale.quantity || 0)) }
+            : p
+        )
+      }));
+    } else {
+      setData(prev => ({ ...prev, sales: [newSale, ...prev.sales] }));
+    }
   };
 
   const updateSale = (id: string, saleUpdate: Partial<Sale>) => {
@@ -134,6 +168,86 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }));
   };
 
+  // Clients operations
+  const addClient = (client: Omit<Client, 'id' | 'createdAt'>) => {
+    const newClient: Client = { ...client, id: generateId(), createdAt: new Date().toISOString() };
+    setData(prev => ({ ...prev, clients: [newClient, ...prev.clients] }));
+  };
+
+  const updateClient = (id: string, clientUpdate: Partial<Client>) => {
+    setData(prev => ({
+      ...prev,
+      clients: prev.clients.map(c => c.id === id ? { ...c, ...clientUpdate } : c)
+    }));
+  };
+
+  const deleteClient = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      clients: prev.clients.filter(c => c.id !== id)
+    }));
+  };
+
+  // Events operations
+  const addEvent = (event: Omit<CalendarEvent, 'id'>) => {
+    const newEvent: CalendarEvent = { ...event, id: generateId() };
+    setData(prev => ({ ...prev, events: [newEvent, ...prev.events] }));
+  };
+
+  const updateEvent = (id: string, eventUpdate: Partial<CalendarEvent>) => {
+    setData(prev => ({
+      ...prev,
+      events: prev.events.map(e => e.id === id ? { ...e, ...eventUpdate } : e)
+    }));
+  };
+
+  const deleteEvent = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      events: prev.events.filter(e => e.id !== id)
+    }));
+  };
+
+  // Goals operations
+  const addGoal = (goal: Omit<FinancialGoal, 'id' | 'createdAt'>) => {
+    const newGoal: FinancialGoal = { ...goal, id: generateId(), createdAt: new Date().toISOString() };
+    setData(prev => ({ ...prev, goals: [newGoal, ...prev.goals] }));
+  };
+
+  const updateGoal = (id: string, goalUpdate: Partial<FinancialGoal>) => {
+    setData(prev => ({
+      ...prev,
+      goals: prev.goals.map(g => g.id === id ? { ...g, ...goalUpdate } : g)
+    }));
+  };
+
+  const deleteGoal = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      goals: prev.goals.filter(g => g.id !== id)
+    }));
+  };
+
+  // Debts operations
+  const addDebt = (debt: Omit<Debt, 'id' | 'createdAt'>) => {
+    const newDebt: Debt = { ...debt, id: generateId(), createdAt: new Date().toISOString() };
+    setData(prev => ({ ...prev, debts: [newDebt, ...prev.debts] }));
+  };
+
+  const updateDebt = (id: string, debtUpdate: Partial<Debt>) => {
+    setData(prev => ({
+      ...prev,
+      debts: prev.debts.map(d => d.id === id ? { ...d, ...debtUpdate } : d)
+    }));
+  };
+
+  const deleteDebt = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      debts: prev.debts.filter(d => d.id !== id)
+    }));
+  };
+
   // Settings operations
   const updateSettings = (settings: Partial<AppData['settings']>) => {
     setData(prev => ({
@@ -154,6 +268,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       addProduct,
       updateProduct,
       deleteProduct,
+      addClient,
+      updateClient,
+      deleteClient,
+      addEvent,
+      updateEvent,
+      deleteEvent,
+      addGoal,
+      updateGoal,
+      deleteGoal,
+      addDebt,
+      updateDebt,
+      deleteDebt,
       updateSettings,
       theme,
       toggleTheme,

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Package, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useApp } from '@/contexts/AppContext';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/storage';
 
 interface SaleFormProps {
   onClose: () => void;
@@ -14,28 +15,48 @@ interface SaleFormProps {
     amount: number;
     category: string;
     description?: string;
+    productId?: string;
+    quantity?: number;
   };
 }
 
 const categories = ['Alimentos', 'Bebidas', 'Higiene', 'Limpieza', 'Electrónica', 'Ropa', 'Otros'];
 
 export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
-  const { addSale, updateSale } = useApp();
+  const { addSale, updateSale, data } = useApp();
+  const { products, settings } = data;
+  
+  const [saleType, setSaleType] = useState<'manual' | 'inventory'>(
+    editingSale?.productId ? 'inventory' : 'manual'
+  );
   const [formData, setFormData] = useState({
     date: editingSale?.date || new Date().toISOString().split('T')[0],
     amount: editingSale?.amount?.toString() || '',
     category: editingSale?.category || categories[0],
     description: editingSale?.description || '',
+    productId: editingSale?.productId || '',
+    quantity: editingSale?.quantity?.toString() || '1',
   });
+
+  const selectedProduct = products.find(p => p.id === formData.productId);
+  const calculatedAmount = selectedProduct 
+    ? selectedProduct.price * parseInt(formData.quantity || '1')
+    : 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     const saleData = {
       date: formData.date,
-      amount: parseFloat(formData.amount),
-      category: formData.category,
-      description: formData.description || undefined,
+      amount: saleType === 'inventory' ? calculatedAmount : parseFloat(formData.amount),
+      category: saleType === 'inventory' && selectedProduct?.category 
+        ? selectedProduct.category 
+        : formData.category,
+      description: saleType === 'inventory' && selectedProduct
+        ? `Venta: ${selectedProduct.name} x${formData.quantity}`
+        : formData.description || undefined,
+      productId: saleType === 'inventory' ? formData.productId : undefined,
+      quantity: saleType === 'inventory' ? parseInt(formData.quantity) : undefined,
     };
 
     if (editingSale) {
@@ -46,6 +67,8 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
     
     onClose();
   };
+
+  const availableProducts = products.filter(p => p.quantity > 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -78,6 +101,41 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* Sale Type Toggle */}
+          {!editingSale && (
+            <div className="space-y-2">
+              <Label>Tipo de venta</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSaleType('manual')}
+                  className={cn(
+                    'flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all',
+                    saleType === 'manual'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-muted-foreground'
+                  )}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span className="text-sm font-medium">Manual</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSaleType('inventory')}
+                  className={cn(
+                    'flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all',
+                    saleType === 'inventory'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-muted-foreground'
+                  )}
+                >
+                  <Package className="w-4 h-4" />
+                  <span className="text-sm font-medium">Del Inventario</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="date">Fecha</Label>
             <Input
@@ -89,50 +147,120 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="amount">Monto</Label>
-            <Input
-              id="amount"
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              value={formData.amount}
-              onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-              required
-              className="text-lg font-medium"
-            />
-          </div>
+          {saleType === 'inventory' ? (
+            <>
+              {/* Product Selection */}
+              <div className="space-y-2">
+                <Label>Producto</Label>
+                {availableProducts.length > 0 ? (
+                  <div className="max-h-40 overflow-y-auto space-y-2 border border-border rounded-xl p-2">
+                    {availableProducts.map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, productId: product.id }))}
+                        className={cn(
+                          'w-full flex items-center justify-between p-3 rounded-lg transition-all text-left',
+                          formData.productId === product.id
+                            ? 'bg-primary/10 border-2 border-primary'
+                            : 'bg-muted hover:bg-muted/80 border-2 border-transparent'
+                        )}
+                      >
+                        <div>
+                          <span className="font-medium text-sm">{product.name}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            Stock: {product.quantity} | {formatCurrency(product.price, settings.currencySymbol)}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground p-3 bg-muted rounded-xl">
+                    No hay productos disponibles
+                  </p>
+                )}
+              </div>
 
-          <div className="space-y-2">
-            <Label>Categoría</Label>
-            <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, category: cat }))}
-                  className={cn(
-                    'px-4 py-2 rounded-xl text-sm font-medium transition-all',
-                    formData.category === cat
-                      ? 'bg-primary text-primary-foreground shadow-material'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                  )}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
+              {/* Quantity */}
+              {selectedProduct && (
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Cantidad</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min="1"
+                    max={selectedProduct.quantity}
+                    value={formData.quantity}
+                    onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Disponible: {selectedProduct.quantity} unidades
+                  </p>
+                </div>
+              )}
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Descripción (opcional)</Label>
-            <Input
-              id="description"
-              placeholder="Añadir nota..."
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-            />
-          </div>
+              {/* Calculated Amount */}
+              {selectedProduct && (
+                <div className="p-4 bg-success/10 rounded-xl border border-success/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Total de la venta</span>
+                    <span className="text-xl font-bold text-success">
+                      {formatCurrency(calculatedAmount, settings.currencySymbol)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="amount">Monto</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.amount}
+                  onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                  required
+                  className="text-lg font-medium"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Categoría</Label>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, category: cat }))}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+                        formData.category === cat
+                          ? 'bg-primary text-primary-foreground shadow-material'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                      )}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Descripción (opcional)</Label>
+                <Input
+                  id="description"
+                  placeholder="Añadir nota..."
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                />
+              </div>
+            </>
+          )}
 
           <div className="flex gap-3 pt-4">
             <Button
@@ -146,7 +274,11 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
             <Button
               type="submit"
               className="flex-1 gradient-primary hover:opacity-90"
-              disabled={!formData.amount}
+              disabled={
+                saleType === 'manual' 
+                  ? !formData.amount 
+                  : !formData.productId || !formData.quantity
+              }
             >
               {editingSale ? 'Guardar' : 'Registrar'}
             </Button>

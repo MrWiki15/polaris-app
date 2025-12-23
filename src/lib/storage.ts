@@ -28,15 +28,65 @@ export interface Product {
   minStock?: number;
 }
 
+export interface Client {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  type: 'cliente' | 'proveedor';
+  notes?: string;
+  createdAt: string;
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  date: string;
+  time?: string;
+  type: 'recordatorio' | 'cita' | 'pago' | 'otro';
+  description?: string;
+  completed: boolean;
+}
+
+export interface FinancialGoal {
+  id: string;
+  title: string;
+  targetAmount: number;
+  currentAmount: number;
+  deadline: string;
+  category: 'ventas' | 'ahorro' | 'reduccion_gastos' | 'otro';
+  createdAt: string;
+}
+
+export interface Debt {
+  id: string;
+  personName: string;
+  amount: number;
+  type: 'me_deben' | 'debo';
+  description?: string;
+  dueDate?: string;
+  paid: boolean;
+  createdAt: string;
+}
+
 export interface AppData {
   sales: Sale[];
   expenses: Expense[];
   products: Product[];
+  clients: Client[];
+  events: CalendarEvent[];
+  goals: FinancialGoal[];
+  debts: Debt[];
   settings: {
     currency: string;
     currencySymbol: string;
     language: string;
     theme: 'light' | 'dark' | 'system';
+    businessName?: string;
+    businessLogo?: string;
+    businessPhone?: string;
+    businessAddress?: string;
   };
 }
 
@@ -46,6 +96,10 @@ const defaultData: AppData = {
   sales: [],
   expenses: [],
   products: [],
+  clients: [],
+  events: [],
+  goals: [],
+  debts: [],
   settings: {
     currency: 'CUP',
     currencySymbol: '$',
@@ -67,6 +121,22 @@ const generateDemoData = (): AppData => {
     { id: '5', name: 'Detergente 500ml', quantity: 25, cost: 90, price: 140, category: 'Limpieza', minStock: 10 },
     { id: '6', name: 'Arroz 2kg', quantity: 40, cost: 180, price: 250, category: 'Alimentos', minStock: 15 },
   ];
+
+  const clients: Client[] = [
+    { id: 'c1', name: 'María González', phone: '5355123456', type: 'cliente', createdAt: today.toISOString() },
+    { id: 'c2', name: 'Distribuidora El Sol', phone: '5355987654', type: 'proveedor', createdAt: today.toISOString() },
+  ];
+
+  const events: CalendarEvent[] = [
+    { id: 'e1', title: 'Pago a proveedor', date: new Date(today.getTime() + 86400000 * 3).toISOString().split('T')[0], type: 'pago', completed: false },
+    { id: 'e2', title: 'Revisar inventario', date: new Date(today.getTime() + 86400000 * 7).toISOString().split('T')[0], type: 'recordatorio', completed: false },
+  ];
+
+  const goals: FinancialGoal[] = [
+    { id: 'g1', title: 'Meta de ventas mensuales', targetAmount: 10000, currentAmount: 0, deadline: new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0], category: 'ventas', createdAt: today.toISOString() },
+  ];
+
+  const debts: Debt[] = [];
 
   const saleCategories = ['Alimentos', 'Bebidas', 'Higiene', 'Limpieza', 'Otros'];
   const expenseCategories = ['Compras', 'Transporte', 'Servicios', 'Salarios', 'Otros'];
@@ -109,6 +179,10 @@ const generateDemoData = (): AppData => {
     sales,
     expenses,
     products,
+    clients,
+    events,
+    goals,
+    debts,
     settings: defaultData.settings,
   };
 };
@@ -117,7 +191,16 @@ export const loadData = (): AppData => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Ensure all arrays exist (for backwards compatibility)
+      return {
+        ...defaultData,
+        ...parsed,
+        clients: parsed.clients || [],
+        events: parsed.events || [],
+        goals: parsed.goals || [],
+        debts: parsed.debts || [],
+      };
     }
     // First time: generate demo data
     const demoData = generateDemoData();
@@ -201,4 +284,8 @@ export const getInventoryValue = (products: Product[]): number => {
 
 export const formatCurrency = (amount: number, symbol: string = '$'): string => {
   return `${symbol}${amount.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+};
+
+export const calculateOptimalPrice = (cost: number, targetMargin: number = 30): number => {
+  return Math.ceil(cost * (1 + targetMargin / 100));
 };
