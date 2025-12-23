@@ -3,6 +3,7 @@ import { X, Package, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TagSelector } from '@/components/forms/TagSelector';
 import { useApp } from '@/contexts/AppContext';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/storage';
@@ -17,6 +18,7 @@ interface SaleFormProps {
     description?: string;
     productId?: string;
     quantity?: number;
+    tags?: string[];
   };
 }
 
@@ -36,6 +38,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
     description: editingSale?.description || '',
     productId: editingSale?.productId || '',
     quantity: editingSale?.quantity?.toString() || '1',
+    tags: editingSale?.tags || [],
   });
 
   const selectedProduct = products.find(p => p.id === formData.productId);
@@ -57,6 +60,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
         : formData.description || undefined,
       productId: saleType === 'inventory' ? formData.productId : undefined,
       quantity: saleType === 'inventory' ? parseInt(formData.quantity) : undefined,
+      tags: formData.tags.length > 0 ? formData.tags : undefined,
     };
 
     if (editingSale) {
@@ -261,6 +265,12 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
               </div>
             </>
           )}
+
+          {/* Tags */}
+          <TagSelector
+            selectedTags={formData.tags}
+            onTagsChange={(tags) => setFormData(prev => ({ ...prev, tags }))}
+          />
 
           <div className="flex gap-3 pt-4">
             <Button

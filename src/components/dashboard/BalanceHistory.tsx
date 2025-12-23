@@ -53,12 +53,12 @@ export const BalanceHistory: React.FC = () => {
   const changePercent = startBalance !== 0 ? (change / Math.abs(startBalance)) * 100 : 0;
 
   // Find best and worst days
-  const bestDay = historyData.length > 0 ? historyData.reduce((best, day) => day.balance > best.balance ? day : best) : null;
-  const worstDay = historyData.length > 0 ? historyData.reduce((worst, day) => day.balance < worst.balance ? day : worst) : null;
-
-  // Find best and worst days
-  const bestDay = historyData.reduce((best, day) => day.balance > best.balance ? day : best, historyData[0] || { balance: 0 });
-  const worstDay = historyData.reduce((worst, day) => day.balance < worst.balance ? day : worst, historyData[0] || { balance: 0 });
+  const bestDay = historyData.length > 0 
+    ? historyData.reduce((best, day) => day.balance > best.balance ? day : best, historyData[0]) 
+    : null;
+  const worstDay = historyData.length > 0 
+    ? historyData.reduce((worst, day) => day.balance < worst.balance ? day : worst, historyData[0]) 
+    : null;
 
   return (
     <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">

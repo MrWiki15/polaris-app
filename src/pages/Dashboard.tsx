@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { MetricCard } from '@/components/ui/MetricCard';
+import { CashFlowAlerts } from '@/components/dashboard/CashFlowAlerts';
+import { RecurringPaymentsCard } from '@/components/dashboard/RecurringPaymentsCard';
+import { BalanceHistory } from '@/components/dashboard/BalanceHistory';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -120,7 +123,7 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6 pb-20">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <MetricCard
           title="Ventas de hoy"
           value={formatCurrency(todaySalesTotal, settings.currencySymbol)}
@@ -150,12 +153,15 @@ export const Dashboard: React.FC = () => {
         />
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Cash Flow Alerts */}
+      <CashFlowAlerts />
+
+      {/* Charts & Recurring Payments */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Weekly Overview */}
-        <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
+        <div className="lg:col-span-2 bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
           <h3 className="font-semibold mb-4">Resumen Semanal</h3>
-          <div className="h-64">
+          <div className="h-56 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
                 <defs>
@@ -169,8 +175,8 @@ export const Dashboard: React.FC = () => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
@@ -201,39 +207,45 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Balance Chart */}
-        <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
-          <h3 className="font-semibold mb-4">Balance Diario</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '12px',
-                  }}
-                  formatter={(value: number) => formatCurrency(value, settings.currencySymbol)}
-                />
-                <Legend />
-                <Bar 
-                  dataKey="ventas" 
-                  name="Ventas"
-                  fill="hsl(var(--chart-2))" 
-                  radius={[4, 4, 0, 0]} 
-                />
-                <Bar 
-                  dataKey="gastos" 
-                  name="Gastos"
-                  fill="hsl(var(--chart-4))" 
-                  radius={[4, 4, 0, 0]} 
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        {/* Recurring Payments Card */}
+        <RecurringPaymentsCard />
+      </div>
+
+      {/* Balance History */}
+      <BalanceHistory />
+
+      {/* Balance Chart */}
+      <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
+        <h3 className="font-semibold mb-4">Balance Diario</h3>
+        <div className="h-56 sm:h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--card))', 
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '12px',
+                }}
+                formatter={(value: number) => formatCurrency(value, settings.currencySymbol)}
+              />
+              <Legend />
+              <Bar 
+                dataKey="ventas" 
+                name="Ventas"
+                fill="hsl(var(--chart-2))" 
+                radius={[4, 4, 0, 0]} 
+              />
+              <Bar 
+                dataKey="gastos" 
+                name="Gastos"
+                fill="hsl(var(--chart-4))" 
+                radius={[4, 4, 0, 0]} 
+              />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
@@ -262,7 +274,7 @@ export const Dashboard: React.FC = () => {
 
       {/* Low Stock Alert */}
       {lowStockProducts.length > 0 && (
-        <div className="bg-warning/5 border border-warning/20 rounded-2xl p-5">
+        <div className="bg-warning/5 border border-warning/20 rounded-2xl p-4 sm:p-5">
           <h3 className="font-semibold text-warning mb-3 flex items-center gap-2">
             <AlertTriangle className="w-5 h-5" />
             Productos con Stock Bajo
