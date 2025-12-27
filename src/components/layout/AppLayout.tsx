@@ -60,14 +60,10 @@ export const AppLayout: React.FC = () => {
         <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-material">
-              <span className="text-primary-foreground font-bold text-lg">
-                N
-              </span>
+              <img src="/icon.svg" className="w-10 h-10" />
             </div>
             <div>
-              <h1 className="font-semibold text-sidebar-foreground">
-                Negocio360
-              </h1>
+              <h1 className="font-semibold text-sidebar-foreground">UP</h1>
               <p className="text-xs text-muted-foreground">Panel de control</p>
             </div>
           </div>
