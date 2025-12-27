@@ -1,32 +1,32 @@
-import React, { useState } from 'react';
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Receipt, 
-  Package, 
-  BarChart3, 
-  TrendingUp, 
-  Wrench, 
-  Settings, 
+import React, { useState } from "react";
+import { Outlet, NavLink, useLocation } from "react-router-dom";
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Receipt,
+  Package,
+  BarChart3,
+  TrendingUp,
+  Wrench,
+  Settings,
   Menu,
   X,
   Sun,
   Moon,
-  ChevronRight
-} from 'lucide-react';
-import { useApp } from '@/contexts/AppContext';
-import { cn } from '@/lib/utils';
+  ChevronRight,
+} from "lucide-react";
+import { useApp } from "@/contexts/AppContext";
+import { cn } from "@/lib/utils";
 
 const menuItems = [
-  { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/ventas', icon: ShoppingCart, label: 'Ventas' },
-  { path: '/gastos', icon: Receipt, label: 'Gastos' },
-  { path: '/inventario', icon: Package, label: 'Inventario' },
-  { path: '/analisis', icon: BarChart3, label: 'Análisis' },
-  { path: '/proyecciones', icon: TrendingUp, label: 'Proyecciones' },
-  { path: '/herramientas', icon: Wrench, label: 'Herramientas' },
-  { path: '/configuracion', icon: Settings, label: 'Configuración' },
+  { path: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { path: "/ventas", icon: ShoppingCart, label: "Ventas" },
+  { path: "/gastos", icon: Receipt, label: "Gastos" },
+  { path: "/inventario", icon: Package, label: "Inventario" },
+  { path: "/analisis", icon: BarChart3, label: "Análisis" },
+  { path: "/proyecciones", icon: TrendingUp, label: "Proyecciones" },
+  { path: "/herramientas", icon: Wrench, label: "Herramientas" },
+  { path: "/configuracion", icon: Settings, label: "Configuración" },
 ];
 
 export const AppLayout: React.FC = () => {
@@ -34,36 +34,44 @@ export const AppLayout: React.FC = () => {
   const { theme, toggleTheme } = useApp();
   const location = useLocation();
 
-  const currentPage = menuItems.find(item => item.path === location.pathname)?.label || 'Negocio360';
+  const currentPage =
+    menuItems.find((item) => item.path === location.pathname)?.label ||
+    "Negocio360";
 
   return (
     <div className="min-h-screen bg-background flex">
       {/* Overlay for mobile */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <aside className={cn(
-        "fixed lg:sticky top-0 left-0 z-50 h-screen w-72 bg-sidebar border-r border-sidebar-border",
-        "transform transition-transform duration-300 ease-material",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      )}>
+      <aside
+        className={cn(
+          "fixed lg:sticky top-0 left-0 z-50 h-screen w-72 bg-sidebar border-r border-sidebar-border",
+          "transform transition-transform duration-300 ease-material",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}
+      >
         {/* Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-material">
-              <span className="text-primary-foreground font-bold text-lg">N</span>
+              <span className="text-primary-foreground font-bold text-lg">
+                N
+              </span>
             </div>
             <div>
-              <h1 className="font-semibold text-sidebar-foreground">Negocio360</h1>
+              <h1 className="font-semibold text-sidebar-foreground">
+                Negocio360
+              </h1>
               <p className="text-xs text-muted-foreground">Panel de control</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
           >
@@ -78,20 +86,26 @@ export const AppLayout: React.FC = () => {
               key={item.path}
               to={item.path}
               onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) => cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
-                "group relative overflow-hidden",
-                isActive 
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-soft" 
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-              )}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
+                  "group relative overflow-hidden",
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-soft"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                )
+              }
             >
               {({ isActive }) => (
                 <>
-                  <item.icon className={cn(
-                    "w-5 h-5 transition-colors",
-                    isActive ? "text-sidebar-primary" : "text-muted-foreground group-hover:text-sidebar-primary"
-                  )} />
+                  <item.icon
+                    className={cn(
+                      "w-5 h-5 transition-colors",
+                      isActive
+                        ? "text-sidebar-primary"
+                        : "text-muted-foreground group-hover:text-sidebar-primary"
+                    )}
+                  />
                   <span className="flex-1">{item.label}</span>
                   {isActive && (
                     <ChevronRight className="w-4 h-4 text-sidebar-primary" />
@@ -108,7 +122,7 @@ export const AppLayout: React.FC = () => {
             onClick={toggleTheme}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
           >
-            {theme === 'light' ? (
+            {theme === "light" ? (
               <>
                 <Moon className="w-5 h-5 text-muted-foreground" />
                 <span>Modo oscuro</span>
@@ -137,7 +151,10 @@ export const AppLayout: React.FC = () => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-4 lg:p-6 overflow-auto">
+        <main
+          className=" 
+      w-[100vw] sm:w-full p-4 lg:p-6 overflow-auto"
+        >
           <Outlet />
         </main>
       </div>

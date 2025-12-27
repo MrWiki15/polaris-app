@@ -1,32 +1,32 @@
-import React, { useState, useMemo } from 'react';
-import { useApp } from '@/contexts/AppContext';
-import { FloatingButton } from '@/components/ui/FloatingButton';
-import { DataTable } from '@/components/ui/DataTable';
-import { ExpenseForm } from '@/components/forms/ExpenseForm';
-import { MetricCard } from '@/components/ui/MetricCard';
-import { formatCurrency } from '@/lib/storage';
-import { Receipt, Calendar, PieChart } from 'lucide-react';
-import { Expense } from '@/lib/storage';
-import { 
-  PieChart as RechartsPie, 
-  Pie, 
-  Cell, 
+import React, { useState, useMemo } from "react";
+import { useApp } from "@/contexts/AppContext";
+import { FloatingButton } from "@/components/ui/FloatingButton";
+import { DataTable } from "@/components/ui/DataTable";
+import { ExpenseForm } from "@/components/forms/ExpenseForm";
+import { MetricCard } from "@/components/ui/MetricCard";
+import { formatCurrency } from "@/lib/storage";
+import { Receipt, Calendar, PieChart } from "lucide-react";
+import { Expense } from "@/lib/storage";
+import {
+  PieChart as RechartsPie,
+  Pie,
+  Cell,
   ResponsiveContainer,
   Legend,
-  Tooltip
-} from 'recharts';
-import { cn } from '@/lib/utils';
+  Tooltip,
+} from "recharts";
+import { cn } from "@/lib/utils";
 
-type FilterPeriod = 'today' | 'week' | 'month' | 'all';
+type FilterPeriod = "today" | "week" | "month" | "all";
 
 const COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
-  'hsl(262 83% 58%)',
-  'hsl(199 89% 48%)',
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+  "hsl(262 83% 58%)",
+  "hsl(199 89% 48%)",
 ];
 
 export const Gastos: React.FC = () => {
@@ -34,23 +34,23 @@ export const Gastos: React.FC = () => {
   const { expenses, settings } = data;
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [filter, setFilter] = useState<FilterPeriod>('week');
+  const [filter, setFilter] = useState<FilterPeriod>("week");
 
   // Filter expenses
   const filteredExpenses = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
 
     switch (filter) {
-      case 'today':
-        return expenses.filter(e => e.date === today);
-      case 'week':
-        return expenses.filter(e => new Date(e.date) >= weekAgo);
-      case 'month':
-        return expenses.filter(e => new Date(e.date) >= monthAgo);
+      case "today":
+        return expenses.filter((e) => e.date === today);
+      case "week":
+        return expenses.filter((e) => new Date(e.date) >= weekAgo);
+      case "month":
+        return expenses.filter((e) => new Date(e.date) >= monthAgo);
       default:
         return expenses;
     }
@@ -58,17 +58,17 @@ export const Gastos: React.FC = () => {
 
   // Metrics
   const totalFiltered = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-  
+
   const weekExpenses = useMemo(() => {
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    return expenses.filter(e => new Date(e.date) >= weekAgo);
+    return expenses.filter((e) => new Date(e.date) >= weekAgo);
   }, [expenses]);
-  
+
   const monthExpenses = useMemo(() => {
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
-    return expenses.filter(e => new Date(e.date) >= monthAgo);
+    return expenses.filter((e) => new Date(e.date) >= monthAgo);
   }, [expenses]);
 
   const weekTotal = weekExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -77,7 +77,7 @@ export const Gastos: React.FC = () => {
   // Category breakdown for pie chart
   const categoryData = useMemo(() => {
     const categories: { [key: string]: number } = {};
-    filteredExpenses.forEach(e => {
+    filteredExpenses.forEach((e) => {
       categories[e.category] = (categories[e.category] || 0) + e.amount;
     });
     return Object.entries(categories).map(([name, value]) => ({ name, value }));
@@ -89,20 +89,21 @@ export const Gastos: React.FC = () => {
   };
 
   const handleDelete = (expense: Expense) => {
-    if (confirm('¿Eliminar este gasto?')) {
+    if (confirm("¿Eliminar este gasto?")) {
       deleteExpense(expense.id);
     }
   };
 
   const columns = [
     {
-      key: 'date',
-      header: 'Fecha',
-      render: (expense: Expense) => new Date(expense.date).toLocaleDateString('es-ES'),
+      key: "date",
+      header: "Fecha",
+      render: (expense: Expense) =>
+        new Date(expense.date).toLocaleDateString("es-ES"),
     },
     {
-      key: 'amount',
-      header: 'Monto',
+      key: "amount",
+      header: "Monto",
       render: (expense: Expense) => (
         <span className="font-semibold text-destructive">
           -{formatCurrency(expense.amount, settings.currencySymbol)}
@@ -110,8 +111,8 @@ export const Gastos: React.FC = () => {
       ),
     },
     {
-      key: 'category',
-      header: 'Categoría',
+      key: "category",
+      header: "Categoría",
       render: (expense: Expense) => (
         <span className="px-2 py-1 bg-destructive/10 text-destructive rounded-lg text-sm">
           {expense.category}
@@ -119,10 +120,10 @@ export const Gastos: React.FC = () => {
       ),
     },
     {
-      key: 'description',
-      header: 'Descripción',
-      render: (expense: Expense) => expense.description || '-',
-      className: 'hidden sm:table-cell',
+      key: "description",
+      header: "Descripción",
+      render: (expense: Expense) => expense.description || "-",
+      className: "hidden sm:table-cell",
     },
   ];
 
@@ -168,19 +169,26 @@ export const Gastos: React.FC = () => {
                   outerRadius={80}
                   paddingAngle={5}
                   dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
                   labelLine={false}
                 >
                   {categoryData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
                   ))}
                 </Pie>
-                <Tooltip 
-                  formatter={(value: number) => formatCurrency(value, settings.currencySymbol)}
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '12px',
+                <Tooltip
+                  formatter={(value: number) =>
+                    formatCurrency(value, settings.currencySymbol)
+                  }
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "12px",
                   }}
                 />
                 <Legend />
@@ -193,19 +201,19 @@ export const Gastos: React.FC = () => {
       {/* Filters */}
       <div className="flex gap-2 overflow-x-auto pb-2">
         {[
-          { key: 'today', label: 'Hoy' },
-          { key: 'week', label: 'Semana' },
-          { key: 'month', label: 'Mes' },
-          { key: 'all', label: 'Todo' },
+          { key: "today", label: "Hoy" },
+          { key: "week", label: "Semana" },
+          { key: "month", label: "Mes" },
+          { key: "all", label: "Todo" },
         ].map((f) => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key as FilterPeriod)}
             className={cn(
-              'px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all',
+              "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
               filter === f.key
-                ? 'bg-destructive text-destructive-foreground shadow-material'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                ? "bg-destructive text-destructive-foreground shadow-material"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
             )}
           >
             {f.label}
@@ -215,7 +223,9 @@ export const Gastos: React.FC = () => {
 
       {/* Table */}
       <DataTable
-        data={filteredExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
+        data={filteredExpenses.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        )}
         columns={columns}
         onEdit={handleEdit}
         onDelete={handleDelete}
