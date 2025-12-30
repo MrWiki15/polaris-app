@@ -21,6 +21,7 @@ import PreciosDinamicos from "@/pages/PreciosDinamicos";
 import Deudas from "@/pages/Deudas";
 import PostsRedes from "@/pages/PostsRedes";
 import PagosRecurrentes from "@/pages/PagosRecurrentes";
+import Servicios from "@/pages/Servicios";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,9 +36,10 @@ const App = () => (
           <Routes>
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/ventas" element={<Ventas />} />
+              <Route path="/ingresos" element={<Ventas />} />
               <Route path="/gastos" element={<Gastos />} />
               <Route path="/inventario" element={<Inventario />} />
+              <Route path="/servicios" element={<Servicios />} />
               <Route path="/analisis" element={<Analisis />} />
               <Route path="/proyecciones" element={<Proyecciones />} />
               <Route path="/herramientas" element={<Herramientas />} />

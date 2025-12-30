@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Package, DollarSign, ScanBarcode } from "lucide-react";
+import { X, Package, DollarSign, ScanBarcode, User, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,27 +20,35 @@ interface SaleFormProps {
     description?: string;
     productId?: string;
     quantity?: number;
+    serviceId?: string;
     tags?: string[];
   };
 }
 
-const categories = [
-  "Alimentos",
-  "Bebidas",
-  "Higiene",
-  "Limpieza",
-  "Electrónica",
-  "Ropa",
-  "Otros",
-];
-
 export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
   const { addSale, updateSale, data } = useApp();
-  const { products, settings } = data;
+  const { products, settings, services } = data;
 
-  const [saleType, setSaleType] = useState<"manual" | "inventory">(
-    editingSale?.productId ? "inventory" : "manual"
+  const [saleType, setSaleType] = useState<"manual" | "inventory" | "service">(
+    editingSale?.productId
+      ? "inventory"
+      : editingSale?.serviceId
+      ? "service"
+      : "manual"
   );
+  const [categories, setCategories] = useState([
+    "Alimentos",
+    "Bebidas",
+    "Higiene",
+    "Limpieza",
+    "Electrónica",
+    "Ropa",
+    "Remesa",
+    "Recargas",
+    "Envios",
+    "Otros",
+  ]);
+  const [selectedService, setSelectedService] = useState();
   const [formData, setFormData] = useState({
     date: editingSale?.date || new Date().toISOString().split("T")[0],
     amount: editingSale?.amount?.toString() || "",
@@ -48,9 +56,15 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
     description: editingSale?.description || "",
     productId: editingSale?.productId || "",
     quantity: editingSale?.quantity?.toString() || "1",
+    serviceId: editingSale?.serviceId || "",
     tags: editingSale?.tags || [],
   });
   const [showScanner, setShowScanner] = useState(false);
+  const [showImputFromNewCategory, setShowInputFromNewCategory] =
+    useState(false);
+  const [newCategory, setNewcategory] = useState("");
+  const [showTagsSelector, setShowTagsSelector] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const handleScan = (code: string) => {
     const product = products.find((p) => p.barcode === code);
@@ -66,6 +80,15 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
       toast.error("Producto no encontrado en el inventario");
     }
     setShowScanner(false);
+  };
+
+  const handleAddCategory = () => {
+    setFormData((prev) => ({
+      ...prev,
+      category: [...prev.category, newCategory],
+    }));
+    setNewcategory("");
+    setShowInputFromNewCategory(false);
   };
 
   const selectedProduct = products.find((p) => p.id === formData.productId);
@@ -88,7 +111,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
           : formData.category,
       description:
         saleType === "inventory" && selectedProduct
-          ? `Venta: ${selectedProduct.name} x${formData.quantity}`
+          ? `Ingreso: ${selectedProduct.name} x${formData.quantity}`
           : formData.description || undefined,
       productId: saleType === "inventory" ? formData.productId : undefined,
       quantity:
@@ -128,7 +151,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="text-lg font-semibold">
-            {editingSale ? "Editar Venta" : "Nueva Venta"}
+            {editingSale ? "Editar Ingreso" : "Nuevo Ingreso"}
           </h2>
           <button
             onClick={onClose}
@@ -143,7 +166,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
           {/* Sale Type Toggle */}
           {!editingSale && (
             <div className="space-y-2">
-              <Label>Tipo de venta</Label>
+              <Label>Tipo de ingreso</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -170,6 +193,20 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                 >
                   <Package className="w-4 h-4" />
                   <span className="text-sm font-medium">Del Inventario</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSaleType("service")}
+                  className={cn(
+                    "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all",
+                    saleType === "service"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground"
+                  )}
+                >
+                  <User className="w-4 h-4" />
+                  <span className="text-sm font-medium">Servicio</span>
                 </button>
               </div>
             </div>
@@ -275,7 +312,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                 <div className="p-4 bg-success/10 rounded-xl border border-success/20">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">
-                      Total de la venta
+                      Total de la ingreso
                     </span>
                     <span className="text-xl font-bold text-success">
                       {formatCurrency(
@@ -286,6 +323,104 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                   </div>
                 </div>
               )}
+            </>
+          ) : saleType === "service" ? (
+            <>
+              <div className="space-y-2">
+                <Label>Servicio</Label>
+                {services.length > 0 ? (
+                  <div className="max-h-40 overflow-y-auto space-y-2 border border-border rounded-xl p-2">
+                    {services.map((svc) => (
+                      <button
+                        key={svc.id}
+                        type="button"
+                        onClick={() => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            serviceId: svc.id,
+                          }));
+                          setSelectedService(svc);
+                        }}
+                        className={cn(
+                          "w-full flex items-center justify-between p-3 rounded-lg transition-all text-left",
+                          formData.serviceId === svc.id
+                            ? "bg-primary/10 border-2 border-primary"
+                            : "bg-muted hover:bg-muted/80 border-2 border-transparent"
+                        )}
+                      >
+                        <div>
+                          <span className="font-medium text-sm">
+                            {svc.name}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {svc.isVariablePrice
+                              ? "Precio variable"
+                              : formatCurrency(
+                                  svc.price || 0,
+                                  settings.currencySymbol
+                                )}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground p-3 bg-muted rounded-xl">
+                    No hay servicios en el catálogo
+                  </p>
+                )}
+              </div>
+
+              {selectedService && selectedService.isVariablePrice && (
+                <div className="space-y-2">
+                  <Label htmlFor="amount">Monto cobrado</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.amount}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        amount: e.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </div>
+              )}
+
+              {!selectedService?.isVariablePrice && selectedService && (
+                <div className="p-4 bg-success/10 rounded-xl border border-success/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">
+                      Monto del servicio
+                    </span>
+                    <span className="text-xl font-bold text-success">
+                      {formatCurrency(
+                        selectedService.price || 0,
+                        settings.currencySymbol
+                      )}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Detalles (opcional)</Label>
+                <Input
+                  id="description"
+                  placeholder="Describe brevemente el servicio"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </>
           ) : (
             <>
@@ -306,29 +441,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
               </div>
 
               <div className="space-y-2">
-                <Label>Categoría</Label>
-                <div className="flex flex-wrap gap-2">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() =>
-                        setFormData((prev) => ({ ...prev, category: cat }))
-                      }
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
-                        formData.category === cat
-                          ? "bg-primary text-primary-foreground shadow-material"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      )}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="description">Descripción (opcional)</Label>
                 <Input
                   id="description"
@@ -344,6 +456,29 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
               </div>
             </>
           )}
+
+          <div className="space-y-2">
+            <Label>Categoría</Label>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, category: cat }))
+                  }
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                    formData.category === cat
+                      ? "bg-primary text-primary-foreground shadow-material"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Tags */}
           <TagSelector
@@ -366,7 +501,9 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
               disabled={
                 saleType === "manual"
                   ? !formData.amount
-                  : !formData.productId || !formData.quantity
+                  : saleType === "inventory"
+                  ? !formData.productId || !formData.quantity
+                  : !formData.serviceId
               }
             >
               {editingSale ? "Guardar" : "Registrar"}

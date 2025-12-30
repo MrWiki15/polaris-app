@@ -115,6 +115,25 @@ export interface Debt {
   createdAt: string;
 }
 
+export interface Service {
+  id: string;
+  name: string;
+  isVariablePrice: boolean;
+  price?: number;
+  description?: string;
+  createdAt: string;
+}
+
+export interface ServiceIncome {
+  id: string;
+  date: string;
+  serviceId: string;
+  amount: number;
+  description?: string;
+  tags?: string[];
+  clientId?: string;
+}
+
 export interface AppData {
   sales: Sale[];
   expenses: Expense[];
@@ -126,6 +145,8 @@ export interface AppData {
   recurringPayments: RecurringPayment[];
   suppliers: Supplier[];
   supplierOrders: SupplierOrder[];
+  services: Service[];
+  serviceIncomes: ServiceIncome[];
   customTags: string[];
   settings: {
     currency: string;
@@ -152,6 +173,8 @@ const defaultData: AppData = {
   recurringPayments: [],
   suppliers: [],
   supplierOrders: [],
+  services: [],
+  serviceIncomes: [],
   customTags: [
     "Promoción",
     "Delivery",
@@ -220,6 +243,8 @@ const generateDemoData = (): AppData => {
     recurringPayments,
     suppliers: [],
     supplierOrders: [],
+    services: [],
+    serviceIncomes: [],
     customTags,
     settings: defaultData.settings,
   };
@@ -241,6 +266,8 @@ export const loadData = (): AppData => {
         recurringPayments: parsed.recurringPayments || [],
         suppliers: parsed.suppliers || [],
         supplierOrders: parsed.supplierOrders || [],
+        services: parsed.services || [],
+        serviceIncomes: parsed.serviceIncomes || [],
         customTags: parsed.customTags || defaultData.customTags,
       };
     }

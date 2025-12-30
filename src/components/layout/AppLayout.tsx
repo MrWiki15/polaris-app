@@ -14,15 +14,17 @@ import {
   Sun,
   Moon,
   ChevronRight,
+  ClipboardList,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 
 const menuItems = [
   { path: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { path: "/ventas", icon: ShoppingCart, label: "Ventas" },
+  { path: "/ingresos", icon: ShoppingCart, label: "Ingresos" },
   { path: "/gastos", icon: Receipt, label: "Gastos" },
   { path: "/inventario", icon: Package, label: "Inventario" },
+  { path: "/servicios", icon: ClipboardList, label: "Servicios" },
   { path: "/analisis", icon: BarChart3, label: "Análisis" },
   { path: "/proyecciones", icon: TrendingUp, label: "Proyecciones" },
   { path: "/herramientas", icon: Wrench, label: "Herramientas" },

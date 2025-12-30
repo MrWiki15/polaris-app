@@ -11,6 +11,8 @@ import {
   RecurringPayment,
   Supplier,
   SupplierOrder,
+  Service,
+  ServiceIncome,
   loadData, 
   saveData, 
   generateId 
@@ -60,6 +62,14 @@ interface AppContextType {
   updateSupplierOrder: (id: string, order: Partial<SupplierOrder>) => void;
   deleteSupplierOrder: (id: string) => void;
   receiveSupplierOrder: (orderId: string) => void;
+  // Services Catalog
+  addService: (service: Omit<Service, 'id' | 'createdAt'>) => void;
+  updateService: (id: string, service: Partial<Service>) => void;
+  deleteService: (id: string) => void;
+  // Service Incomes
+  addServiceIncome: (income: Omit<ServiceIncome, 'id'>) => void;
+  updateServiceIncome: (id: string, income: Partial<ServiceIncome>) => void;
+  deleteServiceIncome: (id: string) => void;
   // Custom Tags
   addCustomTag: (tag: string) => void;
   deleteCustomTag: (tag: string) => void;
@@ -386,6 +396,46 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }));
   };
 
+  // Services catalog operations
+  const addService = (service: Omit<Service, 'id' | 'createdAt'>) => {
+    const newService: Service = { ...service, id: generateId(), createdAt: new Date().toISOString() };
+    setData(prev => ({ ...prev, services: [newService, ...prev.services] }));
+  };
+
+  const updateService = (id: string, serviceUpdate: Partial<Service>) => {
+    setData(prev => ({
+      ...prev,
+      services: prev.services.map(s => s.id === id ? { ...s, ...serviceUpdate } : s)
+    }));
+  };
+
+  const deleteService = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      services: prev.services.filter(s => s.id !== id)
+    }));
+  };
+
+  // Service incomes operations
+  const addServiceIncome = (income: Omit<ServiceIncome, 'id'>) => {
+    const newIncome: ServiceIncome = { ...income, id: generateId() };
+    setData(prev => ({ ...prev, serviceIncomes: [newIncome, ...prev.serviceIncomes] }));
+  };
+
+  const updateServiceIncome = (id: string, incomeUpdate: Partial<ServiceIncome>) => {
+    setData(prev => ({
+      ...prev,
+      serviceIncomes: prev.serviceIncomes.map(i => i.id === id ? { ...i, ...incomeUpdate } : i)
+    }));
+  };
+
+  const deleteServiceIncome = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      serviceIncomes: prev.serviceIncomes.filter(i => i.id !== id)
+    }));
+  };
+
   // Settings operations
   const updateSettings = (settings: Partial<AppData['settings']>) => {
     setData(prev => ({
@@ -429,6 +479,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       updateSupplierOrder,
       deleteSupplierOrder,
       receiveSupplierOrder,
+      addService,
+      updateService,
+      deleteService,
+      addServiceIncome,
+      updateServiceIncome,
+      deleteServiceIncome,
       addCustomTag,
       deleteCustomTag,
       updateSettings,

@@ -22,7 +22,7 @@ type FilterPeriod = "today" | "week" | "month" | "all";
 
 export const Ventas: React.FC = () => {
   const { data, deleteSale } = useApp();
-  const { sales, settings } = data;
+  const { sales, serviceIncomes, services, settings } = data;
   const [showForm, setShowForm] = useState(false);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [filter, setFilter] = useState<FilterPeriod>("week");
@@ -129,27 +129,55 @@ export const Ventas: React.FC = () => {
     },
   ];
 
+  const serviceColumns = [
+    {
+      key: "date",
+      header: "Fecha",
+      render: (r: any) => new Date(r.date).toLocaleDateString("es-ES"),
+    },
+    {
+      key: "amount",
+      header: "Monto",
+      render: (r: any) => (
+        <span className="font-semibold text-success">
+          {formatCurrency(r.amount, settings.currencySymbol)}
+        </span>
+      ),
+    },
+    {
+      key: "service",
+      header: "Servicio",
+      render: (r: any) => services.find(s => s.id === r.serviceId)?.name || "-",
+    },
+    {
+      key: "description",
+      header: "Descripción",
+      render: (r: any) => r.description || "-",
+      className: "hidden sm:table-cell",
+    },
+  ];
+
   return (
     <div className=" space-y-4 pb-24">
       {/* Metrics */}
       <div className=" grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
-          title="Ventas esta semana"
+          title="Ingresos por productos (últimos 7 días)"
           value={formatCurrency(weekTotal, settings.currencySymbol)}
           icon={<ShoppingCart className="w-5 h-5" />}
-          subtitle={`${weekSales.length} transacciones`}
+          subtitle={`${weekSales.length} ventas`}
           variant="success"
         />
         <MetricCard
-          title="Ventas del mes"
-          value={formatCurrency(monthTotal, settings.currencySymbol)}
+          title="Ingresos del mes (total)"
+          value={formatCurrency(monthTotal + (() => { const ma = new Date(); ma.setMonth(ma.getMonth() - 1); return serviceIncomes.filter(si => new Date(si.date) >= ma).reduce((sum, si) => sum + si.amount, 0); })(), settings.currencySymbol)}
           icon={<Calendar className="w-5 h-5" />}
-          subtitle={`${monthSales.length} transacciones`}
+          subtitle={`Productos + Servicios`}
           variant="primary"
         />
         <MetricCard
-          title="Promedio por venta"
-          value={formatCurrency(avgSale, settings.currencySymbol)}
+          title="Ingresos por servicios (últimos 30 días)"
+          value={formatCurrency((() => { const ma = new Date(); ma.setMonth(ma.getMonth() - 1); return serviceIncomes.filter(si => new Date(si.date) >= ma).reduce((sum, si) => sum + si.amount, 0); })(), settings.currencySymbol)}
           icon={<TrendingUp className="w-5 h-5" />}
           variant="default"
         />
@@ -157,7 +185,7 @@ export const Ventas: React.FC = () => {
 
       {/* Chart */}
       <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
-        <h3 className="font-semibold mb-4">Tendencia de Ventas</h3>
+        <h3 className="font-semibold mb-4">Tendencia de Ingresos</h3>
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
@@ -225,8 +253,19 @@ export const Ventas: React.FC = () => {
         columns={columns}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        emptyMessage="No hay ventas registradas"
+        emptyMessage="No hay ingresos por productos"
       />
+
+      <div className="mt-6">
+        <h3 className="font-semibold mb-3">Ingresos por servicios</h3>
+        <DataTable
+          data={serviceIncomes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
+          columns={serviceColumns}
+          onEdit={undefined}
+          onDelete={undefined}
+          emptyMessage="No hay ingresos por servicios"
+        />
+      </div>
 
       {/* Floating Button */}
       <FloatingButton
@@ -234,7 +273,7 @@ export const Ventas: React.FC = () => {
           setEditingSale(null);
           setShowForm(true);
         }}
-        label="Nueva Venta"
+        label="Nuevo ingreso (producto)"
       />
 
       {/* Form Modal */}
