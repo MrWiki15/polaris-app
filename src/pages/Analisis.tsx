@@ -1,6 +1,7 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { ExportButtons } from "@/components/ui/ExportButtons";
 import { formatCurrency } from "@/lib/storage";
 import {
   TrendingUp,
@@ -9,7 +10,11 @@ import {
   Target,
   Lightbulb,
   BarChart3,
+  Crown,
+  Lock,
 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { ExportData } from "@/lib/exportUtils";
 import {
   AreaChart,
   Area,
@@ -35,9 +40,13 @@ const COLORS = [
   "hsl(var(--chart-5))",
 ];
 
+type AnalysisPeriod = "6m" | "12m" | "24m";
+
 export const Analisis: React.FC = () => {
   const { data } = useApp();
-  const { sales, expenses, products, settings } = data;
+  const { sales, expenses, products, settings, clients, suppliers } = data;
+  const isPremium = settings.isPremium || false;
+  const [analysisPeriod, setAnalysisPeriod] = useState<AnalysisPeriod>("6m");
 
   // Calculate metrics
   const totalSales = sales.reduce((sum, s) => sum + s.amount, 0);
@@ -50,17 +59,22 @@ export const Analisis: React.FC = () => {
     const months: {
       [key: string]: { ventas: number; gastos: number; balance: number };
     } = {};
-    const last6Months = [];
+    const monthCount =
+      analysisPeriod === "6m" ? 6 : analysisPeriod === "12m" ? 12 : 24;
+    const lastMonths = [];
 
-    for (let i = 5; i >= 0; i--) {
+    for (let i = monthCount - 1; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
       const monthKey = `${date.getFullYear()}-${String(
         date.getMonth() + 1
       ).padStart(2, "0")}`;
-      const monthName = date.toLocaleDateString("es-ES", { month: "short" });
+      const monthName = date.toLocaleDateString("es-ES", {
+        month: "short",
+        year: monthCount > 12 ? "2-digit" : undefined,
+      });
       months[monthKey] = { ventas: 0, gastos: 0, balance: 0 };
-      last6Months.push({ key: monthKey, name: monthName });
+      lastMonths.push({ key: monthKey, name: monthName });
     }
 
     sales.forEach((s) => {
@@ -77,13 +91,13 @@ export const Analisis: React.FC = () => {
       }
     });
 
-    return last6Months.map((m) => ({
+    return lastMonths.map((m) => ({
       name: m.name,
       ventas: months[m.key].ventas,
       gastos: months[m.key].gastos,
       balance: months[m.key].ventas - months[m.key].gastos,
     }));
-  }, [sales, expenses]);
+  }, [sales, expenses, analysisPeriod]);
 
   // Sales by category
   const salesByCategory = useMemo(() => {
@@ -95,6 +109,132 @@ export const Analisis: React.FC = () => {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
   }, [sales]);
+
+  // Premium: Top 10 most frequent clients
+  const topClients = useMemo(() => {
+    if (!isPremium) return [];
+    const clientMap: {
+      [key: string]: { name: string; count: number; revenue: number };
+    } = {};
+
+    sales.forEach((s) => {
+      if (s.clientId) {
+        if (!clientMap[s.clientId]) {
+          const client = clients.find((c) => c.id === s.clientId);
+          clientMap[s.clientId] = {
+            name: client?.name || "Desconocido",
+            count: 0,
+            revenue: 0,
+          };
+        }
+        clientMap[s.clientId].count += 1;
+        clientMap[s.clientId].revenue += s.amount;
+      }
+    });
+
+    return Object.values(clientMap)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [sales, clients, isPremium]);
+
+  // Premium: Client with highest revenue
+  const topRevenueClient = useMemo(() => {
+    if (!isPremium) return null;
+    const clientMap: {
+      [key: string]: { name: string; revenue: number };
+    } = {};
+
+    sales.forEach((s) => {
+      if (s.clientId) {
+        if (!clientMap[s.clientId]) {
+          const client = clients.find((c) => c.id === s.clientId);
+          clientMap[s.clientId] = {
+            name: client?.name || "Desconocido",
+            revenue: 0,
+          };
+        }
+        clientMap[s.clientId].revenue += s.amount;
+      }
+    });
+
+    const topClient = Object.values(clientMap).sort(
+      (a, b) => b.revenue - a.revenue
+    )[0];
+    return topClient || null;
+  }, [sales, clients, isPremium]);
+
+  // Premium: Supplier with most products
+  const topSupplierByProducts = useMemo(() => {
+    if (!isPremium) return null;
+    const supplierMap: {
+      [key: string]: { name: string; count: number };
+    } = {};
+
+    products.forEach((p) => {
+      if (p.supplierId) {
+        if (!supplierMap[p.supplierId]) {
+          const supplier = suppliers.find((s) => s.id === p.supplierId);
+          supplierMap[p.supplierId] = {
+            name: supplier?.name || "Desconocido",
+            count: 0,
+          };
+        }
+        supplierMap[p.supplierId].count += 1;
+      }
+    });
+
+    const topSupplier = Object.entries(supplierMap)
+      .map(([id, data]) => data)
+      .sort((a, b) => b.count - a.count)[0];
+    return topSupplier || null;
+  }, [products, suppliers, isPremium]);
+
+  // Premium: Most profitable supplier by margin
+  const topSupplierByMargin = useMemo(() => {
+    if (!isPremium) return null;
+    const supplierMap: {
+      [key: string]: {
+        name: string;
+        totalCost: number;
+        totalRevenue: number;
+        count: number;
+      };
+    } = {};
+
+    products.forEach((p) => {
+      if (p.supplierId) {
+        if (!supplierMap[p.supplierId]) {
+          const supplier = suppliers.find((s) => s.id === p.supplierId);
+          supplierMap[p.supplierId] = {
+            name: supplier?.name || "Desconocido",
+            totalCost: 0,
+            totalRevenue: 0,
+            count: 0,
+          };
+        }
+        supplierMap[p.supplierId].totalCost += p.cost * p.quantity;
+        supplierMap[p.supplierId].totalRevenue += p.price * p.quantity;
+        supplierMap[p.supplierId].count += 1;
+      }
+    });
+
+    const suppliersWithMargin = Object.values(supplierMap)
+      .map((s) => ({
+        name: s.name,
+        margin:
+          s.totalCost > 0
+            ? (((s.totalRevenue - s.totalCost) / s.totalCost) * 100).toFixed(1)
+            : 0,
+        revenue: s.totalRevenue,
+        count: s.count,
+      }))
+      .sort(
+        (a, b) =>
+          parseFloat(b.margin as string) - parseFloat(a.margin as string)
+      );
+
+    return suppliersWithMargin[0] || null;
+  }, [products, suppliers, isPremium]);
 
   // Generate insights
   const insights = useMemo(() => {
@@ -183,6 +323,43 @@ export const Analisis: React.FC = () => {
     return tips;
   }, [salesByCategory, totalSales, profitMargin, products, monthlyData]);
 
+  // Prepare export data
+  const exportData = useMemo<ExportData>(
+    () => ({
+      title: "Análisis Financiero",
+      headers: ["Mes", "Ingresos", "Gastos", "Balance"],
+      rows: monthlyData.map((month) => [
+        month.name,
+        month.ventas,
+        month.gastos,
+        month.balance,
+      ]),
+      summary: [
+        {
+          label: "Total Ingresos",
+          value: formatCurrency(totalSales, settings.currencySymbol),
+        },
+        {
+          label: "Total Gastos",
+          value: formatCurrency(totalExpenses, settings.currencySymbol),
+        },
+        {
+          label: "Beneficio Neto",
+          value: formatCurrency(profit, settings.currencySymbol),
+        },
+        { label: "Margen de Beneficio", value: `${profitMargin.toFixed(1)}%` },
+      ],
+    }),
+    [
+      monthlyData,
+      totalSales,
+      totalExpenses,
+      profit,
+      profitMargin,
+      settings.currencySymbol,
+    ]
+  );
+
   return (
     <div className="space-y-6 pb-20">
       {/* Key Metrics */}
@@ -224,7 +401,81 @@ export const Analisis: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Monthly Trend */}
         <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
-          <h3 className="font-semibold mb-4">Tendencia Mensual</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <h3 className="font-semibold">Tendencia Mensual</h3>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setAnalysisPeriod("6m")}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                  analysisPeriod === "6m"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                6 meses
+              </button>
+              {isPremium ? (
+                <>
+                  <button
+                    onClick={() => setAnalysisPeriod("12m")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
+                      analysisPeriod === "12m"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    <Crown className="w-3 h-3" />
+                    12 meses
+                  </button>
+                  <button
+                    onClick={() => setAnalysisPeriod("24m")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
+                      analysisPeriod === "24m"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    <Crown className="w-3 h-3" />
+                    24 meses
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      toast({
+                        title: "Funcionalidad Premium",
+                        description:
+                          "Los períodos extendidos están disponibles solo para usuarios premium",
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed"
+                    disabled
+                  >
+                    <Lock className="w-3 h-3" />
+                    12 meses
+                  </button>
+                  <button
+                    onClick={() => {
+                      toast({
+                        title: "Funcionalidad Premium",
+                        description:
+                          "Los períodos extendidos están disponibles solo para usuarios premium",
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed"
+                    disabled
+                  >
+                    <Lock className="w-3 h-3" />
+                    24 meses
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={monthlyData}>
@@ -358,6 +609,162 @@ export const Analisis: React.FC = () => {
         </div>
       </div>
 
+      {/* Premium Analysis: Clients */}
+      {isPremium && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top Clients */}
+          <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">Top 10 Clientes Recurrentes</h3>
+              <Crown className="w-5 h-5 text-amber-500" />
+            </div>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {topClients.length > 0 ? (
+                topClients.map((client, index) => (
+                  <div
+                    key={index}
+                    className="p-3 bg-muted rounded-lg flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{client.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {client.count} compra{client.count !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-sm">
+                        {formatCurrency(
+                          client.revenue,
+                          settings.currencySymbol
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Sin clientes registrados en las ventas
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Top Revenue Client */}
+          <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">Cliente con Mayor Ganancia</h3>
+              <TrendingUp className="w-5 h-5 text-success" />
+            </div>
+            {topRevenueClient ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-success/10 rounded-lg border border-success/20">
+                  <p className="text-sm text-muted-foreground mb-1">Cliente</p>
+                  <p className="font-semibold text-lg">
+                    {topRevenueClient.name}
+                  </p>
+                </div>
+                <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Ingresos Generados
+                  </p>
+                  <p className="font-semibold text-lg text-primary">
+                    {formatCurrency(
+                      topRevenueClient.revenue,
+                      settings.currencySymbol
+                    )}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Sin datos disponibles
+              </div>
+            )}
+          </div>
+
+          {/* Supplier with Most Products */}
+          <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">Proveedor con Más Productos</h3>
+              <BarChart3 className="w-5 h-5 text-blue-500" />
+            </div>
+            {topSupplierByProducts ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Proveedor
+                  </p>
+                  <p className="font-semibold text-lg">
+                    {topSupplierByProducts.name}
+                  </p>
+                </div>
+                <div className="p-4 bg-info/10 rounded-lg border border-info/20">
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Productos Suministrados
+                  </p>
+                  <p className="font-semibold text-lg text-info">
+                    {topSupplierByProducts.count} producto
+                    {topSupplierByProducts.count !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Sin datos disponibles
+              </div>
+            )}
+          </div>
+
+          {/* Most Profitable Supplier by Margin */}
+          <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">Proveedor Más Rentable (Margen)</h3>
+              <Percent className="w-5 h-5 text-amber-500" />
+            </div>
+            {topSupplierByMargin ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Proveedor
+                  </p>
+                  <p className="font-semibold text-lg">
+                    {topSupplierByMargin.name}
+                  </p>
+                </div>
+                <div className="p-4 bg-success/10 rounded-lg border border-success/20">
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Margen de Ganancia
+                  </p>
+                  <p className="font-semibold text-lg text-success">
+                    {topSupplierByMargin.margin}%
+                  </p>
+                </div>
+                <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Ingresos Total
+                  </p>
+                  <p className="font-semibold text-sm text-primary">
+                    {formatCurrency(
+                      topSupplierByMargin.revenue,
+                      settings.currencySymbol
+                    )}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Sin datos disponibles
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Balance Chart */}
       <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
         <h3 className="font-semibold mb-4">Balance Mensual</h3>
@@ -429,6 +836,15 @@ export const Analisis: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Header with Export */}
+      <div className="flex justify-end">
+        <ExportButtons
+          data={exportData}
+          filename="analisis"
+          isPremium={isPremium}
+        />
+      </div>
     </div>
   );
 };

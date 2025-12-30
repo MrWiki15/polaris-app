@@ -1,10 +1,18 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-  AppData, 
-  Sale, 
-  Expense, 
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+} from "react";
+import {
+  AppData,
+  Sale,
+  Expense,
   Product,
   Client,
+  Worker,
   CalendarEvent,
   FinancialGoal,
   Debt,
@@ -13,73 +21,94 @@ import {
   SupplierOrder,
   Service,
   ServiceIncome,
-  loadData, 
-  saveData, 
-  generateId 
-} from '@/lib/storage';
+  loadData,
+  saveData,
+  generateId,
+  formatCurrency,
+} from "@/lib/storage";
+import { useSupabaseSync } from "@/hooks/use-supabase-sync";
+import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
+
+interface SyncState {
+  isSyncing: boolean;
+  isOnline: boolean;
+  lastSyncTime: string | null;
+}
 
 interface AppContextType {
   data: AppData;
+  supabaseSyncState?: SyncState;
   // Sales
-  addSale: (sale: Omit<Sale, 'id'>) => void;
+  addSale: (sale: Omit<Sale, "id">) => void;
   updateSale: (id: string, sale: Partial<Sale>) => void;
   deleteSale: (id: string) => void;
   // Expenses
-  addExpense: (expense: Omit<Expense, 'id'>) => void;
+  addExpense: (expense: Omit<Expense, "id">) => void;
   updateExpense: (id: string, expense: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
   // Products
-  addProduct: (product: Omit<Product, 'id'>) => void;
+  addProduct: (product: Omit<Product, "id">) => void;
   updateProduct: (id: string, product: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
   // Clients
-  addClient: (client: Omit<Client, 'id' | 'createdAt'>) => void;
+  addClient: (client: Omit<Client, "id" | "createdAt">) => void;
   updateClient: (id: string, client: Partial<Client>) => void;
   deleteClient: (id: string) => void;
+  // Workers
+  addWorker: (worker: Omit<Worker, "id" | "createdAt">) => void;
+  updateWorker: (id: string, worker: Partial<Worker>) => void;
+  deleteWorker: (id: string) => void;
   // Events
-  addEvent: (event: Omit<CalendarEvent, 'id'>) => void;
+  addEvent: (event: Omit<CalendarEvent, "id">) => void;
   updateEvent: (id: string, event: Partial<CalendarEvent>) => void;
   deleteEvent: (id: string) => void;
   // Goals
-  addGoal: (goal: Omit<FinancialGoal, 'id' | 'createdAt'>) => void;
+  addGoal: (goal: Omit<FinancialGoal, "id" | "createdAt">) => void;
   updateGoal: (id: string, goal: Partial<FinancialGoal>) => void;
   deleteGoal: (id: string) => void;
   // Debts
-  addDebt: (debt: Omit<Debt, 'id' | 'createdAt'>) => void;
+  addDebt: (debt: Omit<Debt, "id" | "createdAt">) => void;
   updateDebt: (id: string, debt: Partial<Debt>) => void;
   deleteDebt: (id: string) => void;
   // Recurring Payments
-  addRecurringPayment: (payment: Omit<RecurringPayment, 'id' | 'createdAt'>) => void;
-  updateRecurringPayment: (id: string, payment: Partial<RecurringPayment>) => void;
+  addRecurringPayment: (
+    payment: Omit<RecurringPayment, "id" | "createdAt">
+  ) => void;
+  updateRecurringPayment: (
+    id: string,
+    payment: Partial<RecurringPayment>
+  ) => void;
   deleteRecurringPayment: (id: string) => void;
   payRecurringPayment: (paymentId: string) => void;
   // Suppliers
-  addSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => void;
+  addSupplier: (supplier: Omit<Supplier, "id" | "createdAt">) => void;
   updateSupplier: (id: string, supplier: Partial<Supplier>) => void;
   deleteSupplier: (id: string) => void;
   // Supplier Orders
-  addSupplierOrder: (order: Omit<SupplierOrder, 'id' | 'createdAt'>) => void;
+  addSupplierOrder: (order: Omit<SupplierOrder, "id" | "createdAt">) => void;
   updateSupplierOrder: (id: string, order: Partial<SupplierOrder>) => void;
   deleteSupplierOrder: (id: string) => void;
   receiveSupplierOrder: (orderId: string) => void;
   // Services Catalog
-  addService: (service: Omit<Service, 'id' | 'createdAt'>) => void;
+  addService: (service: Omit<Service, "id" | "createdAt">) => void;
   updateService: (id: string, service: Partial<Service>) => void;
   deleteService: (id: string) => void;
   // Service Incomes
-  addServiceIncome: (income: Omit<ServiceIncome, 'id'>) => void;
+  addServiceIncome: (income: Omit<ServiceIncome, "id">) => void;
   updateServiceIncome: (id: string, income: Partial<ServiceIncome>) => void;
   deleteServiceIncome: (id: string) => void;
   // Custom Tags
   addCustomTag: (tag: string) => void;
   deleteCustomTag: (tag: string) => void;
   // Settings
-  updateSettings: (settings: Partial<AppData['settings']>) => void;
+  updateSettings: (settings: Partial<AppData["settings"]>) => void;
   // Theme
-  theme: 'light' | 'dark';
+  theme: "light" | "dark";
   toggleTheme: () => void;
   // Refresh data
   refreshData: () => void;
+  // Auth
+  supabaseAuth: ReturnType<typeof useSupabaseAuth>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -87,7 +116,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const useApp = () => {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useApp must be used within AppProvider');
+    throw new Error("useApp must be used within AppProvider");
   }
   return context;
 };
@@ -98,26 +127,48 @@ interface AppProviderProps {
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [data, setData] = useState<AppData>(() => loadData());
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const stored = localStorage.getItem('negocio360_theme');
-    if (stored === 'dark' || stored === 'light') return stored;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const stored = localStorage.getItem("negocio360_theme");
+    if (stored === "dark" || stored === "light") return stored;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
   });
+
+  // Supabase auth and sync
+  const supabaseAuth = useSupabaseAuth();
+  const isPremium = data.settings.isPremium || false;
+  const { isSyncing, isOnline, lastSyncTime, saveToSupabase } = useSupabaseSync(
+    supabaseAuth.user?.id,
+    isPremium
+  );
 
   // Apply theme to document
   useEffect(() => {
-    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.remove("light", "dark");
     document.documentElement.classList.add(theme);
-    localStorage.setItem('negocio360_theme', theme);
+    localStorage.setItem("negocio360_theme", theme);
   }, [theme]);
 
-  // Save data whenever it changes
+  // Save data to localStorage
   useEffect(() => {
     saveData(data);
+    localStorage.setItem("negocio360_data_updated", Date.now().toString());
   }, [data]);
 
+  // Auto-sync to Supabase when data changes and user is premium and online
+  useEffect(() => {
+    if (isPremium && isOnline && supabaseAuth.isAuthenticated) {
+      const timer = setTimeout(() => {
+        saveToSupabase(data);
+      }, 1000); // Debounce saves
+
+      return () => clearTimeout(timer);
+    }
+  }, [data, isPremium, isOnline, supabaseAuth.isAuthenticated, saveToSupabase]);
+
   const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
   const refreshData = () => {
@@ -125,184 +176,361 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   // Sales operations
-  const addSale = (sale: Omit<Sale, 'id'>) => {
+  const addSale = (sale: Omit<Sale, "id">) => {
     const newSale: Sale = { ...sale, id: generateId() };
-    
+
     // If sale has a productId, update inventory
     if (sale.productId && sale.quantity) {
-      setData(prev => ({
+      setData((prev) => ({
         ...prev,
         sales: [newSale, ...prev.sales],
-        products: prev.products.map(p => 
-          p.id === sale.productId 
+        products: prev.products.map((p) =>
+          p.id === sale.productId
             ? { ...p, quantity: Math.max(0, p.quantity - (sale.quantity || 0)) }
             : p
-        )
+        ),
       }));
     } else {
-      setData(prev => ({ ...prev, sales: [newSale, ...prev.sales] }));
+      setData((prev) => ({ ...prev, sales: [newSale, ...prev.sales] }));
     }
   };
 
   const updateSale = (id: string, saleUpdate: Partial<Sale>) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      sales: prev.sales.map(s => s.id === id ? { ...s, ...saleUpdate } : s)
+      sales: prev.sales.map((s) => (s.id === id ? { ...s, ...saleUpdate } : s)),
     }));
   };
 
   const deleteSale = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      sales: prev.sales.filter(s => s.id !== id)
+      sales: prev.sales.filter((s) => s.id !== id),
     }));
   };
 
   // Expenses operations
-  const addExpense = (expense: Omit<Expense, 'id'>) => {
+  const addExpense = (expense: Omit<Expense, "id">) => {
     const newExpense: Expense = { ...expense, id: generateId() };
-    setData(prev => ({ ...prev, expenses: [newExpense, ...prev.expenses] }));
+    setData((prev) => ({ ...prev, expenses: [newExpense, ...prev.expenses] }));
   };
 
   const updateExpense = (id: string, expenseUpdate: Partial<Expense>) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      expenses: prev.expenses.map(e => e.id === id ? { ...e, ...expenseUpdate } : e)
+      expenses: prev.expenses.map((e) =>
+        e.id === id ? { ...e, ...expenseUpdate } : e
+      ),
     }));
   };
 
   const deleteExpense = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      expenses: prev.expenses.filter(e => e.id !== id)
+      expenses: prev.expenses.filter((e) => e.id !== id),
     }));
   };
 
   // Products operations
-  const addProduct = (product: Omit<Product, 'id'>) => {
+  const addProduct = (product: Omit<Product, "id">) => {
     const newProduct: Product = { ...product, id: generateId() };
-    setData(prev => ({ ...prev, products: [newProduct, ...prev.products] }));
+    setData((prev) => ({ ...prev, products: [newProduct, ...prev.products] }));
   };
 
   const updateProduct = (id: string, productUpdate: Partial<Product>) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      products: prev.products.map(p => p.id === id ? { ...p, ...productUpdate } : p)
+      products: prev.products.map((p) =>
+        p.id === id ? { ...p, ...productUpdate } : p
+      ),
     }));
   };
 
   const deleteProduct = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      products: prev.products.filter(p => p.id !== id)
+      products: prev.products.filter((p) => p.id !== id),
     }));
   };
 
   // Clients operations
-  const addClient = (client: Omit<Client, 'id' | 'createdAt'>) => {
-    const newClient: Client = { ...client, id: generateId(), createdAt: new Date().toISOString() };
-    setData(prev => ({ ...prev, clients: [newClient, ...prev.clients] }));
+  const addClient = (client: Omit<Client, "id" | "createdAt">) => {
+    const newClient: Client = {
+      ...client,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((prev) => ({ ...prev, clients: [newClient, ...prev.clients] }));
   };
 
   const updateClient = (id: string, clientUpdate: Partial<Client>) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      clients: prev.clients.map(c => c.id === id ? { ...c, ...clientUpdate } : c)
+      clients: prev.clients.map((c) =>
+        c.id === id ? { ...c, ...clientUpdate } : c
+      ),
     }));
   };
 
   const deleteClient = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      clients: prev.clients.filter(c => c.id !== id)
+      clients: prev.clients.filter((c) => c.id !== id),
     }));
   };
 
+  // Workers operations (premium feature)
+  const addWorker = (worker: Omit<Worker, "id" | "createdAt">) => {
+    const newWorker: Worker = {
+      ...worker,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+
+    setData((prev) => {
+      const newWorkers = [newWorker, ...prev.workers];
+
+      // Recalculate total salaries
+      const totalSalary = newWorkers.reduce((s, w) => s + (w.salary || 0), 0);
+
+      // Update or create Salaries recurring payment
+      const existing = prev.recurringPayments.find(
+        (rp) => rp.name === "Salarios" || rp.category === "Salarios"
+      );
+      let newRecurringPayments = prev.recurringPayments;
+      if (existing) {
+        newRecurringPayments = prev.recurringPayments.map((rp) =>
+          rp.id === existing.id
+            ? { ...rp, amount: totalSalary, dayOfMonth: 10, isActive: true }
+            : rp
+        );
+      } else {
+        const rp: RecurringPayment = {
+          id: generateId(),
+          name: "Salarios",
+          amount: totalSalary,
+          category: "Salarios",
+          frequency: "mensual",
+          dayOfMonth: 10,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        };
+        newRecurringPayments = [rp, ...prev.recurringPayments];
+      }
+
+      // Remove existing salary events and create monthly events (next 12 months)
+      const withoutSalaryEvents = prev.events.filter(
+        (e) => e.title !== "Pago salarios"
+      );
+      const eventsToAdd: CalendarEvent[] = [];
+      const today = new Date();
+      let start = new Date(today.getFullYear(), today.getMonth(), 10);
+      if (today.getDate() > 10) {
+        start = new Date(today.getFullYear(), today.getMonth() + 1, 10);
+      }
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(start.getFullYear(), start.getMonth() + i, 10);
+        const dateStr = d.toISOString().split("T")[0];
+        eventsToAdd.push({
+          id: generateId(),
+          title: "Pago salarios",
+          date: dateStr,
+          type: "pago",
+          description: `Pago de salarios: ${formatCurrency(
+            totalSalary,
+            prev.settings.currencySymbol
+          )}`,
+          completed: false,
+        });
+      }
+
+      return {
+        ...prev,
+        workers: newWorkers,
+        recurringPayments: newRecurringPayments,
+        events: [...eventsToAdd, ...withoutSalaryEvents],
+      };
+    });
+  };
+
+  const updateWorker = (id: string, workerUpdate: Partial<Worker>) => {
+    setData((prev) => {
+      const newWorkers = prev.workers.map((w) =>
+        w.id === id ? { ...w, ...workerUpdate } : w
+      );
+      const totalSalary = newWorkers.reduce((s, w) => s + (w.salary || 0), 0);
+
+      const newRecurringPayments = prev.recurringPayments.map((rp) =>
+        rp.name === "Salarios" || rp.category === "Salarios"
+          ? { ...rp, amount: totalSalary, dayOfMonth: 10, isActive: true }
+          : rp
+      );
+
+      // Update salary events descriptions
+      const updatedEvents = prev.events.map((e) =>
+        e.title === "Pago salarios"
+          ? {
+              ...e,
+              description: `Pago de salarios: ${formatCurrency(
+                totalSalary,
+                prev.settings.currencySymbol
+              )}`,
+            }
+          : e
+      );
+
+      return {
+        ...prev,
+        workers: newWorkers,
+        recurringPayments: newRecurringPayments,
+        events: updatedEvents,
+      };
+    });
+  };
+
+  const deleteWorker = (id: string) => {
+    setData((prev) => {
+      const newWorkers = prev.workers.filter((w) => w.id !== id);
+      const totalSalary = newWorkers.reduce((s, w) => s + (w.salary || 0), 0);
+
+      const newRecurringPayments = prev.recurringPayments
+        .map((rp) =>
+          rp.name === "Salarios" || rp.category === "Salarios"
+            ? { ...rp, amount: totalSalary }
+            : rp
+        )
+        .filter(Boolean as any);
+
+      const updatedEvents = prev.events.map((e) =>
+        e.title === "Pago salarios"
+          ? {
+              ...e,
+              description: `Pago de salarios: ${formatCurrency(
+                totalSalary,
+                prev.settings.currencySymbol
+              )}`,
+            }
+          : e
+      );
+
+      return {
+        ...prev,
+        workers: newWorkers,
+        recurringPayments: newRecurringPayments,
+        events: updatedEvents,
+      };
+    });
+  };
+
   // Events operations
-  const addEvent = (event: Omit<CalendarEvent, 'id'>) => {
+  const addEvent = (event: Omit<CalendarEvent, "id">) => {
     const newEvent: CalendarEvent = { ...event, id: generateId() };
-    setData(prev => ({ ...prev, events: [newEvent, ...prev.events] }));
+    setData((prev) => ({ ...prev, events: [newEvent, ...prev.events] }));
   };
 
   const updateEvent = (id: string, eventUpdate: Partial<CalendarEvent>) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      events: prev.events.map(e => e.id === id ? { ...e, ...eventUpdate } : e)
+      events: prev.events.map((e) =>
+        e.id === id ? { ...e, ...eventUpdate } : e
+      ),
     }));
   };
 
   const deleteEvent = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      events: prev.events.filter(e => e.id !== id)
+      events: prev.events.filter((e) => e.id !== id),
     }));
   };
 
   // Goals operations
-  const addGoal = (goal: Omit<FinancialGoal, 'id' | 'createdAt'>) => {
-    const newGoal: FinancialGoal = { ...goal, id: generateId(), createdAt: new Date().toISOString() };
-    setData(prev => ({ ...prev, goals: [newGoal, ...prev.goals] }));
+  const addGoal = (goal: Omit<FinancialGoal, "id" | "createdAt">) => {
+    const newGoal: FinancialGoal = {
+      ...goal,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((prev) => ({ ...prev, goals: [newGoal, ...prev.goals] }));
   };
 
   const updateGoal = (id: string, goalUpdate: Partial<FinancialGoal>) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      goals: prev.goals.map(g => g.id === id ? { ...g, ...goalUpdate } : g)
+      goals: prev.goals.map((g) => (g.id === id ? { ...g, ...goalUpdate } : g)),
     }));
   };
 
   const deleteGoal = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      goals: prev.goals.filter(g => g.id !== id)
+      goals: prev.goals.filter((g) => g.id !== id),
     }));
   };
 
   // Debts operations
-  const addDebt = (debt: Omit<Debt, 'id' | 'createdAt'>) => {
-    const newDebt: Debt = { ...debt, id: generateId(), createdAt: new Date().toISOString() };
-    setData(prev => ({ ...prev, debts: [newDebt, ...prev.debts] }));
+  const addDebt = (debt: Omit<Debt, "id" | "createdAt">) => {
+    const newDebt: Debt = {
+      ...debt,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((prev) => ({ ...prev, debts: [newDebt, ...prev.debts] }));
   };
 
   const updateDebt = (id: string, debtUpdate: Partial<Debt>) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      debts: prev.debts.map(d => d.id === id ? { ...d, ...debtUpdate } : d)
+      debts: prev.debts.map((d) => (d.id === id ? { ...d, ...debtUpdate } : d)),
     }));
   };
 
   const deleteDebt = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      debts: prev.debts.filter(d => d.id !== id)
+      debts: prev.debts.filter((d) => d.id !== id),
     }));
   };
 
   // Recurring Payments operations
-  const addRecurringPayment = (payment: Omit<RecurringPayment, 'id' | 'createdAt'>) => {
-    const newPayment: RecurringPayment = { ...payment, id: generateId(), createdAt: new Date().toISOString() };
-    setData(prev => ({ ...prev, recurringPayments: [newPayment, ...prev.recurringPayments] }));
+  const addRecurringPayment = (
+    payment: Omit<RecurringPayment, "id" | "createdAt">
+  ) => {
+    const newPayment: RecurringPayment = {
+      ...payment,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((prev) => ({
+      ...prev,
+      recurringPayments: [newPayment, ...prev.recurringPayments],
+    }));
   };
 
-  const updateRecurringPayment = (id: string, paymentUpdate: Partial<RecurringPayment>) => {
-    setData(prev => ({
+  const updateRecurringPayment = (
+    id: string,
+    paymentUpdate: Partial<RecurringPayment>
+  ) => {
+    setData((prev) => ({
       ...prev,
-      recurringPayments: prev.recurringPayments.map(rp => rp.id === id ? { ...rp, ...paymentUpdate } : rp)
+      recurringPayments: prev.recurringPayments.map((rp) =>
+        rp.id === id ? { ...rp, ...paymentUpdate } : rp
+      ),
     }));
   };
 
   const deleteRecurringPayment = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      recurringPayments: prev.recurringPayments.filter(rp => rp.id !== id)
+      recurringPayments: prev.recurringPayments.filter((rp) => rp.id !== id),
     }));
   };
 
   const payRecurringPayment = (paymentId: string) => {
-    const payment = data.recurringPayments.find(rp => rp.id === paymentId);
+    const payment = data.recurringPayments.find((rp) => rp.id === paymentId);
     if (!payment) return;
-    
-    const today = new Date().toISOString().split('T')[0];
+
+    const today = new Date().toISOString().split("T")[0];
     const newExpense: Expense = {
       id: generateId(),
       date: today,
@@ -310,188 +538,234 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       category: payment.category,
       description: `Pago recurrente: ${payment.name}`,
       isRecurring: true,
-      recurringId: payment.id
+      recurringId: payment.id,
     };
-    
-    setData(prev => ({
+
+    setData((prev) => ({
       ...prev,
       expenses: [newExpense, ...prev.expenses],
-      recurringPayments: prev.recurringPayments.map(rp => 
+      recurringPayments: prev.recurringPayments.map((rp) =>
         rp.id === paymentId ? { ...rp, lastPaidDate: today } : rp
-      )
+      ),
     }));
   };
 
   // Custom Tags operations
   const addCustomTag = (tag: string) => {
     if (!data.customTags.includes(tag)) {
-      setData(prev => ({ ...prev, customTags: [...prev.customTags, tag] }));
+      setData((prev) => ({ ...prev, customTags: [...prev.customTags, tag] }));
     }
   };
 
   const deleteCustomTag = (tag: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      customTags: prev.customTags.filter(t => t !== tag)
+      customTags: prev.customTags.filter((t) => t !== tag),
     }));
   };
 
   // Suppliers operations
-  const addSupplier = (supplier: Omit<Supplier, 'id' | 'createdAt'>) => {
-    const newSupplier: Supplier = { ...supplier, id: generateId(), createdAt: new Date().toISOString() };
-    setData(prev => ({ ...prev, suppliers: [newSupplier, ...prev.suppliers] }));
+  const addSupplier = (supplier: Omit<Supplier, "id" | "createdAt">) => {
+    const newSupplier: Supplier = {
+      ...supplier,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((prev) => ({
+      ...prev,
+      suppliers: [newSupplier, ...prev.suppliers],
+    }));
   };
 
   const updateSupplier = (id: string, supplierUpdate: Partial<Supplier>) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      suppliers: prev.suppliers.map(s => s.id === id ? { ...s, ...supplierUpdate } : s)
+      suppliers: prev.suppliers.map((s) =>
+        s.id === id ? { ...s, ...supplierUpdate } : s
+      ),
     }));
   };
 
   const deleteSupplier = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      suppliers: prev.suppliers.filter(s => s.id !== id)
+      suppliers: prev.suppliers.filter((s) => s.id !== id),
     }));
   };
 
   // Supplier Orders operations
-  const addSupplierOrder = (order: Omit<SupplierOrder, 'id' | 'createdAt'>) => {
-    const newOrder: SupplierOrder = { ...order, id: generateId(), createdAt: new Date().toISOString() };
-    setData(prev => ({ ...prev, supplierOrders: [newOrder, ...prev.supplierOrders] }));
+  const addSupplierOrder = (order: Omit<SupplierOrder, "id" | "createdAt">) => {
+    const newOrder: SupplierOrder = {
+      ...order,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((prev) => ({
+      ...prev,
+      supplierOrders: [newOrder, ...prev.supplierOrders],
+    }));
   };
 
-  const updateSupplierOrder = (id: string, orderUpdate: Partial<SupplierOrder>) => {
-    setData(prev => ({
+  const updateSupplierOrder = (
+    id: string,
+    orderUpdate: Partial<SupplierOrder>
+  ) => {
+    setData((prev) => ({
       ...prev,
-      supplierOrders: prev.supplierOrders.map(o => o.id === id ? { ...o, ...orderUpdate } : o)
+      supplierOrders: prev.supplierOrders.map((o) =>
+        o.id === id ? { ...o, ...orderUpdate } : o
+      ),
     }));
   };
 
   const deleteSupplierOrder = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      supplierOrders: prev.supplierOrders.filter(o => o.id !== id)
+      supplierOrders: prev.supplierOrders.filter((o) => o.id !== id),
     }));
   };
 
   const receiveSupplierOrder = (orderId: string) => {
-    const order = data.supplierOrders.find(o => o.id === orderId);
+    const order = data.supplierOrders.find((o) => o.id === orderId);
     if (!order) return;
-    
+
     // Update inventory with received items
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      supplierOrders: prev.supplierOrders.map(o => 
-        o.id === orderId ? { ...o, status: 'received' as const } : o
+      supplierOrders: prev.supplierOrders.map((o) =>
+        o.id === orderId ? { ...o, status: "received" as const } : o
       ),
-      products: prev.products.map(p => {
-        const orderedItem = order.items.find(i => i.productId === p.id);
+      products: prev.products.map((p) => {
+        const orderedItem = order.items.find((i) => i.productId === p.id);
         if (orderedItem) {
           return { ...p, quantity: p.quantity + orderedItem.quantity };
         }
         return p;
-      })
+      }),
     }));
   };
 
   // Services catalog operations
-  const addService = (service: Omit<Service, 'id' | 'createdAt'>) => {
-    const newService: Service = { ...service, id: generateId(), createdAt: new Date().toISOString() };
-    setData(prev => ({ ...prev, services: [newService, ...prev.services] }));
+  const addService = (service: Omit<Service, "id" | "createdAt">) => {
+    const newService: Service = {
+      ...service,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((prev) => ({ ...prev, services: [newService, ...prev.services] }));
   };
 
   const updateService = (id: string, serviceUpdate: Partial<Service>) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      services: prev.services.map(s => s.id === id ? { ...s, ...serviceUpdate } : s)
+      services: prev.services.map((s) =>
+        s.id === id ? { ...s, ...serviceUpdate } : s
+      ),
     }));
   };
 
   const deleteService = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      services: prev.services.filter(s => s.id !== id)
+      services: prev.services.filter((s) => s.id !== id),
     }));
   };
 
   // Service incomes operations
-  const addServiceIncome = (income: Omit<ServiceIncome, 'id'>) => {
+  const addServiceIncome = (income: Omit<ServiceIncome, "id">) => {
     const newIncome: ServiceIncome = { ...income, id: generateId() };
-    setData(prev => ({ ...prev, serviceIncomes: [newIncome, ...prev.serviceIncomes] }));
+    setData((prev) => ({
+      ...prev,
+      serviceIncomes: [newIncome, ...prev.serviceIncomes],
+    }));
   };
 
-  const updateServiceIncome = (id: string, incomeUpdate: Partial<ServiceIncome>) => {
-    setData(prev => ({
+  const updateServiceIncome = (
+    id: string,
+    incomeUpdate: Partial<ServiceIncome>
+  ) => {
+    setData((prev) => ({
       ...prev,
-      serviceIncomes: prev.serviceIncomes.map(i => i.id === id ? { ...i, ...incomeUpdate } : i)
+      serviceIncomes: prev.serviceIncomes.map((i) =>
+        i.id === id ? { ...i, ...incomeUpdate } : i
+      ),
     }));
   };
 
   const deleteServiceIncome = (id: string) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      serviceIncomes: prev.serviceIncomes.filter(i => i.id !== id)
+      serviceIncomes: prev.serviceIncomes.filter((i) => i.id !== id),
     }));
   };
 
   // Settings operations
-  const updateSettings = (settings: Partial<AppData['settings']>) => {
-    setData(prev => ({
+  const updateSettings = (settings: Partial<AppData["settings"]>) => {
+    setData((prev) => ({
       ...prev,
-      settings: { ...prev.settings, ...settings }
+      settings: { ...prev.settings, ...settings },
     }));
   };
 
   return (
-    <AppContext.Provider value={{
-      data,
-      addSale,
-      updateSale,
-      deleteSale,
-      addExpense,
-      updateExpense,
-      deleteExpense,
-      addProduct,
-      updateProduct,
-      deleteProduct,
-      addClient,
-      updateClient,
-      deleteClient,
-      addEvent,
-      updateEvent,
-      deleteEvent,
-      addGoal,
-      updateGoal,
-      deleteGoal,
-      addDebt,
-      updateDebt,
-      deleteDebt,
-      addRecurringPayment,
-      updateRecurringPayment,
-      deleteRecurringPayment,
-      payRecurringPayment,
-      addSupplier,
-      updateSupplier,
-      deleteSupplier,
-      addSupplierOrder,
-      updateSupplierOrder,
-      deleteSupplierOrder,
-      receiveSupplierOrder,
-      addService,
-      updateService,
-      deleteService,
-      addServiceIncome,
-      updateServiceIncome,
-      deleteServiceIncome,
-      addCustomTag,
-      deleteCustomTag,
-      updateSettings,
-      theme,
-      toggleTheme,
-      refreshData,
-    }}>
+    <AppContext.Provider
+      value={{
+        data,
+        supabaseSyncState: {
+          isSyncing,
+          isOnline,
+          lastSyncTime,
+        },
+        addSale,
+        updateSale,
+        deleteSale,
+        addExpense,
+        updateExpense,
+        deleteExpense,
+        addProduct,
+        updateProduct,
+        deleteProduct,
+        addClient,
+        updateClient,
+        deleteClient,
+        addWorker,
+        updateWorker,
+        deleteWorker,
+        addEvent,
+        updateEvent,
+        deleteEvent,
+        addGoal,
+        updateGoal,
+        deleteGoal,
+        addDebt,
+        updateDebt,
+        deleteDebt,
+        addRecurringPayment,
+        updateRecurringPayment,
+        deleteRecurringPayment,
+        payRecurringPayment,
+        addSupplier,
+        updateSupplier,
+        deleteSupplier,
+        addSupplierOrder,
+        updateSupplierOrder,
+        deleteSupplierOrder,
+        receiveSupplierOrder,
+        addService,
+        updateService,
+        deleteService,
+        addServiceIncome,
+        updateServiceIncome,
+        deleteServiceIncome,
+        addCustomTag,
+        deleteCustomTag,
+        updateSettings,
+        theme,
+        toggleTheme,
+        refreshData,
+        supabaseAuth,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );

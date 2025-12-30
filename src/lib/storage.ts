@@ -9,6 +9,7 @@ export interface Sale {
   productId?: string;
   quantity?: number;
   tags?: string[];
+  clientId?: string;
 }
 
 export interface Expense {
@@ -21,6 +22,7 @@ export interface Expense {
   isRecurring?: boolean | string;
   recurringId?: string;
   recurringTime?: string;
+  clientId?: string;
 }
 
 export interface RecurringPayment {
@@ -45,6 +47,7 @@ export interface Product {
   minStock?: number;
   expirationDate?: string;
   barcode?: string;
+  supplierId?: string;
 }
 
 export interface Supplier {
@@ -81,6 +84,16 @@ export interface Client {
   address?: string;
   type: "cliente" | "proveedor";
   notes?: string;
+  createdAt: string;
+}
+
+export interface Worker {
+  id: string;
+  name: string;
+  role?: string;
+  salary: number;
+  phone?: string;
+  email?: string;
   createdAt: string;
 }
 
@@ -139,6 +152,7 @@ export interface AppData {
   expenses: Expense[];
   products: Product[];
   clients: Client[];
+  workers: Worker[];
   events: CalendarEvent[];
   goals: FinancialGoal[];
   debts: Debt[];
@@ -157,6 +171,7 @@ export interface AppData {
     businessLogo?: string;
     businessPhone?: string;
     businessAddress?: string;
+    isPremium?: boolean;
   };
 }
 
@@ -167,6 +182,7 @@ const defaultData: AppData = {
   expenses: [],
   products: [],
   clients: [],
+  workers: [],
   events: [],
   goals: [],
   debts: [],
@@ -187,6 +203,7 @@ const defaultData: AppData = {
     currencySymbol: "$",
     language: "es",
     theme: "system",
+    isPremium: false,
   },
 };
 
@@ -206,6 +223,7 @@ const generateDemoData = (): AppData => {
   const debts: Debt[] = [];
 
   const recurringPayments: RecurringPayment[] = [];
+  const workers: Worker[] = [];
 
   const customTags = [
     "Promoción",
@@ -237,6 +255,7 @@ const generateDemoData = (): AppData => {
     expenses,
     products,
     clients,
+    workers,
     events,
     goals,
     debts,
@@ -260,6 +279,7 @@ export const loadData = (): AppData => {
         ...defaultData,
         ...parsed,
         clients: parsed.clients || [],
+        workers: parsed.workers || [],
         events: parsed.events || [],
         goals: parsed.goals || [],
         debts: parsed.debts || [],

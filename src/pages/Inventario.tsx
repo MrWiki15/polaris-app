@@ -4,12 +4,14 @@ import { FloatingButton } from "@/components/ui/FloatingButton";
 import { DataTable } from "@/components/ui/DataTable";
 import { ProductForm } from "@/components/forms/ProductForm";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { ExportButtons } from "@/components/ui/ExportButtons";
 import { BarcodeScanner } from "@/components/inventory/BarcodeScanner";
 import {
   formatCurrency,
   getInventoryValue,
   getLowStockProducts,
 } from "@/lib/storage";
+import { ExportData } from "@/lib/exportUtils";
 import {
   Package,
   AlertTriangle,
@@ -26,6 +28,7 @@ type FilterType = "all" | "low-stock" | "in-stock";
 export const Inventario: React.FC = () => {
   const { data, deleteProduct } = useApp();
   const { products, settings } = data;
+  const isPremium = settings.isPremium || false;
   const [showForm, setShowForm] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -194,44 +197,47 @@ export const Inventario: React.FC = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 flex gap-2">
-          <input
-            type="text"
-            placeholder="Buscar por nombre, categoría o código..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setShowScanner(true)}
-            title="Escanear código"
-          >
-            <ScanBarcode className="w-4 h-4" />
-          </Button>
-        </div>
-        <div className="flex gap-2">
-          {[
-            { key: "all", label: "Todos" },
-            { key: "low-stock", label: "Stock bajo" },
-            { key: "in-stock", label: "Disponibles" },
-          ].map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key as FilterType)}
-              className={cn(
-                "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-                filter === f.key
-                  ? "bg-primary text-primary-foreground shadow-material"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              )}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1 flex gap-2">
+            <input
+              type="text"
+              placeholder="Buscar por nombre, categoría o código..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowScanner(true)}
+              title="Escanear código"
             >
-              {f.label}
-            </button>
-          ))}
+              <ScanBarcode className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            {[
+              { key: "all", label: "Todos" },
+              { key: "low-stock", label: "Stock bajo" },
+              { key: "in-stock", label: "Disponibles" },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key as FilterType)}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                  filter === f.key
+                    ? "bg-primary text-primary-foreground shadow-material"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
+        <div className="flex justify-end"></div>
       </div>
 
       {/* Table */}
@@ -250,6 +256,69 @@ export const Inventario: React.FC = () => {
           setShowForm(true);
         }}
         label="Nuevo Producto"
+      />
+
+      <ExportButtons
+        data={useMemo<ExportData>(
+          () => ({
+            title: "Reporte de Inventario",
+            headers: [
+              "Producto",
+              "Categoría",
+              "Stock",
+              "Costo",
+              "Precio",
+              "Margen %",
+              "Valor Total",
+            ],
+            rows: filteredProducts.map((product) => {
+              const margin =
+                product.cost > 0
+                  ? (
+                      ((product.price - product.cost) / product.cost) *
+                      100
+                    ).toFixed(0)
+                  : "0";
+              const totalValue = product.quantity * product.cost;
+              return [
+                product.name,
+                product.category || "-",
+                product.quantity,
+                product.cost,
+                product.price,
+                `${margin}%`,
+                totalValue,
+              ];
+            }),
+            summary: [
+              { label: "Total productos", value: filteredProducts.length },
+              {
+                label: "Valor del inventario",
+                value: formatCurrency(inventoryValue, settings.currencySymbol),
+              },
+              {
+                label: "Ingreso potencial",
+                value: formatCurrency(
+                  potentialRevenue,
+                  settings.currencySymbol
+                ),
+              },
+              {
+                label: "Productos con stock bajo",
+                value: lowStockProducts.length,
+              },
+            ],
+          }),
+          [
+            filteredProducts,
+            inventoryValue,
+            potentialRevenue,
+            lowStockProducts,
+            settings.currencySymbol,
+          ]
+        )}
+        filename="inventario"
+        isPremium={isPremium}
       />
 
       {/* Form Modal */}

@@ -1,33 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://negocio360.app/</loc>
+    <loc>https://up-five.vercel.app/</loc>
     <lastmod>2024-03-20</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://negocio360.app/ventas</loc>
+    <loc>https://up-five.vercel.app/ventas</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://negocio360.app/gastos</loc>
+    <loc>https://up-five.vercel.app/gastos</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://negocio360.app/inventario</loc>
+    <loc>https://up-five.vercel.app/inventario</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://negocio360.app/analisis</loc>
+    <loc>https://up-five.vercel.app/analisis</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://negocio360.app/herramientas</loc>
+    <loc>https://up-five.vercel.app/herramientas</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>

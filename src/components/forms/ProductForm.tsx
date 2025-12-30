@@ -35,7 +35,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   onClose,
   editingProduct,
 }) => {
-  const { addProduct, updateProduct } = useApp();
+  const { addProduct, updateProduct, data } = useApp();
+  const { settings, suppliers } = data;
+  const isPremium = settings.isPremium || false;
+
   const [formData, setFormData] = useState({
     name: editingProduct?.name || "",
     quantity: editingProduct?.quantity?.toString() || "",
@@ -44,6 +47,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     category: editingProduct?.category || categories[0],
     minStock: editingProduct?.minStock?.toString() || "10",
     barcode: editingProduct?.barcode || "",
+    supplierId: (editingProduct as any)?.supplierId || "",
   });
   // Add state for scanner
   const [showScanner, setShowScanner] = useState(false);
@@ -59,6 +63,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       category: formData.category,
       minStock: parseInt(formData.minStock) || 10,
       barcode: formData.barcode || undefined,
+      supplierId: formData.supplierId || undefined,
     };
 
     if (editingProduct) {
@@ -211,6 +216,30 @@ export const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
           </div>
+
+          {isPremium && (
+            <div className="space-y-2">
+              <Label htmlFor="supplier">Proveedor (opcional)</Label>
+              <select
+                id="supplier"
+                value={formData.supplierId}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    supplierId: e.target.value,
+                  }))
+                }
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground"
+              >
+                <option value="">Sin proveedor</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Margin indicator */}
           {formData.cost && formData.price && (

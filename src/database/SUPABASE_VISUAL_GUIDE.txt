@@ -1,0 +1,245 @@
+╔════════════════════════════════════════════════════════════════╗
+║          SUPABASE SETUP - GUÍA RÁPIDA VISUAL                   ║
+╚════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 📋 ARCHIVOS CREADOS                                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. supabase_setup.sql                                         │
+│     └─ Script SQL completo con comentarios explicativos        │
+│     └─ Ideal si quieres entender cada paso                     │
+│                                                                 │
+│  2. SUPABASE_QUICK_SETUP.sql                                   │
+│     └─ Script SQL sin comentarios                              │
+│     └─ Ideal para copiar y pegar rápido                        │
+│                                                                 │
+│  3. SUPABASE_SETUP_GUIDE.md                                    │
+│     └─ Guía paso a paso con instrucciones detalladas           │
+│     └─ Incluye solución de problemas                           │
+│                                                                 │
+│  4. SUPABASE_QUERIES_REFERENCE.sql                             │
+│     └─ Comandos útiles para verificar y mantener              │
+│     └─ Debugging y estadísticas                                │
+│                                                                 │
+│  5. README_SUPABASE.md                                         │
+│     └─ Documentación completa en formato visual                │
+│     └─ Diagramas de flujo y referencia rápida                  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🚀 EJECUCIÓN RÁPIDA (COPY & PASTE)                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  PASO 1: Abre tu proyecto en Supabase                          │
+│  ────────────────────────────────────────────────────────────  │
+│  https://supabase.com/dashboard                                │
+│  Selecciona tu proyecto > SQL Editor > New Query               │
+│                                                                 │
+│  PASO 2: Copia el contenido de:                                │
+│  ────────────────────────────────────────────────────────────  │
+│  ► SUPABASE_QUICK_SETUP.sql (más rápido)                       │
+│       O                                                         │
+│  ► supabase_setup.sql (más detallado)                          │
+│                                                                 │
+│  PASO 3: Pega en el editor de Supabase                         │
+│  ────────────────────────────────────────────────────────────  │
+│  Ctrl+A para seleccionar todo                                  │
+│  Ctrl+V para pegar                                             │
+│                                                                 │
+│  PASO 4: Ejecuta                                               │
+│  ────────────────────────────────────────────────────────────  │
+│  Botón RUN o Ctrl+Enter                                        │
+│                                                                 │
+│  PASO 5: Espera                                                │
+│  ────────────────────────────────────────────────────────────  │
+│  ✅ Verás: "Success. No rows returned"                         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ ✅ VERIFICACIÓN (COPIAR A SUPABASE)                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Comando 1: Ver tabla creada                                   │
+│  ────────────────────────────────────────────────────────────  │
+│  SELECT table_name FROM information_schema.tables              │
+│  WHERE table_schema = 'public' AND table_name = 'backups';     │
+│                                                                 │
+│  ✓ Debe devolver: "backups"                                    │
+│                                                                 │
+│  Comando 2: Ver políticas RLS                                  │
+│  ────────────────────────────────────────────────────────────  │
+│  SELECT policyname FROM pg_policies                            │
+│  WHERE tablename = 'backups';                                  │
+│                                                                 │
+│  ✓ Debe devolver 4 políticas:                                  │
+│    - Users can view their own backups                          │
+│    - Users can insert their own backups                        │
+│    - Users can update their own backups                        │
+│    - Users can delete their own backups                        │
+│                                                                 │
+│  Comando 3: Ver índices                                        │
+│  ────────────────────────────────────────────────────────────  │
+│  SELECT indexname FROM pg_indexes                              │
+│  WHERE tablename = 'backups';                                  │
+│                                                                 │
+│  ✓ Debe devolver 2 índices:                                    │
+│    - idx_backups_user_id                                       │
+│    - idx_backups_updated_at                                    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🛡️ QUÉ SE CREA Y POR QUÉ                                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  TABLA: backups                                                │
+│  ├─ Almacena los datos sincronizados de los usuarios           │
+│  ├─ Estructura:                                                │
+│  │  ├─ id (UUID) - Identificador único del respaldo           │
+│  │  ├─ user_id (UUID) - ID del usuario (auth.users)           │
+│  │  ├─ data (TEXT) - JSON stringified de los datos             │
+│  │  ├─ created_at (TIMESTAMP) - Cuando se creó                │
+│  │  └─ updated_at (TIMESTAMP) - Última actualización           │
+│  │                                                             │
+│  │  (Auto-actualizado por trigger)                            │
+│  └─ Constraint UNIQUE(user_id) - Solo 1 respaldo/usuario      │
+│                                                                 │
+│  ÍNDICES (2):                                                  │
+│  ├─ idx_backups_user_id                                        │
+│  │  └─ Búsquedas rápidas por usuario                          │
+│  └─ idx_backups_updated_at DESC                                │
+│     └─ Ordenamiento rápido por fecha                           │
+│                                                                 │
+│  RLS POLICIES (4):                                             │
+│  ├─ SELECT  → Usuario ve solo SUS respaldos                   │
+│  ├─ INSERT  → Usuario inserta con SU ID                        │
+│  ├─ UPDATE  → Usuario actualiza SOLO sus respaldos            │
+│  └─ DELETE  → Usuario elimina SOLO sus respaldos              │
+│                                                                 │
+│  FUNCIÓN: update_backup_timestamp()                            │
+│  └─ Auto-actualiza updated_at en cada cambio                  │
+│                                                                 │
+│  TRIGGER: update_backups_timestamp                             │
+│  └─ Ejecuta la función automáticamente                         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🔐 SEGURIDAD (ROW LEVEL SECURITY)                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ¿Qué es RLS?                                                  │
+│  ────────────────────────────────────────────────────────────  │
+│  Row Level Security es una feature de PostgreSQL que           │
+│  asegura que cada usuario solo acceda a sus datos.             │
+│                                                                 │
+│  ¿Cómo funciona?                                               │
+│  ────────────────────────────────────────────────────────────  │
+│  1. El usuario se autentica con Supabase                       │
+│  2. Supabase obtiene su JWT token                              │
+│  3. Las políticas validan el JWT                               │
+│  4. Solo se devuelven filas donde user_id = auth.uid()         │
+│                                                                 │
+│  Ejemplo:                                                       │
+│  ────────────────────────────────────────────────────────────  │
+│  Usuario A intenta: SELECT * FROM backups;                     │
+│  RLS filtra automáticamente y devuelve SOLO sus datos          │
+│                                                                 │
+│  Usuario B intenta: SELECT * FROM backups WHERE user_id='A';   │
+│  RLS rechaza la consulta (A ≠ B)                               │
+│                                                                 │
+│  ✅ RESULTADO: Máxima seguridad sin código adicional            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🔄 FLUJO DE SINCRONIZACIÓN                                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  GUARDADO (WRITE):                                              │
+│  ────────────────────────────────────────────────────────────  │
+│  Usuario edita datos → localStorage + Supabase                 │
+│  (si Premium + Online)                                          │
+│                                                                 │
+│  CARGA (READ):                                                  │
+│  ────────────────────────────────────────────────────────────  │
+│  Free user       → localStorage (sin internet)                 │
+│  Premium online  → Compara y carga el más reciente            │
+│  Premium offline → localStorage (después sincroniza)           │
+│                                                                 │
+│  INDICADOR VISUAL:                                              │
+│  ────────────────────────────────────────────────────────────  │
+│  ☁️ 💨 → Guardando...                                           │
+│  ☁️ ✅ → Sincronizado (con hora del último guardado)           │
+│  ☁️ ⚠️  → Sin conexión                                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 📦 DESPUÉS DE EJECUTAR                                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  EN SUPABASE DASHBOARD:                                         │
+│  ────────────────────────────────────────────────────────────  │
+│  1. Ve a Table Editor en la barra lateral                       │
+│  2. Selecciona la tabla "backups"                               │
+│  3. Verás las columnas: id, user_id, data, created_at,updated_at│
+│  4. Cuando sincronices, verás datos guardados aquí             │
+│                                                                 │
+│  EN LA APP:                                                      │
+│  ────────────────────────────────────────────────────────────  │
+│  1. Ve a Configuración (⚙️)                                     │
+│  2. Si eres Premium, verás "Supabase" section                  │
+│  3. Haz click en "Registrarse" o "Iniciar Sesión"             │
+│  4. Completa email y contraseña                                │
+│  5. Cada cambio se sincronizará automáticamente                │
+│  6. Verás el ícono de nube girando en la parte superior        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🆘 SI ALGO SALE MAL                                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Error: "Table already exists"                                 │
+│  ─────────────────────────────────────────────────────────────  │
+│  Solución: Ejecuta primero:                                     │
+│           DROP TABLE IF EXISTS public.backups CASCADE;          │
+│           Luego vuelve a ejecutar el script                    │
+│                                                                 │
+│  Error: "Permission denied"                                    │
+│  ─────────────────────────────────────────────────────────────  │
+│  Solución: Asegúrate de estar con tu cuenta de Supabase        │
+│           con permisos de administrador                        │
+│                                                                 │
+│  Error: "RLS is enabled but no policies exist"                 │
+│  ─────────────────────────────────────────────────────────────  │
+│  Solución: Ejecuta solo la sección de POLÍTICAS:               │
+│           CREATE POLICY "Users can view..."                    │
+│           CREATE POLICY "Users can insert..."                  │
+│           etc.                                                  │
+│                                                                 │
+│  No ve datos sincronizados                                     │
+│  ─────────────────────────────────────────────────────────────  │
+│  Checklist:                                                     │
+│  ☐ ¿Está logueado? (Ver en Configuración)                      │
+│  ☐ ¿Es Premium? (Ver en Dashboard)                              │
+│  ☐ ¿Tiene conexión? (F12 → Network)                            │
+│  ☐ ¿Hay errores? (F12 → Console)                               │
+│  ☐ ¿La tabla existe? (Supabase → Table Editor)                 │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════╗
+║                    ✅ ¡LISTO PARA USAR!                        ║
+║                                                                ║
+║  Tienes sincronización en la nube 100% segura                 ║
+║  Los datos están protegidos con RLS                           ║
+║  Auto-guardado automático cada cambio                         ║
+║  Indicador visual de sincronización                           ║
+║                                                                ║
+║  Solo falta ejecutar el SQL en Supabase 🚀                     ║
+╚════════════════════════════════════════════════════════════════╝

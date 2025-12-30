@@ -4,9 +4,11 @@ import { FloatingButton } from "@/components/ui/FloatingButton";
 import { DataTable } from "@/components/ui/DataTable";
 import { SaleForm } from "@/components/forms/SaleForm";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { ExportButtons } from "@/components/ui/ExportButtons";
 import { formatCurrency, getWeekSales, getMonthSales } from "@/lib/storage";
 import { ShoppingCart, Calendar, TrendingUp } from "lucide-react";
 import { Sale } from "@/lib/storage";
+import { ExportData } from "@/lib/exportUtils";
 import {
   LineChart,
   Line,
@@ -23,6 +25,7 @@ type FilterPeriod = "today" | "week" | "month" | "all";
 export const Ventas: React.FC = () => {
   const { data, deleteSale } = useApp();
   const { sales, serviceIncomes, services, settings } = data;
+  const isPremium = settings.isPremium || false;
   const [showForm, setShowForm] = useState(false);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [filter, setFilter] = useState<FilterPeriod>("week");
@@ -147,7 +150,8 @@ export const Ventas: React.FC = () => {
     {
       key: "service",
       header: "Servicio",
-      render: (r: any) => services.find(s => s.id === r.serviceId)?.name || "-",
+      render: (r: any) =>
+        services.find((s) => s.id === r.serviceId)?.name || "-",
     },
     {
       key: "description",
@@ -170,14 +174,33 @@ export const Ventas: React.FC = () => {
         />
         <MetricCard
           title="Ingresos del mes (total)"
-          value={formatCurrency(monthTotal + (() => { const ma = new Date(); ma.setMonth(ma.getMonth() - 1); return serviceIncomes.filter(si => new Date(si.date) >= ma).reduce((sum, si) => sum + si.amount, 0); })(), settings.currencySymbol)}
+          value={formatCurrency(
+            monthTotal +
+              (() => {
+                const ma = new Date();
+                ma.setMonth(ma.getMonth() - 1);
+                return serviceIncomes
+                  .filter((si) => new Date(si.date) >= ma)
+                  .reduce((sum, si) => sum + si.amount, 0);
+              })(),
+            settings.currencySymbol
+          )}
           icon={<Calendar className="w-5 h-5" />}
           subtitle={`Productos + Servicios`}
           variant="primary"
         />
         <MetricCard
           title="Ingresos por servicios (últimos 30 días)"
-          value={formatCurrency((() => { const ma = new Date(); ma.setMonth(ma.getMonth() - 1); return serviceIncomes.filter(si => new Date(si.date) >= ma).reduce((sum, si) => sum + si.amount, 0); })(), settings.currencySymbol)}
+          value={formatCurrency(
+            (() => {
+              const ma = new Date();
+              ma.setMonth(ma.getMonth() - 1);
+              return serviceIncomes
+                .filter((si) => new Date(si.date) >= ma)
+                .reduce((sum, si) => sum + si.amount, 0);
+            })(),
+            settings.currencySymbol
+          )}
           icon={<TrendingUp className="w-5 h-5" />}
           variant="default"
         />
@@ -222,27 +245,29 @@ export const Ventas: React.FC = () => {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {[
-          { key: "today", label: "Hoy" },
-          { key: "week", label: "Semana" },
-          { key: "month", label: "Mes" },
-          { key: "all", label: "Todo" },
-        ].map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key as FilterPeriod)}
-            className={cn(
-              "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-              filter === f.key
-                ? "bg-primary text-primary-foreground shadow-material"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
+      {/* Filters and Export */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex gap-2 overflow-x-auto pb-2 flex-1">
+          {[
+            { key: "today", label: "Hoy" },
+            { key: "week", label: "Semana" },
+            { key: "month", label: "Mes" },
+            { key: "all", label: "Todo" },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key as FilterPeriod)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                filter === f.key
+                  ? "bg-primary text-primary-foreground shadow-material"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -259,7 +284,9 @@ export const Ventas: React.FC = () => {
       <div className="mt-6">
         <h3 className="font-semibold mb-3">Ingresos por servicios</h3>
         <DataTable
-          data={serviceIncomes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
+          data={serviceIncomes.sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          )}
           columns={serviceColumns}
           onEdit={undefined}
           onDelete={undefined}
@@ -274,6 +301,40 @@ export const Ventas: React.FC = () => {
           setShowForm(true);
         }}
         label="Nuevo ingreso (producto)"
+      />
+
+      <ExportButtons
+        data={useMemo<ExportData>(
+          () => ({
+            title: "Reporte de Ventas",
+            headers: ["Fecha", "Monto", "Categoría", "Descripción"],
+            rows: filteredSales
+              .sort(
+                (a, b) =>
+                  new Date(b.date).getTime() - new Date(a.date).getTime()
+              )
+              .map((sale) => [
+                new Date(sale.date).toLocaleDateString("es-ES"),
+                sale.amount,
+                sale.category,
+                sale.description || "-",
+              ]),
+            summary: [
+              { label: "Total de ventas", value: filteredSales.length },
+              {
+                label: "Total monto",
+                value: formatCurrency(totalFiltered, settings.currencySymbol),
+              },
+              {
+                label: "Promedio por venta",
+                value: formatCurrency(avgSale, settings.currencySymbol),
+              },
+            ],
+          }),
+          [filteredSales, totalFiltered, avgSale, settings.currencySymbol]
+        )}
+        filename="ventas"
+        isPremium={isPremium}
       />
 
       {/* Form Modal */}

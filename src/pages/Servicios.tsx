@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { ExportButtons } from "@/components/ui/ExportButtons";
 import { formatCurrency } from "@/lib/storage";
 import {
   ClipboardList,
@@ -14,6 +15,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ExportData } from "@/lib/exportUtils";
 
 export const Servicios: React.FC = () => {
   const {
@@ -25,6 +27,7 @@ export const Servicios: React.FC = () => {
     deleteServiceIncome,
   } = useApp();
   const { services, serviceIncomes, settings } = data;
+  const isPremium = settings.isPremium || false;
 
   const [view, setView] = useState<"catalog" | "record">("catalog");
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
@@ -120,25 +123,30 @@ export const Servicios: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-24">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricCard
-          title="Ingresos por servicios (últimos 30 días)"
-          value={formatCurrency(totalMonthlyServices, settings.currencySymbol)}
-          icon={<DollarSign className="w-5 h-5" />}
-          variant="primary"
-        />
-        <MetricCard
-          title="Servicios activos"
-          value={`${services.length}`}
-          icon={<ClipboardList className="w-5 h-5" />}
-          variant="default"
-        />
-        <MetricCard
-          title="Registros de servicios"
-          value={`${serviceIncomes.length}`}
-          icon={<Calendar className="w-5 h-5" />}
-          variant="success"
-        />
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+          <MetricCard
+            title="Ingresos por servicios (últimos 30 días)"
+            value={formatCurrency(
+              totalMonthlyServices,
+              settings.currencySymbol
+            )}
+            icon={<DollarSign className="w-5 h-5" />}
+            variant="primary"
+          />
+          <MetricCard
+            title="Servicios activos"
+            value={`${services.length}`}
+            icon={<ClipboardList className="w-5 h-5" />}
+            variant="default"
+          />
+          <MetricCard
+            title="Registros de servicios"
+            value={`${serviceIncomes.length}`}
+            icon={<Calendar className="w-5 h-5" />}
+            variant="success"
+          />
+        </div>
       </div>
 
       <div className="flex gap-2">
@@ -457,6 +465,48 @@ export const Servicios: React.FC = () => {
           </div>
         </div>
       )}
+
+      <ExportButtons
+        data={useMemo<ExportData>(
+          () => ({
+            title: "Reporte de Servicios",
+            headers: ["Fecha", "Servicio", "Monto", "Descripción"],
+            rows: serviceIncomes
+              .sort(
+                (a, b) =>
+                  new Date(b.date).getTime() - new Date(a.date).getTime()
+              )
+              .map((income) => {
+                const service = services.find((s) => s.id === income.serviceId);
+                return [
+                  new Date(income.date).toLocaleDateString("es-ES"),
+                  service?.name || "Servicio eliminado",
+                  income.amount,
+                  income.description || "-",
+                ];
+              }),
+            summary: [
+              { label: "Total servicios", value: services.length },
+              { label: "Total registros", value: serviceIncomes.length },
+              {
+                label: "Ingresos últimos 30 días",
+                value: formatCurrency(
+                  totalMonthlyServices,
+                  settings.currencySymbol
+                ),
+              },
+            ],
+          }),
+          [
+            serviceIncomes,
+            services,
+            totalMonthlyServices,
+            settings.currencySymbol,
+          ]
+        )}
+        filename="servicios"
+        isPremium={isPremium}
+      />
     </div>
   );
 };

@@ -37,7 +37,10 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   onClose,
   editingExpense,
 }) => {
-  const { addExpense, updateExpense, addRecurringPayment } = useApp();
+  const { addExpense, updateExpense, addRecurringPayment, data } = useApp();
+  const { settings, clients } = data;
+  const isPremium = settings.isPremium || false;
+
   const [formData, setFormData] = useState({
     date: editingExpense?.date || new Date().toISOString().split("T")[0],
     amount: editingExpense?.amount?.toString() || "",
@@ -47,6 +50,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
     isRecurring: editingExpense?.isRecurring || false,
     recurringId: editingExpense?.recurringId || "",
     recurringTime: "menusal",
+    clientId: (editingExpense as any)?.clientId || "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -60,6 +64,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       tags: formData.tags.length > 0 ? formData.tags : undefined,
       isRecurring: formData.isRecurring || false,
       recurringId: formData.recurringId || "",
+      clientId: formData.clientId || undefined,
     };
 
     const newReccurring = {
@@ -263,6 +268,29 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
                   Anual
                 </button>
               </div>
+            </div>
+          )}
+
+          {isPremium && (
+            <div className="space-y-2">
+              <Label htmlFor="client">Cliente (opcional)</Label>
+              <select
+                id="client"
+                value={formData.clientId}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, clientId: e.target.value }))
+                }
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground"
+              >
+                <option value="">Sin cliente</option>
+                {clients
+                  .filter((c) => c.type === "cliente")
+                  .map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+              </select>
             </div>
           )}
 

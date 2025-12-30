@@ -1,6 +1,6 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://negocio360.app/sitemap.xml
+Sitemap: https://up-five.vercel.app/sitemap.xml
 
 Sitemap: /sitemap.xml

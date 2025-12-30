@@ -4,9 +4,11 @@ import { FloatingButton } from "@/components/ui/FloatingButton";
 import { DataTable } from "@/components/ui/DataTable";
 import { ExpenseForm } from "@/components/forms/ExpenseForm";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { ExportButtons } from "@/components/ui/ExportButtons";
 import { formatCurrency } from "@/lib/storage";
 import { Receipt, Calendar, PieChart } from "lucide-react";
 import { Expense } from "@/lib/storage";
+import { ExportData } from "@/lib/exportUtils";
 import {
   PieChart as RechartsPie,
   Pie,
@@ -32,6 +34,7 @@ const COLORS = [
 export const Gastos: React.FC = () => {
   const { data, deleteExpense } = useApp();
   const { expenses, settings } = data;
+  const isPremium = settings.isPremium || false;
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [filter, setFilter] = useState<FilterPeriod>("week");
@@ -198,27 +201,29 @@ export const Gastos: React.FC = () => {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {[
-          { key: "today", label: "Hoy" },
-          { key: "week", label: "Semana" },
-          { key: "month", label: "Mes" },
-          { key: "all", label: "Todo" },
-        ].map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key as FilterPeriod)}
-            className={cn(
-              "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-              filter === f.key
-                ? "bg-destructive text-destructive-foreground shadow-material"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
+      {/* Filters and Export */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex gap-2 overflow-x-auto pb-2 flex-1">
+          {[
+            { key: "today", label: "Hoy" },
+            { key: "week", label: "Semana" },
+            { key: "month", label: "Mes" },
+            { key: "all", label: "Todo" },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key as FilterPeriod)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                filter === f.key
+                  ? "bg-destructive text-destructive-foreground shadow-material"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -240,6 +245,50 @@ export const Gastos: React.FC = () => {
         }}
         label="Nuevo Gasto"
         className="gradient-destructive"
+      />
+
+      <ExportButtons
+        data={useMemo<ExportData>(
+          () => ({
+            title: "Reporte de Gastos",
+            headers: ["Fecha", "Monto", "Categoría", "Descripción"],
+            rows: filteredExpenses
+              .sort(
+                (a, b) =>
+                  new Date(b.date).getTime() - new Date(a.date).getTime()
+              )
+              .map((expense) => [
+                new Date(expense.date).toLocaleDateString("es-ES"),
+                expense.amount,
+                expense.category,
+                expense.description || "-",
+              ]),
+            summary: [
+              { label: "Total de gastos", value: filteredExpenses.length },
+              {
+                label: "Total monto",
+                value: formatCurrency(totalFiltered, settings.currencySymbol),
+              },
+              {
+                label: "Gastos esta semana",
+                value: formatCurrency(weekTotal, settings.currencySymbol),
+              },
+              {
+                label: "Gastos del mes",
+                value: formatCurrency(monthTotal, settings.currencySymbol),
+              },
+            ],
+          }),
+          [
+            filteredExpenses,
+            totalFiltered,
+            weekTotal,
+            monthTotal,
+            settings.currencySymbol,
+          ]
+        )}
+        filename="gastos"
+        isPremium={isPremium}
       />
 
       {/* Form Modal */}

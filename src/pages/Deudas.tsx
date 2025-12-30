@@ -1,52 +1,61 @@
-import React, { useState, useMemo } from 'react';
-import { useApp } from '@/contexts/AppContext';
-import { 
-  CreditCard, 
+import React, { useState, useMemo } from "react";
+import { useApp } from "@/contexts/AppContext";
+import {
+  CreditCard,
   Plus,
   Edit2,
   Trash2,
   ArrowUpCircle,
   ArrowDownCircle,
   Check,
-  Calendar
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Debt, formatCurrency } from '@/lib/storage';
-import { cn } from '@/lib/utils';
+  Calendar,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ExportButtons } from "@/components/ui/ExportButtons";
+import { Debt, formatCurrency } from "@/lib/storage";
+import { cn } from "@/lib/utils";
+import { ExportData } from "@/lib/exportUtils";
 
 export const Deudas: React.FC = () => {
   const { data, addDebt, updateDebt, deleteDebt } = useApp();
   const { debts, settings } = data;
+  const isPremium = settings.isPremium || false;
 
   const [showForm, setShowForm] = useState(false);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
-  const [filter, setFilter] = useState<'all' | 'me_deben' | 'debo' | 'paid'>('all');
+  const [filter, setFilter] = useState<"all" | "me_deben" | "debo" | "paid">(
+    "all"
+  );
   const [formData, setFormData] = useState({
-    personName: '',
-    amount: '',
-    type: 'me_deben' as Debt['type'],
-    description: '',
-    dueDate: '',
+    personName: "",
+    amount: "",
+    type: "me_deben" as Debt["type"],
+    description: "",
+    dueDate: "",
   });
 
   const filteredDebts = useMemo(() => {
-    if (filter === 'paid') return debts.filter(d => d.paid);
-    if (filter === 'all') return debts.filter(d => !d.paid);
-    return debts.filter(d => d.type === filter && !d.paid);
+    if (filter === "paid") return debts.filter((d) => d.paid);
+    if (filter === "all") return debts.filter((d) => !d.paid);
+    return debts.filter((d) => d.type === filter && !d.paid);
   }, [debts, filter]);
 
   const summary = useMemo(() => {
-    const active = debts.filter(d => !d.paid);
-    const meOwed = active.filter(d => d.type === 'me_deben').reduce((sum, d) => sum + d.amount, 0);
-    const iOwe = active.filter(d => d.type === 'debo').reduce((sum, d) => sum + d.amount, 0);
+    const active = debts.filter((d) => !d.paid);
+    const meOwed = active
+      .filter((d) => d.type === "me_deben")
+      .reduce((sum, d) => sum + d.amount, 0);
+    const iOwe = active
+      .filter((d) => d.type === "debo")
+      .reduce((sum, d) => sum + d.amount, 0);
     return { meOwed, iOwe, balance: meOwed - iOwe };
   }, [debts]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const debtData = {
       personName: formData.personName,
       amount: parseFloat(formData.amount),
@@ -61,7 +70,7 @@ export const Deudas: React.FC = () => {
     } else {
       addDebt(debtData);
     }
-    
+
     resetForm();
   };
 
@@ -69,11 +78,11 @@ export const Deudas: React.FC = () => {
     setShowForm(false);
     setEditingDebt(null);
     setFormData({
-      personName: '',
-      amount: '',
-      type: 'me_deben',
-      description: '',
-      dueDate: '',
+      personName: "",
+      amount: "",
+      type: "me_deben",
+      description: "",
+      dueDate: "",
     });
   };
 
@@ -83,8 +92,8 @@ export const Deudas: React.FC = () => {
       personName: debt.personName,
       amount: debt.amount.toString(),
       type: debt.type,
-      description: debt.description || '',
-      dueDate: debt.dueDate || '',
+      description: debt.description || "",
+      dueDate: debt.dueDate || "",
     });
     setShowForm(true);
   };
@@ -94,7 +103,7 @@ export const Deudas: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('¿Eliminar esta deuda?')) {
+    if (confirm("¿Eliminar esta deuda?")) {
       deleteDebt(id);
     }
   };
@@ -114,13 +123,18 @@ export const Deudas: React.FC = () => {
               <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-destructive" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-bold">Control de Deudas</h2>
+              <h2 className="text-lg sm:text-xl font-bold">
+                Control de Deudas
+              </h2>
               <p className="text-sm text-muted-foreground">
                 Gestiona créditos y deudas pendientes
               </p>
             </div>
           </div>
-          <Button onClick={() => setShowForm(true)} className="gradient-primary">
+          <Button
+            onClick={() => setShowForm(true)}
+            className="gradient-primary"
+          >
             <Plus className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Nueva Deuda</span>
           </Button>
@@ -148,43 +162,98 @@ export const Deudas: React.FC = () => {
           </div>
         </div>
         <div className="bg-card rounded-2xl p-3 sm:p-4 shadow-soft border border-border">
-          <div className="text-xs sm:text-sm text-muted-foreground mb-1">Balance</div>
-          <div className={cn(
-            'text-lg sm:text-xl font-bold',
-            summary.balance >= 0 ? 'text-success' : 'text-destructive'
-          )}>
-            {summary.balance >= 0 ? '+' : ''}{formatCurrency(summary.balance, settings.currencySymbol)}
+          <div className="text-xs sm:text-sm text-muted-foreground mb-1">
+            Balance
+          </div>
+          <div
+            className={cn(
+              "text-lg sm:text-xl font-bold",
+              summary.balance >= 0 ? "text-success" : "text-destructive"
+            )}
+          >
+            {summary.balance >= 0 ? "+" : ""}
+            {formatCurrency(summary.balance, settings.currencySymbol)}
           </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {[
-          { key: 'all', label: 'Pendientes' },
-          { key: 'me_deben', label: 'Me deben' },
-          { key: 'debo', label: 'Debo' },
-          { key: 'paid', label: 'Pagadas' },
-        ].map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key as typeof filter)}
-            className={cn(
-              'px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all',
-              filter === f.key
-                ? 'bg-primary text-primary-foreground shadow-material'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
+      {/* Filters and Export */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex gap-2 overflow-x-auto pb-2 flex-1">
+          {[
+            { key: "all", label: "Pendientes" },
+            { key: "me_deben", label: "Me deben" },
+            { key: "debo", label: "Debo" },
+            { key: "paid", label: "Pagadas" },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key as typeof filter)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                filter === f.key
+                  ? "bg-primary text-primary-foreground shadow-material"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <ExportButtons
+          data={useMemo<ExportData>(
+            () => ({
+              title: "Reporte de Deudas",
+              headers: [
+                "Tipo",
+                "Persona/Empresa",
+                "Monto",
+                "Fecha Vencimiento",
+                "Estado",
+                "Descripción",
+              ],
+              rows: filteredDebts.map((debt) => [
+                debt.type === "me_deben" ? "Me deben" : "Debo",
+                debt.personName,
+                debt.amount,
+                debt.dueDate
+                  ? new Date(debt.dueDate).toLocaleDateString("es-ES")
+                  : "-",
+                debt.paid ? "Pagada" : "Pendiente",
+                debt.description || "-",
+              ]),
+              summary: [
+                {
+                  label: "Me deben",
+                  value: formatCurrency(
+                    summary.meOwed,
+                    settings.currencySymbol
+                  ),
+                },
+                {
+                  label: "Debo",
+                  value: formatCurrency(summary.iOwe, settings.currencySymbol),
+                },
+                {
+                  label: "Balance",
+                  value: formatCurrency(
+                    summary.balance,
+                    settings.currencySymbol
+                  ),
+                },
+              ],
+            }),
+            [filteredDebts, summary, settings.currencySymbol]
+          )}
+          filename="deudas"
+          isPremium={isPremium}
+        />
       </div>
 
       {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div 
+          <div
             className="absolute inset-0 bg-foreground/20 backdrop-blur-sm"
             onClick={resetForm}
           />
@@ -192,10 +261,10 @@ export const Deudas: React.FC = () => {
             <div className="sm:hidden flex justify-center pt-3 pb-1">
               <div className="w-12 h-1.5 rounded-full bg-muted" />
             </div>
-            
+
             <div className="p-4 border-b border-border">
               <h3 className="font-semibold">
-                {editingDebt ? 'Editar Deuda' : 'Nueva Deuda'}
+                {editingDebt ? "Editar Deuda" : "Nueva Deuda"}
               </h3>
             </div>
 
@@ -205,12 +274,14 @@ export const Deudas: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, type: 'me_deben' }))}
+                    onClick={() =>
+                      setFormData((prev) => ({ ...prev, type: "me_deben" }))
+                    }
                     className={cn(
-                      'flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all',
-                      formData.type === 'me_deben'
-                        ? 'border-success bg-success/5'
-                        : 'border-border hover:border-muted-foreground'
+                      "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all",
+                      formData.type === "me_deben"
+                        ? "border-success bg-success/5"
+                        : "border-border hover:border-muted-foreground"
                     )}
                   >
                     <ArrowDownCircle className="w-4 h-4 text-success" />
@@ -218,12 +289,14 @@ export const Deudas: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, type: 'debo' }))}
+                    onClick={() =>
+                      setFormData((prev) => ({ ...prev, type: "debo" }))
+                    }
                     className={cn(
-                      'flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all',
-                      formData.type === 'debo'
-                        ? 'border-destructive bg-destructive/5'
-                        : 'border-border hover:border-muted-foreground'
+                      "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all",
+                      formData.type === "debo"
+                        ? "border-destructive bg-destructive/5"
+                        : "border-border hover:border-muted-foreground"
                     )}
                   >
                     <ArrowUpCircle className="w-4 h-4 text-destructive" />
@@ -237,7 +310,12 @@ export const Deudas: React.FC = () => {
                 <Input
                   placeholder="Nombre..."
                   value={formData.personName}
-                  onChange={(e) => setFormData(prev => ({ ...prev, personName: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      personName: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
@@ -249,7 +327,9 @@ export const Deudas: React.FC = () => {
                   step="0.01"
                   placeholder="0.00"
                   value={formData.amount}
-                  onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, amount: e.target.value }))
+                  }
                   required
                 />
               </div>
@@ -259,7 +339,12 @@ export const Deudas: React.FC = () => {
                 <Input
                   type="date"
                   value={formData.dueDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      dueDate: e.target.value,
+                    }))
+                  }
                 />
               </div>
 
@@ -268,16 +353,26 @@ export const Deudas: React.FC = () => {
                 <Input
                   placeholder="Notas..."
                   value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
                 />
               </div>
 
               <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" className="flex-1" onClick={resetForm}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={resetForm}
+                >
                   Cancelar
                 </Button>
                 <Button type="submit" className="flex-1 gradient-primary">
-                  {editingDebt ? 'Guardar' : 'Crear'}
+                  {editingDebt ? "Guardar" : "Crear"}
                 </Button>
               </div>
             </form>
@@ -292,58 +387,76 @@ export const Deudas: React.FC = () => {
             <div
               key={debt.id}
               className={cn(
-                'bg-card rounded-2xl p-4 shadow-soft border transition-all',
-                debt.paid ? 'opacity-60 border-border' :
-                isOverdue(debt.dueDate) ? 'border-destructive/50' : 'border-border'
+                "bg-card rounded-2xl p-4 shadow-soft border transition-all",
+                debt.paid
+                  ? "opacity-60 border-border"
+                  : isOverdue(debt.dueDate)
+                  ? "border-destructive/50"
+                  : "border-border"
               )}
             >
               <div className="flex items-start gap-3">
                 <button
                   onClick={() => handleTogglePaid(debt)}
                   className={cn(
-                    'w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors mt-1',
+                    "w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors mt-1",
                     debt.paid
-                      ? 'bg-success border-success text-success-foreground'
-                      : debt.type === 'me_deben'
-                        ? 'border-success hover:bg-success/10'
-                        : 'border-destructive hover:bg-destructive/10'
+                      ? "bg-success border-success text-success-foreground"
+                      : debt.type === "me_deben"
+                      ? "border-success hover:bg-success/10"
+                      : "border-destructive hover:bg-destructive/10"
                   )}
                 >
                   {debt.paid && <Check className="w-4 h-4" />}
                 </button>
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    {debt.type === 'me_deben' ? (
+                    {debt.type === "me_deben" ? (
                       <ArrowDownCircle className="w-4 h-4 text-success" />
                     ) : (
                       <ArrowUpCircle className="w-4 h-4 text-destructive" />
                     )}
-                    <span className={cn('font-medium', debt.paid && 'line-through')}>
+                    <span
+                      className={cn("font-medium", debt.paid && "line-through")}
+                    >
                       {debt.personName}
                     </span>
                   </div>
-                  
-                  <div className={cn(
-                    'text-lg font-bold',
-                    debt.type === 'me_deben' ? 'text-success' : 'text-destructive'
-                  )}>
-                    {debt.type === 'me_deben' ? '+' : '-'}{formatCurrency(debt.amount, settings.currencySymbol)}
+
+                  <div
+                    className={cn(
+                      "text-lg font-bold",
+                      debt.type === "me_deben"
+                        ? "text-success"
+                        : "text-destructive"
+                    )}
+                  >
+                    {debt.type === "me_deben" ? "+" : "-"}
+                    {formatCurrency(debt.amount, settings.currencySymbol)}
                   </div>
-                  
+
                   {debt.description && (
-                    <p className="text-sm text-muted-foreground mt-1">{debt.description}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {debt.description}
+                    </p>
                   )}
-                  
+
                   {debt.dueDate && (
-                    <div className={cn(
-                      'flex items-center gap-1 text-xs mt-2',
-                      isOverdue(debt.dueDate) && !debt.paid ? 'text-destructive' : 'text-muted-foreground'
-                    )}>
+                    <div
+                      className={cn(
+                        "flex items-center gap-1 text-xs mt-2",
+                        isOverdue(debt.dueDate) && !debt.paid
+                          ? "text-destructive"
+                          : "text-muted-foreground"
+                      )}
+                    >
                       <Calendar className="w-3 h-3" />
                       <span>
-                        {isOverdue(debt.dueDate) && !debt.paid ? 'Vencido: ' : 'Vence: '}
-                        {new Date(debt.dueDate).toLocaleDateString('es-ES')}
+                        {isOverdue(debt.dueDate) && !debt.paid
+                          ? "Vencido: "
+                          : "Vence: "}
+                        {new Date(debt.dueDate).toLocaleDateString("es-ES")}
                       </span>
                     </div>
                   )}
@@ -374,7 +487,11 @@ export const Deudas: React.FC = () => {
       ) : (
         <div className="text-center py-12 text-muted-foreground">
           <CreditCard className="w-12 h-12 mx-auto mb-2 opacity-50" />
-          <p>{filter === 'paid' ? 'No hay deudas pagadas' : 'No hay deudas pendientes'}</p>
+          <p>
+            {filter === "paid"
+              ? "No hay deudas pagadas"
+              : "No hay deudas pendientes"}
+          </p>
         </div>
       )}
     </div>

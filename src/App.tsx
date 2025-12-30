@@ -22,6 +22,7 @@ import Deudas from "@/pages/Deudas";
 import PostsRedes from "@/pages/PostsRedes";
 import PagosRecurrentes from "@/pages/PagosRecurrentes";
 import Servicios from "@/pages/Servicios";
+import Premium from "@/pages/Premium";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,10 +48,17 @@ const App = () => (
               <Route path="/herramientas/agenda" element={<Agenda />} />
               <Route path="/herramientas/crm" element={<MiniCRM />} />
               <Route path="/herramientas/metas" element={<Metas />} />
-              <Route path="/herramientas/precios" element={<PreciosDinamicos />} />
+              <Route
+                path="/herramientas/precios"
+                element={<PreciosDinamicos />}
+              />
               <Route path="/herramientas/deudas" element={<Deudas />} />
               <Route path="/herramientas/posts" element={<PostsRedes />} />
-              <Route path="/herramientas/pagos-recurrentes" element={<PagosRecurrentes />} />
+              <Route
+                path="/herramientas/pagos-recurrentes"
+                element={<PagosRecurrentes />}
+              />
+              <Route path="/premium" element={<Premium />} />
               <Route path="/configuracion" element={<Configuracion />} />
             </Route>
             <Route path="*" element={<NotFound />} />

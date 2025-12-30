@@ -26,8 +26,9 @@ interface SaleFormProps {
 }
 
 export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
-  const { addSale, updateSale, data } = useApp();
-  const { products, settings, services } = data;
+  const { addSale, updateSale, addServiceIncome, data } = useApp();
+  const { products, settings, services, clients } = data;
+  const isPremium = settings.isPremium || false;
 
   const [saleType, setSaleType] = useState<"manual" | "inventory" | "service">(
     editingSale?.productId
@@ -58,14 +59,12 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
     quantity: editingSale?.quantity?.toString() || "1",
     serviceId: editingSale?.serviceId || "",
     tags: editingSale?.tags || [],
+    clientId: (editingSale as any)?.clientId || "",
   });
   const [showScanner, setShowScanner] = useState(false);
   const [showImputFromNewCategory, setShowInputFromNewCategory] =
     useState(false);
   const [newCategory, setNewcategory] = useState("");
-  const [showTagsSelector, setShowTagsSelector] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-
   const handleScan = (code: string) => {
     const product = products.find((p) => p.barcode === code);
     if (product) {
@@ -99,30 +98,47 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const saleData = {
-      date: formData.date,
-      amount:
-        saleType === "inventory"
-          ? calculatedAmount
-          : parseFloat(formData.amount),
-      category:
-        saleType === "inventory" && selectedProduct?.category
-          ? selectedProduct.category
-          : formData.category,
-      description:
-        saleType === "inventory" && selectedProduct
-          ? `Ingreso: ${selectedProduct.name} x${formData.quantity}`
-          : formData.description || undefined,
-      productId: saleType === "inventory" ? formData.productId : undefined,
-      quantity:
-        saleType === "inventory" ? parseInt(formData.quantity) : undefined,
-      tags: formData.tags.length > 0 ? formData.tags : undefined,
-    };
-
-    if (editingSale) {
-      updateSale(editingSale.id, saleData);
+    if (saleType === "service") {
+      const serviceData = {
+        date: formData.date,
+        amount: parseFloat(formData.amount),
+        serviceId: formData.serviceId,
+        description: formData.description || undefined,
+        tags: formData.tags.length > 0 ? formData.tags : undefined,
+        clientId: formData.clientId || undefined,
+      };
+      if (editingSale) {
+        updateSale(editingSale.id, serviceData);
+      } else {
+        addServiceIncome(serviceData);
+      }
     } else {
-      addSale(saleData);
+      const saleData = {
+        date: formData.date,
+        amount:
+          saleType === "inventory"
+            ? calculatedAmount
+            : parseFloat(formData.amount),
+        category:
+          saleType === "inventory" && selectedProduct?.category
+            ? selectedProduct.category
+            : formData.category,
+        description:
+          saleType === "inventory" && selectedProduct
+            ? `Ingreso: ${selectedProduct.name} x${formData.quantity}`
+            : formData.description || undefined,
+        productId: saleType === "inventory" ? formData.productId : undefined,
+        quantity:
+          saleType === "inventory" ? parseInt(formData.quantity) : undefined,
+        tags: formData.tags.length > 0 ? formData.tags : undefined,
+        clientId: formData.clientId || undefined,
+      };
+
+      if (editingSale) {
+        updateSale(editingSale.id, saleData);
+      } else {
+        addSale(saleData);
+      }
     }
 
     onClose();
@@ -455,6 +471,29 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                 />
               </div>
             </>
+          )}
+
+          {isPremium && (
+            <div className="space-y-2">
+              <Label htmlFor="client">Cliente (opcional)</Label>
+              <select
+                id="client"
+                value={formData.clientId}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, clientId: e.target.value }))
+                }
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground"
+              >
+                <option value="">Sin cliente</option>
+                {clients
+                  .filter((c) => c.type === "cliente")
+                  .map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
           )}
 
           <div className="space-y-2">

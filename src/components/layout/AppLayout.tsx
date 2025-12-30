@@ -15,8 +15,10 @@ import {
   Moon,
   ChevronRight,
   ClipboardList,
+  Crown,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
+import { AutoSyncIndicator } from "@/components/ui/AutoSyncIndicator";
 import { cn } from "@/lib/utils";
 
 const menuItems = [
@@ -28,17 +30,19 @@ const menuItems = [
   { path: "/analisis", icon: BarChart3, label: "Análisis" },
   { path: "/proyecciones", icon: TrendingUp, label: "Proyecciones" },
   { path: "/herramientas", icon: Wrench, label: "Herramientas" },
+  { path: "/premium", icon: Crown, label: "Premium" },
   { path: "/configuracion", icon: Settings, label: "Configuración" },
 ];
 
 export const AppLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { theme, toggleTheme } = useApp();
+  const { theme, toggleTheme, data, supabaseSyncState } = useApp();
   const location = useLocation();
+  const isPremium = data.settings.isPremium || false;
 
   const currentPage =
     menuItems.find((item) => item.path === location.pathname)?.label ||
-    "Negocio360";
+    "UP  |  Gestion";
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -105,6 +109,11 @@ export const AppLayout: React.FC = () => {
                     )}
                   />
                   <span className="flex-1">{item.label}</span>
+                  {item.path === "/premium" && isPremium && (
+                    <span className="px-2 py-0.5 bg-success/20 text-success rounded-full text-xs font-medium">
+                      ✓
+                    </span>
+                  )}
                   {isActive && (
                     <ChevronRight className="w-4 h-4 text-sidebar-primary" />
                   )}
@@ -138,14 +147,23 @@ export const AppLayout: React.FC = () => {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-lg border-b border-border flex items-center px-4 gap-4">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="lg:hidden p-2 rounded-lg hover:bg-accent transition-colors"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-          <h2 className="font-semibold text-lg">{currentPage}</h2>
+        <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-lg border-b border-border flex items-center px-4 gap-4 justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-lg hover:bg-accent transition-colors"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <h2 className="font-semibold text-lg">{currentPage}</h2>
+          </div>
+          {isPremium && supabaseSyncState && (
+            <AutoSyncIndicator
+              isSyncing={supabaseSyncState.isSyncing}
+              isOnline={supabaseSyncState.isOnline}
+              lastSyncTime={supabaseSyncState.lastSyncTime}
+            />
+          )}
         </header>
 
         {/* Page content */}

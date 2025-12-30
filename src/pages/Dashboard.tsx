@@ -1,6 +1,7 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { ExportButtons } from "@/components/ui/ExportButtons";
 import { CashFlowAlerts } from "@/components/dashboard/CashFlowAlerts";
 import { RecurringPaymentsCard } from "@/components/dashboard/RecurringPaymentsCard";
 import { BalanceHistory } from "@/components/dashboard/BalanceHistory";
@@ -13,7 +14,11 @@ import {
   Lightbulb,
   ShoppingCart,
   Receipt,
+  Crown,
+  Lock,
 } from "lucide-react";
+import { ExportData } from "@/lib/exportUtils";
+import { toast } from "@/hooks/use-toast";
 import {
   formatCurrency,
   getTodaysSales,
@@ -39,9 +44,13 @@ import { cn } from "@/lib/utils";
 import { GoalsState } from "@/components/dashboard/GoalsState";
 import { Separator } from "@/components/ui/separator";
 
+type ChartPeriod = "7d" | "30d" | "90d" | "365d";
+
 export const Dashboard: React.FC = () => {
   const { data } = useApp();
   const { sales, expenses, products, settings } = data;
+  const isPremium = settings.isPremium || false;
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("7d");
 
   // Calculate metrics
   const todaySales = useMemo(() => getTodaysSales(sales), [sales]);
@@ -71,31 +80,129 @@ export const Dashboard: React.FC = () => {
       ? ((todaySalesTotal - yesterdaySalesTotal) / yesterdaySalesTotal) * 100
       : 0;
 
-  // Prepare chart data for last 7 days
+  // Prepare chart data based on selected period
   const chartData = useMemo(() => {
+    const periodDays = { "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
+    const daysToShow = periodDays[chartPeriod];
     const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split("T")[0];
-      const dayName = date.toLocaleDateString("es-ES", { weekday: "short" });
 
-      const daySales = sales
-        .filter((s) => s.date === dateStr)
-        .reduce((sum, s) => sum + s.amount, 0);
-      const dayExpenses = expenses
-        .filter((e) => e.date === dateStr)
-        .reduce((sum, e) => sum + e.amount, 0);
+    // Determine grouping based on period
+    const groupBy =
+      chartPeriod === "7d"
+        ? "day"
+        : chartPeriod === "30d"
+        ? "day"
+        : chartPeriod === "90d"
+        ? "week"
+        : "month";
 
-      days.push({
-        name: dayName,
-        ventas: daySales,
-        gastos: dayExpenses,
-        balance: daySales - dayExpenses,
-      });
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysToShow);
+
+    if (groupBy === "day") {
+      // Show daily data
+      for (let i = daysToShow - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split("T")[0];
+
+        let dayName = "";
+        if (chartPeriod === "7d") {
+          dayName = date.toLocaleDateString("es-ES", { weekday: "short" });
+        } else {
+          // Para 30 días, mostrar cada 3 días para evitar saturación
+          if (i % 3 === 0 || i === daysToShow - 1) {
+            dayName = date.toLocaleDateString("es-ES", {
+              day: "numeric",
+              month: "short",
+            });
+          } else {
+            dayName = "";
+          }
+        }
+
+        const daySales = sales
+          .filter((s) => s.date === dateStr)
+          .reduce((sum, s) => sum + s.amount, 0);
+        const dayExpenses = expenses
+          .filter((e) => e.date === dateStr)
+          .reduce((sum, e) => sum + e.amount, 0);
+
+        days.push({
+          name: dayName,
+          ventas: daySales,
+          gastos: dayExpenses,
+          balance: daySales - dayExpenses,
+        });
+      }
+    } else if (groupBy === "week") {
+      // Show weekly data
+      const weeks = Math.ceil(daysToShow / 7);
+      for (let i = weeks - 1; i >= 0; i--) {
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - i * 7 - 6);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+
+        const weekSales = sales
+          .filter((s) => {
+            const saleDate = new Date(s.date);
+            return saleDate >= weekStart && saleDate <= weekEnd;
+          })
+          .reduce((sum, s) => sum + s.amount, 0);
+        const weekExpenses = expenses
+          .filter((e) => {
+            const expDate = new Date(e.date);
+            return expDate >= weekStart && expDate <= weekEnd;
+          })
+          .reduce((sum, e) => sum + e.amount, 0);
+
+        const weekLabel = weekStart.toLocaleDateString("es-ES", {
+          day: "numeric",
+          month: "short",
+        });
+        days.push({
+          name: weekLabel,
+          ventas: weekSales,
+          gastos: weekExpenses,
+          balance: weekSales - weekExpenses,
+        });
+      }
+    } else {
+      // Show monthly data (for 365d)
+      const months = Math.ceil(daysToShow / 30);
+      for (let i = months - 1; i >= 0; i--) {
+        const monthStart = new Date();
+        monthStart.setMonth(monthStart.getMonth() - i);
+        monthStart.setDate(1);
+        const monthEnd = new Date(monthStart);
+        monthEnd.setMonth(monthEnd.getMonth() + 1);
+        monthEnd.setDate(0);
+
+        const monthSales = sales
+          .filter((s) => {
+            const saleDate = new Date(s.date);
+            return saleDate >= monthStart && saleDate <= monthEnd;
+          })
+          .reduce((sum, s) => sum + s.amount, 0);
+        const monthExpenses = expenses
+          .filter((e) => {
+            const expDate = new Date(e.date);
+            return expDate >= monthStart && expDate <= monthEnd;
+          })
+          .reduce((sum, e) => sum + e.amount, 0);
+
+        days.push({
+          name: monthStart.toLocaleDateString("es-ES", { month: "short" }),
+          ventas: monthSales,
+          gastos: monthExpenses,
+          balance: monthSales - monthExpenses,
+        });
+      }
     }
+
     return days;
-  }, [sales, expenses]);
+  }, [sales, expenses, chartPeriod]);
 
   // Generate insights
   const insights = useMemo(() => {
@@ -150,8 +257,52 @@ export const Dashboard: React.FC = () => {
     settings.currencySymbol,
   ]);
 
+  // Prepare export data
+  const exportData = useMemo<ExportData>(
+    () => ({
+      title: "Dashboard - Resumen General",
+      headers: ["Fecha", "Ventas", "Gastos", "Balance"],
+      rows: chartData.map((day) => [
+        day.name,
+        day.ventas,
+        day.gastos,
+        day.balance,
+      ]),
+      summary: [
+        {
+          label: "Ventas de hoy",
+          value: formatCurrency(todaySalesTotal, settings.currencySymbol),
+        },
+        {
+          label: "Gastos de hoy",
+          value: formatCurrency(todayExpensesTotal, settings.currencySymbol),
+        },
+        {
+          label: "Balance del día",
+          value: formatCurrency(todayBalance, settings.currencySymbol),
+        },
+        {
+          label: "Valor inventario",
+          value: formatCurrency(inventoryValue, settings.currencySymbol),
+        },
+        { label: "Productos con stock bajo", value: lowStockProducts.length },
+      ],
+    }),
+    [
+      chartData,
+      todaySalesTotal,
+      todayExpensesTotal,
+      todayBalance,
+      inventoryValue,
+      lowStockProducts.length,
+      settings.currencySymbol,
+    ]
+  );
+
   return (
     <div className="space-y-6 pb-20">
+
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <MetricCard
@@ -199,7 +350,107 @@ export const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Weekly Overview */}
         <div className="lg:col-span-2 bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
-          <h3 className="font-semibold mb-4">Resumen Semanal</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <h3 className="font-semibold">Resumen de Período</h3>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setChartPeriod("7d")}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                  chartPeriod === "7d"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                7 días
+              </button>
+              {isPremium ? (
+                <>
+                  <button
+                    onClick={() => setChartPeriod("30d")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
+                      chartPeriod === "30d"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    <Crown className="w-3 h-3" />
+                    30 días
+                  </button>
+                  <button
+                    onClick={() => setChartPeriod("90d")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
+                      chartPeriod === "90d"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    <Crown className="w-3 h-3" />
+                    90 días
+                  </button>
+                  <button
+                    onClick={() => setChartPeriod("365d")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
+                      chartPeriod === "365d"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    <Crown className="w-3 h-3" />
+                    365 días
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      toast({
+                        title: "Funcionalidad Premium",
+                        description:
+                          "Los períodos extendidos están disponibles solo para usuarios premium",
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed"
+                    disabled
+                  >
+                    <Lock className="w-3 h-3" />
+                    30 días
+                  </button>
+                  <button
+                    onClick={() => {
+                      toast({
+                        title: "Funcionalidad Premium",
+                        description:
+                          "Los períodos extendidos están disponibles solo para usuarios premium",
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed"
+                    disabled
+                  >
+                    <Lock className="w-3 h-3" />
+                    90 días
+                  </button>
+                  <button
+                    onClick={() => {
+                      toast({
+                        title: "Funcionalidad Premium",
+                        description:
+                          "Los períodos extendidos están disponibles solo para usuarios premium",
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed"
+                    disabled
+                  >
+                    <Lock className="w-3 h-3" />
+                    365 días
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
           <div className="h-56 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
@@ -273,7 +524,7 @@ export const Dashboard: React.FC = () => {
 
         {/* Balance Chart */}
         <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
-          <h3 className="font-semibold mb-4">Balance Diario</h3>
+          <h3 className="font-semibold mb-4">Balance del Período</h3>
           <div className="h-56 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
@@ -381,6 +632,15 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+            {/* Export */}
+      <div className="flex justify-end">
+        <ExportButtons
+          data={exportData}
+          filename="dashboard"
+          isPremium={isPremium}
+        />
+      </div>
     </div>
   );
 };

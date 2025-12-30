@@ -1,68 +1,84 @@
-import React, { useState, useMemo } from 'react';
-import { useApp } from '@/contexts/AppContext';
-import { 
-  Target, 
+import React, { useState, useMemo } from "react";
+import { useApp } from "@/contexts/AppContext";
+import {
+  Target,
   Plus,
   Edit2,
   Trash2,
   TrendingUp,
   Wallet,
   PiggyBank,
-  MoreHorizontal
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { FinancialGoal, formatCurrency } from '@/lib/storage';
-import { cn } from '@/lib/utils';
+  MoreHorizontal,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { ExportButtons } from "@/components/ui/ExportButtons";
+import { FinancialGoal, formatCurrency } from "@/lib/storage";
+import { cn } from "@/lib/utils";
+import { ExportData } from "@/lib/exportUtils";
 
 const goalCategories = [
-  { value: 'ventas', label: 'Ventas', icon: TrendingUp, color: 'text-success' },
-  { value: 'ahorro', label: 'Ahorro', icon: PiggyBank, color: 'text-primary' },
-  { value: 'reduccion_gastos', label: 'Reducir gastos', icon: Wallet, color: 'text-warning' },
-  { value: 'otro', label: 'Otro', icon: MoreHorizontal, color: 'text-muted-foreground' },
+  { value: "ventas", label: "Ventas", icon: TrendingUp, color: "text-success" },
+  { value: "ahorro", label: "Ahorro", icon: PiggyBank, color: "text-primary" },
+  {
+    value: "reduccion_gastos",
+    label: "Reducir gastos",
+    icon: Wallet,
+    color: "text-warning",
+  },
+  {
+    value: "otro",
+    label: "Otro",
+    icon: MoreHorizontal,
+    color: "text-muted-foreground",
+  },
 ];
 
 export const Metas: React.FC = () => {
   const { data, addGoal, updateGoal, deleteGoal } = useApp();
   const { goals, sales, settings } = data;
+  const isPremium = settings.isPremium || false;
 
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<FinancialGoal | null>(null);
   const [formData, setFormData] = useState({
-    title: '',
-    targetAmount: '',
-    currentAmount: '',
-    deadline: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0],
-    category: 'ventas' as FinancialGoal['category'],
+    title: "",
+    targetAmount: "",
+    currentAmount: "",
+    deadline: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)
+      .toISOString()
+      .split("T")[0],
+    category: "ventas" as FinancialGoal["category"],
   });
 
   // Auto-calculate sales goals
   const goalsWithProgress = useMemo(() => {
-    return goals.map(goal => {
+    return goals.map((goal) => {
       let currentAmount = goal.currentAmount;
-      
+
       // Auto-update sales goals based on actual sales
-      if (goal.category === 'ventas') {
+      if (goal.category === "ventas") {
         const goalMonth = goal.deadline.substring(0, 7);
         const monthSales = sales
-          .filter(s => s.date.startsWith(goalMonth))
+          .filter((s) => s.date.startsWith(goalMonth))
           .reduce((sum, s) => sum + s.amount, 0);
         currentAmount = monthSales;
       }
-      
-      const progress = goal.targetAmount > 0 
-        ? Math.min(100, (currentAmount / goal.targetAmount) * 100)
-        : 0;
-      
+
+      const progress =
+        goal.targetAmount > 0
+          ? Math.min(100, (currentAmount / goal.targetAmount) * 100)
+          : 0;
+
       return { ...goal, currentAmount, progress };
     });
   }, [goals, sales]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const goalData = {
       title: formData.title,
       targetAmount: parseFloat(formData.targetAmount),
@@ -76,7 +92,7 @@ export const Metas: React.FC = () => {
     } else {
       addGoal(goalData);
     }
-    
+
     resetForm();
   };
 
@@ -84,11 +100,13 @@ export const Metas: React.FC = () => {
     setShowForm(false);
     setEditingGoal(null);
     setFormData({
-      title: '',
-      targetAmount: '',
-      currentAmount: '',
-      deadline: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0],
-      category: 'ventas',
+      title: "",
+      targetAmount: "",
+      currentAmount: "",
+      deadline: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)
+        .toISOString()
+        .split("T")[0],
+      category: "ventas",
     });
   };
 
@@ -105,7 +123,7 @@ export const Metas: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('¿Eliminar esta meta?')) {
+    if (confirm("¿Eliminar esta meta?")) {
       deleteGoal(id);
     }
   };
@@ -124,23 +142,78 @@ export const Metas: React.FC = () => {
               <Target className="w-5 h-5 sm:w-6 sm:h-6 text-info" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-bold">Metas Financieras</h2>
+              <h2 className="text-lg sm:text-xl font-bold">
+                Metas Financieras
+              </h2>
               <p className="text-sm text-muted-foreground">
-                {goalsWithProgress.filter(g => g.progress >= 100).length} completadas de {goals.length}
+                {goalsWithProgress.filter((g) => g.progress >= 100).length}{" "}
+                completadas de {goals.length}
               </p>
             </div>
           </div>
-          <Button onClick={() => setShowForm(true)} className="gradient-primary">
-            <Plus className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Nueva Meta</span>
-          </Button>
+          <div className="flex gap-2">
+            <ExportButtons
+              data={useMemo<ExportData>(
+                () => ({
+                  title: "Reporte de Metas Financieras",
+                  headers: [
+                    "Título",
+                    "Categoría",
+                    "Meta",
+                    "Actual",
+                    "Progreso %",
+                    "Fecha Límite",
+                    "Estado",
+                  ],
+                  rows: goalsWithProgress.map((goal) => {
+                    const catInfo = goalCategories.find(
+                      (c) => c.value === goal.category
+                    );
+                    const isComplete = goal.progress >= 100;
+                    return [
+                      goal.title,
+                      catInfo?.label || goal.category,
+                      goal.targetAmount,
+                      goal.currentAmount,
+                      `${goal.progress.toFixed(0)}%`,
+                      new Date(goal.deadline).toLocaleDateString("es-ES"),
+                      isComplete ? "Completada" : "En progreso",
+                    ];
+                  }),
+                  summary: [
+                    { label: "Total metas", value: goals.length },
+                    {
+                      label: "Metas completadas",
+                      value: goalsWithProgress.filter((g) => g.progress >= 100)
+                        .length,
+                    },
+                    {
+                      label: "Metas en progreso",
+                      value: goalsWithProgress.filter((g) => g.progress < 100)
+                        .length,
+                    },
+                  ],
+                }),
+                [goalsWithProgress, goals.length]
+              )}
+              filename="metas"
+              isPremium={isPremium}
+            />
+            <Button
+              onClick={() => setShowForm(true)}
+              className="gradient-primary"
+            >
+              <Plus className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Nueva Meta</span>
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div 
+          <div
             className="absolute inset-0 bg-foreground/20 backdrop-blur-sm"
             onClick={resetForm}
           />
@@ -148,10 +221,10 @@ export const Metas: React.FC = () => {
             <div className="sm:hidden flex justify-center pt-3 pb-1">
               <div className="w-12 h-1.5 rounded-full bg-muted" />
             </div>
-            
+
             <div className="p-4 border-b border-border">
               <h3 className="font-semibold">
-                {editingGoal ? 'Editar Meta' : 'Nueva Meta'}
+                {editingGoal ? "Editar Meta" : "Nueva Meta"}
               </h3>
             </div>
 
@@ -163,15 +236,20 @@ export const Metas: React.FC = () => {
                     <button
                       key={cat.value}
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, category: cat.value as FinancialGoal['category'] }))}
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          category: cat.value as FinancialGoal["category"],
+                        }))
+                      }
                       className={cn(
-                        'flex items-center gap-2 p-3 rounded-xl border-2 transition-all',
+                        "flex items-center gap-2 p-3 rounded-xl border-2 transition-all",
                         formData.category === cat.value
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-muted-foreground'
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-muted-foreground"
                       )}
                     >
-                      <cat.icon className={cn('w-4 h-4', cat.color)} />
+                      <cat.icon className={cn("w-4 h-4", cat.color)} />
                       <span className="text-sm">{cat.label}</span>
                     </button>
                   ))}
@@ -183,7 +261,9 @@ export const Metas: React.FC = () => {
                 <Input
                   placeholder="Ej: Meta de ventas de diciembre"
                   value={formData.title}
-                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, title: e.target.value }))
+                  }
                   required
                 />
               </div>
@@ -195,18 +275,28 @@ export const Metas: React.FC = () => {
                     type="number"
                     placeholder="10000"
                     value={formData.targetAmount}
-                    onChange={(e) => setFormData(prev => ({ ...prev, targetAmount: e.target.value }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        targetAmount: e.target.value,
+                      }))
+                    }
                     required
                   />
                 </div>
-                {formData.category !== 'ventas' && (
+                {formData.category !== "ventas" && (
                   <div className="space-y-2">
                     <Label>Actual ({settings.currencySymbol})</Label>
                     <Input
                       type="number"
                       placeholder="0"
                       value={formData.currentAmount}
-                      onChange={(e) => setFormData(prev => ({ ...prev, currentAmount: e.target.value }))}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          currentAmount: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                 )}
@@ -217,23 +307,34 @@ export const Metas: React.FC = () => {
                 <Input
                   type="date"
                   value={formData.deadline}
-                  onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      deadline: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
 
-              {formData.category === 'ventas' && (
+              {formData.category === "ventas" && (
                 <p className="text-xs text-muted-foreground bg-muted p-3 rounded-lg">
-                  Las metas de ventas se actualizan automáticamente con tus ventas registradas.
+                  Las metas de ventas se actualizan automáticamente con tus
+                  ventas registradas.
                 </p>
               )}
 
               <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" className="flex-1" onClick={resetForm}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={resetForm}
+                >
                   Cancelar
                 </Button>
                 <Button type="submit" className="flex-1 gradient-primary">
-                  {editingGoal ? 'Guardar' : 'Crear'}
+                  {editingGoal ? "Guardar" : "Crear"}
                 </Button>
               </div>
             </form>
@@ -245,31 +346,49 @@ export const Metas: React.FC = () => {
       {goalsWithProgress.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {goalsWithProgress.map((goal) => {
-            const catInfo = goalCategories.find(c => c.value === goal.category);
+            const catInfo = goalCategories.find(
+              (c) => c.value === goal.category
+            );
             const Icon = catInfo?.icon || Target;
             const isComplete = goal.progress >= 100;
-            const daysLeft = Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-            
+            const daysLeft = Math.ceil(
+              (new Date(goal.deadline).getTime() - Date.now()) /
+                (1000 * 60 * 60 * 24)
+            );
+
             return (
               <div
                 key={goal.id}
                 className={cn(
-                  'bg-card rounded-2xl p-4 sm:p-5 shadow-soft border transition-all',
-                  isComplete ? 'border-success/50 bg-success/5' : 'border-border'
+                  "bg-card rounded-2xl p-4 sm:p-5 shadow-soft border transition-all",
+                  isComplete
+                    ? "border-success/50 bg-success/5"
+                    : "border-border"
                 )}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className={cn(
-                      'p-2 rounded-xl',
-                      isComplete ? 'bg-success/20' : 'bg-muted'
-                    )}>
-                      <Icon className={cn('w-5 h-5', isComplete ? 'text-success' : catInfo?.color)} />
+                    <div
+                      className={cn(
+                        "p-2 rounded-xl",
+                        isComplete ? "bg-success/20" : "bg-muted"
+                      )}
+                    >
+                      <Icon
+                        className={cn(
+                          "w-5 h-5",
+                          isComplete ? "text-success" : catInfo?.color
+                        )}
+                      />
                     </div>
                     <div>
                       <h4 className="font-semibold">{goal.title}</h4>
                       <span className="text-xs text-muted-foreground">
-                        {daysLeft > 0 ? `${daysLeft} días restantes` : daysLeft === 0 ? 'Vence hoy' : 'Vencida'}
+                        {daysLeft > 0
+                          ? `${daysLeft} días restantes`
+                          : daysLeft === 0
+                          ? "Vence hoy"
+                          : "Vencida"}
                       </span>
                     </div>
                   </div>
@@ -296,22 +415,34 @@ export const Metas: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Progreso</span>
-                    <span className={cn('font-semibold', isComplete && 'text-success')}>
+                    <span
+                      className={cn(
+                        "font-semibold",
+                        isComplete && "text-success"
+                      )}
+                    >
                       {goal.progress.toFixed(0)}%
                     </span>
                   </div>
                   <Progress value={goal.progress} className="h-3" />
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-medium">
-                      {formatCurrency(goal.currentAmount, settings.currencySymbol)}
+                      {formatCurrency(
+                        goal.currentAmount,
+                        settings.currencySymbol
+                      )}
                     </span>
                     <span className="text-muted-foreground">
-                      de {formatCurrency(goal.targetAmount, settings.currencySymbol)}
+                      de{" "}
+                      {formatCurrency(
+                        goal.targetAmount,
+                        settings.currencySymbol
+                      )}
                     </span>
                   </div>
                 </div>
 
-                {goal.category !== 'ventas' && !isComplete && (
+                {goal.category !== "ventas" && !isComplete && (
                   <div className="mt-4 pt-4 border-t border-border">
                     <div className="flex gap-2">
                       <Input
@@ -319,11 +450,13 @@ export const Metas: React.FC = () => {
                         placeholder="Nuevo valor"
                         className="flex-1"
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            const value = parseFloat((e.target as HTMLInputElement).value);
+                          if (e.key === "Enter") {
+                            const value = parseFloat(
+                              (e.target as HTMLInputElement).value
+                            );
                             if (!isNaN(value)) {
                               handleUpdateProgress(goal.id, value);
-                              (e.target as HTMLInputElement).value = '';
+                              (e.target as HTMLInputElement).value = "";
                             }
                           }
                         }}
@@ -332,11 +465,13 @@ export const Metas: React.FC = () => {
                         size="sm"
                         variant="outline"
                         onClick={(e) => {
-                          const input = (e.target as HTMLElement).parentElement?.querySelector('input');
-                          const value = parseFloat(input?.value || '0');
+                          const input = (
+                            e.target as HTMLElement
+                          ).parentElement?.querySelector("input");
+                          const value = parseFloat(input?.value || "0");
                           if (!isNaN(value)) {
                             handleUpdateProgress(goal.id, value);
-                            if (input) input.value = '';
+                            if (input) input.value = "";
                           }
                         }}
                       >
@@ -353,8 +488,8 @@ export const Metas: React.FC = () => {
         <div className="text-center py-12 text-muted-foreground">
           <Target className="w-12 h-12 mx-auto mb-2 opacity-50" />
           <p>No hay metas definidas</p>
-          <Button 
-            variant="link" 
+          <Button
+            variant="link"
             onClick={() => setShowForm(true)}
             className="mt-2"
           >

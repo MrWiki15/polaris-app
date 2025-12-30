@@ -1,19 +1,13 @@
-import React, { useState, useMemo } from 'react';
-import { useApp } from '@/contexts/AppContext';
-import { 
-  FileText, 
-  Download,
-  Plus,
-  Trash2,
-  Users
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { formatCurrency } from '@/lib/storage';
-import { cn } from '@/lib/utils';
-import { toast } from '@/hooks/use-toast';
-import jsPDF from 'jspdf';
+import React, { useState, useMemo } from "react";
+import { useApp } from "@/contexts/AppContext";
+import { FileText, Download, Plus, Trash2, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { formatCurrency } from "@/lib/storage";
+import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
+import jsPDF from "jspdf";
 
 interface InvoiceItem {
   description: string;
@@ -25,33 +19,37 @@ export const Facturador: React.FC = () => {
   const { data, addSale } = useApp();
   const { settings, products, clients } = data;
 
-  const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
-  const [selectedClientId, setSelectedClientId] = useState<string>('');
-  const [items, setItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, price: 0 }]);
-  const [invoiceNumber, setInvoiceNumber] = useState(`FAC-${Date.now().toString().slice(-6)}`);
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [items, setItems] = useState<InvoiceItem[]>([
+    { description: "", quantity: 1, price: 0 },
+  ]);
+  const [invoiceNumber, setInvoiceNumber] = useState(
+    `FAC-${Date.now().toString().slice(-6)}`
+  );
   const [registerAsSale, setRegisterAsSale] = useState(true);
 
-  const customerClients = useMemo(() => 
-    clients.filter(c => c.type === 'cliente'), 
+  const customerClients = useMemo(
+    () => clients.filter((c) => c.type === "cliente"),
     [clients]
   );
 
   const total = useMemo(() => {
-    return items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    return items.reduce((sum, item) => sum + item.quantity * item.price, 0);
   }, [items]);
 
   const handleSelectClient = (clientId: string) => {
-    const client = clients.find(c => c.id === clientId);
+    const client = clients.find((c) => c.id === clientId);
     if (client) {
       setSelectedClientId(clientId);
       setClientName(client.name);
-      setClientPhone(client.phone || '');
+      setClientPhone(client.phone || "");
     }
   };
 
   const addItem = () => {
-    setItems([...items, { description: '', quantity: 1, price: 0 }]);
+    setItems([...items, { description: "", quantity: 1, price: 0 }]);
   };
 
   const removeItem = (index: number) => {
@@ -60,9 +58,13 @@ export const Facturador: React.FC = () => {
     }
   };
 
-  const updateItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
+  const updateItem = (
+    index: number,
+    field: keyof InvoiceItem,
+    value: string | number
+  ) => {
     const newItems = [...items];
-    if (field === 'description') {
+    if (field === "description") {
       newItems[index][field] = value as string;
     } else {
       newItems[index][field] = parseFloat(value as string) || 0;
@@ -70,58 +72,67 @@ export const Facturador: React.FC = () => {
     setItems(newItems);
   };
 
-  const addProductToInvoice = (product: typeof products[0]) => {
-    const existingIndex = items.findIndex(i => i.description === product.name);
+  const addProductToInvoice = (product: (typeof products)[0]) => {
+    const existingIndex = items.findIndex(
+      (i) => i.description === product.name
+    );
     if (existingIndex >= 0) {
       const newItems = [...items];
       newItems[existingIndex].quantity += 1;
       setItems(newItems);
     } else {
-      setItems([...items.filter(i => i.description), { 
-        description: product.name, 
-        quantity: 1, 
-        price: product.price 
-      }]);
+      setItems([
+        ...items.filter((i) => i.description),
+        {
+          description: product.name,
+          quantity: 1,
+          price: product.price,
+        },
+      ]);
     }
   };
 
   const generatePDF = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
-    
+
     // Header
     doc.setFillColor(37, 99, 235);
-    doc.rect(0, 0, pageWidth, 40, 'F');
-    
+    doc.rect(0, 0, pageWidth, 40, "F");
+
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text(settings.businessName || 'Negocio360', 20, 25);
-    
+    doc.setFont("helvetica", "bold");
+    doc.text(settings.businessName || "UP", 20, 25);
+
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "normal");
     if (settings.businessPhone) {
-      doc.text(`Tel: ${settings.businessPhone}`, pageWidth - 20, 20, { align: 'right' });
+      doc.text(`Tel: ${settings.businessPhone}`, pageWidth - 20, 20, {
+        align: "right",
+      });
     }
     if (settings.businessAddress) {
-      doc.text(settings.businessAddress, pageWidth - 20, 28, { align: 'right' });
+      doc.text(settings.businessAddress, pageWidth - 20, 28, {
+        align: "right",
+      });
     }
 
     // Invoice info
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('FACTURA', 20, 55);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "bold");
+    doc.text("FACTURA", 20, 55);
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.text(`Número: ${invoiceNumber}`, 20, 62);
-    doc.text(`Fecha: ${new Date().toLocaleDateString('es-ES')}`, 20, 69);
+    doc.text(`Fecha: ${new Date().toLocaleDateString("es-ES")}`, 20, 69);
 
     // Client info
-    doc.setFont('helvetica', 'bold');
-    doc.text('Cliente:', pageWidth - 80, 55);
-    doc.setFont('helvetica', 'normal');
-    doc.text(clientName || 'Cliente general', pageWidth - 80, 62);
+    doc.setFont("helvetica", "bold");
+    doc.text("Cliente:", pageWidth - 80, 55);
+    doc.setFont("helvetica", "normal");
+    doc.text(clientName || "Cliente general", pageWidth - 80, 62);
     if (clientPhone) {
       doc.text(`Tel: ${clientPhone}`, pageWidth - 80, 69);
     }
@@ -129,44 +140,50 @@ export const Facturador: React.FC = () => {
     // Table header
     const tableTop = 85;
     doc.setFillColor(243, 244, 246);
-    doc.rect(15, tableTop - 6, pageWidth - 30, 10, 'F');
-    
-    doc.setFont('helvetica', 'bold');
+    doc.rect(15, tableTop - 6, pageWidth - 30, 10, "F");
+
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
-    doc.text('Descripción', 20, tableTop);
-    doc.text('Cant.', 120, tableTop);
-    doc.text('Precio', 145, tableTop);
-    doc.text('Total', 175, tableTop);
+    doc.text("Descripción", 20, tableTop);
+    doc.text("Cant.", 120, tableTop);
+    doc.text("Precio", 145, tableTop);
+    doc.text("Total", 175, tableTop);
 
     // Table content
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "normal");
     let y = tableTop + 12;
-    
-    items.filter(i => i.description).forEach((item) => {
-      doc.text(item.description.substring(0, 40), 20, y);
-      doc.text(item.quantity.toString(), 120, y);
-      doc.text(formatCurrency(item.price, settings.currencySymbol), 145, y);
-      doc.text(formatCurrency(item.quantity * item.price, settings.currencySymbol), 175, y);
-      y += 8;
-    });
+
+    items
+      .filter((i) => i.description)
+      .forEach((item) => {
+        doc.text(item.description.substring(0, 40), 20, y);
+        doc.text(item.quantity.toString(), 120, y);
+        doc.text(formatCurrency(item.price, settings.currencySymbol), 145, y);
+        doc.text(
+          formatCurrency(item.quantity * item.price, settings.currencySymbol),
+          175,
+          y
+        );
+        y += 8;
+      });
 
     // Total
     y += 5;
     doc.setDrawColor(200, 200, 200);
     doc.line(15, y, pageWidth - 15, y);
     y += 10;
-    
-    doc.setFont('helvetica', 'bold');
+
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text('TOTAL:', 145, y);
+    doc.text("TOTAL:", 145, y);
     doc.text(formatCurrency(total, settings.currencySymbol), 175, y);
 
     // Footer
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(128, 128, 128);
-    doc.text('Gracias por su compra', pageWidth / 2, 280, { align: 'center' });
-    doc.text('Generado con Negocio360', pageWidth / 2, 285, { align: 'center' });
+    doc.text("Gracias por su compra", pageWidth / 2, 280, { align: "center" });
+    doc.text("Generado con UP", pageWidth / 2, 285, { align: "center" });
 
     // Save
     doc.save(`factura_${invoiceNumber}.pdf`);
@@ -174,27 +191,32 @@ export const Facturador: React.FC = () => {
     // Register as sale if enabled
     if (registerAsSale && total > 0) {
       addSale({
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split("T")[0],
         amount: total,
-        category: 'Ventas',
-        description: `Factura ${invoiceNumber}${clientName ? ` - ${clientName}` : ''}`,
+        category: "Ventas",
+        description: `Factura ${invoiceNumber}${
+          clientName ? ` - ${clientName}` : ""
+        }`,
       });
       toast({
-        title: 'Venta registrada',
-        description: `Se registró una venta por ${formatCurrency(total, settings.currencySymbol)}`,
+        title: "Venta registrada",
+        description: `Se registró una venta por ${formatCurrency(
+          total,
+          settings.currencySymbol
+        )}`,
       });
     }
 
     // Reset for next invoice
     setInvoiceNumber(`FAC-${Date.now().toString().slice(-6)}`);
-    setItems([{ description: '', quantity: 1, price: 0 }]);
-    setClientName('');
-    setClientPhone('');
-    setSelectedClientId('');
+    setItems([{ description: "", quantity: 1, price: 0 }]);
+    setClientName("");
+    setClientPhone("");
+    setSelectedClientId("");
 
     toast({
-      title: 'Factura generada',
-      description: 'El PDF se ha descargado correctamente',
+      title: "Factura generada",
+      description: "El PDF se ha descargado correctamente",
     });
   };
 
@@ -237,7 +259,7 @@ export const Facturador: React.FC = () => {
                   value={clientName}
                   onChange={(e) => {
                     setClientName(e.target.value);
-                    setSelectedClientId('');
+                    setSelectedClientId("");
                   }}
                 />
               </div>
@@ -256,13 +278,15 @@ export const Facturador: React.FC = () => {
                   type="button"
                   onClick={() => setRegisterAsSale(!registerAsSale)}
                   className={cn(
-                    'w-full p-3 rounded-xl border-2 transition-all text-sm font-medium',
+                    "w-full p-3 rounded-xl border-2 transition-all text-sm font-medium",
                     registerAsSale
-                      ? 'border-success bg-success/10 text-success'
-                      : 'border-border text-muted-foreground'
+                      ? "border-success bg-success/10 text-success"
+                      : "border-border text-muted-foreground"
                   )}
                 >
-                  {registerAsSale ? '✓ Sí, registrar venta' : 'No registrar venta'}
+                  {registerAsSale
+                    ? "✓ Sí, registrar venta"
+                    : "No registrar venta"}
                 </button>
               </div>
             </div>
@@ -277,16 +301,21 @@ export const Facturador: React.FC = () => {
                 <span className="hidden sm:inline">Agregar</span>
               </Button>
             </div>
-            
+
             <div className="space-y-3">
               {items.map((item, index) => (
-                <div key={index} className="flex flex-col sm:flex-row gap-2 sm:items-end p-3 bg-muted/50 rounded-xl">
+                <div
+                  key={index}
+                  className="flex flex-col sm:flex-row gap-2 sm:items-end p-3 bg-muted/50 rounded-xl"
+                >
                   <div className="flex-1 space-y-1">
                     <Label className="text-xs">Descripción</Label>
                     <Input
                       placeholder="Producto o servicio"
                       value={item.description}
-                      onChange={(e) => updateItem(index, 'description', e.target.value)}
+                      onChange={(e) =>
+                        updateItem(index, "description", e.target.value)
+                      }
                     />
                   </div>
                   <div className="w-full sm:w-20 space-y-1">
@@ -295,7 +324,9 @@ export const Facturador: React.FC = () => {
                       type="number"
                       min="1"
                       value={item.quantity}
-                      onChange={(e) => updateItem(index, 'quantity', e.target.value)}
+                      onChange={(e) =>
+                        updateItem(index, "quantity", e.target.value)
+                      }
                     />
                   </div>
                   <div className="w-full sm:w-28 space-y-1">
@@ -304,12 +335,17 @@ export const Facturador: React.FC = () => {
                       type="number"
                       step="0.01"
                       value={item.price}
-                      onChange={(e) => updateItem(index, 'price', e.target.value)}
+                      onChange={(e) =>
+                        updateItem(index, "price", e.target.value)
+                      }
                     />
                   </div>
                   <div className="flex items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0">
                     <span className="font-semibold text-success sm:hidden">
-                      {formatCurrency(item.quantity * item.price, settings.currencySymbol)}
+                      {formatCurrency(
+                        item.quantity * item.price,
+                        settings.currencySymbol
+                      )}
                     </span>
                     <Button
                       size="icon"
@@ -335,10 +371,10 @@ export const Facturador: React.FC = () => {
           </div>
 
           {/* Generate Button */}
-          <Button 
+          <Button
             className="w-full gradient-primary text-lg py-6"
             onClick={generatePDF}
-            disabled={!items.some(i => i.description)}
+            disabled={!items.some((i) => i.description)}
           >
             <Download className="w-5 h-5 mr-2" />
             Generar Factura PDF
@@ -360,16 +396,18 @@ export const Facturador: React.FC = () => {
                     key={client.id}
                     onClick={() => handleSelectClient(client.id)}
                     className={cn(
-                      'w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left',
+                      "w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left",
                       selectedClientId === client.id
-                        ? 'bg-primary/10 border-2 border-primary'
-                        : 'bg-muted hover:bg-muted/80 border-2 border-transparent'
+                        ? "bg-primary/10 border-2 border-primary"
+                        : "bg-muted hover:bg-muted/80 border-2 border-transparent"
                     )}
                   >
                     <div>
                       <span className="font-medium text-sm">{client.name}</span>
                       {client.phone && (
-                        <span className="block text-xs text-muted-foreground">{client.phone}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {client.phone}
+                        </span>
                       )}
                     </div>
                   </button>
@@ -390,7 +428,9 @@ export const Facturador: React.FC = () => {
                     className="w-full flex items-center justify-between p-3 bg-muted hover:bg-muted/80 rounded-xl transition-colors text-left"
                   >
                     <div>
-                      <span className="font-medium text-sm">{product.name}</span>
+                      <span className="font-medium text-sm">
+                        {product.name}
+                      </span>
                       <span className="block text-xs text-muted-foreground">
                         {formatCurrency(product.price, settings.currencySymbol)}
                       </span>
