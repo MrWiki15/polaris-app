@@ -172,7 +172,7 @@ export const MiniCRM: React.FC = () => {
             <div>
               <h2 className="text-lg sm:text-xl font-bold">Mini CRM</h2>
               <p className="text-sm text-muted-foreground">
-                {clientCount} clientes • {providerCount} proveedores
+                {clientCount} clientes • {providerCount} proveedores 
               </p>
             </div>
           </div>
@@ -197,7 +197,7 @@ export const MiniCRM: React.FC = () => {
                   setFormData((prev) => ({ ...prev, type: "cliente" }));
                   setShowForm(true);
                 }}
-                className="gradient-primary"
+                className="gradient-primary w-full"
               >
                 <Plus className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Nuevo Contacto</span>

@@ -13,6 +13,10 @@ import {
   Cloud,
   LogOut,
   LogIn,
+  FlameKindling,
+  Presentation,
+  CropIcon,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { exportData, importData, resetData } from "@/lib/storage";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Toast } from "@/components/ui/toast";
 
 const currencies = [
   { code: "CUP", symbol: "$", name: "Peso Cubano" },
@@ -163,144 +168,139 @@ export const Configuracion: React.FC = () => {
   return (
     <div className="space-y-6 pb-20 max-w-2xl mx-auto">
       {/* Supabase Auth - Premium Only */}
-      {settings.isPremium && (
-        <section className="bg-card rounded-2xl p-5 shadow-soft border border-border">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <Cloud className="w-5 h-5" />
-            Supabase - Sincronización en la Nube
-          </h3>
 
-          {supabaseAuth.isAuthenticated ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-success/10 rounded-xl border border-success/20">
-                <p className="text-sm text-muted-foreground mb-1">
-                  Sesión iniciada como:
-                </p>
-                <p className="font-semibold text-success">
-                  {supabaseAuth.user?.email}
-                </p>
-              </div>
-              <Button
-                onClick={handleLogout}
-                variant="outline"
-                className="w-full"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Cerrar Sesión
-              </Button>
+      <section className="bg-card rounded-2xl p-5 shadow-soft border border-border">
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <Cloud className="w-5 h-5" />
+          Supabase - Sincronización en la Nube
+        </h3>
+
+        {supabaseAuth.isAuthenticated ? (
+          <div className="space-y-4">
+            <div className="p-4 bg-success/10 rounded-xl border border-success/20">
+              <p className="text-sm text-muted-foreground mb-1">
+                Sesión iniciada como:
+              </p>
+              <p className="font-semibold text-success">
+                {supabaseAuth.user?.email}
+              </p>
             </div>
-          ) : supabaseAuth.verificationPending &&
-            supabaseAuth.registeredEmail ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 dark:bg-amber-950/20 dark:border-amber-700">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 pt-0.5">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
-                      Verifica tu email
-                    </p>
-                    <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
-                      Hemos enviado un enlace de verificación a:
-                    </p>
-                    <p className="text-sm font-mono text-amber-700 dark:text-amber-300 mb-3">
-                      {supabaseAuth.registeredEmail}
-                    </p>
-                    <ol className="text-sm text-amber-800 dark:text-amber-200 space-y-2">
-                      <li>1. Abre tu correo electrónico</li>
-                      <li>
-                        2. Busca el email de "Supabase" con el asunto de
-                        verificación
-                      </li>
-                      <li>3. Haz clic en el botón "Confirmar tu email"</li>
-                      <li>
-                        4. Vuelve aquí e inicia sesión con tus credenciales
-                      </li>
-                    </ol>
-                    <Button
-                      onClick={() => supabaseAuth.clearVerificationPending()}
-                      variant="outline"
-                      size="sm"
-                      className="mt-4"
-                    >
-                      Entendido, ya verifiqué
-                    </Button>
-                  </div>
+            <Button onClick={handleLogout} variant="outline" className="w-full">
+              <LogOut className="w-4 h-4 mr-2" />
+              Cerrar Sesión
+            </Button>
+          </div>
+        ) : supabaseAuth.verificationPending && supabaseAuth.registeredEmail ? (
+          <div className="space-y-4">
+            <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 dark:bg-amber-950/20 dark:border-amber-700">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 pt-0.5">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                    Verifica tu email
+                  </p>
+                  <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                    Hemos enviado un enlace de verificación a:
+                  </p>
+                  <p className="text-sm font-mono text-amber-700 dark:text-amber-300 mb-3">
+                    {supabaseAuth.registeredEmail}
+                  </p>
+                  <ol className="text-sm text-amber-800 dark:text-amber-200 space-y-2">
+                    <li>1. Abre tu correo electrónico</li>
+                    <li>
+                      2. Busca el email de "Supabase" con el asunto de
+                      verificación
+                    </li>
+                    <li>3. Haz clic en el botón "Confirmar tu email"</li>
+                    <li>4. Vuelve aquí e inicia sesión con tus credenciales</li>
+                  </ol>
+                  <Button
+                    onClick={() => supabaseAuth.clearVerificationPending()}
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                  >
+                    Entendido, ya verifiqué
+                  </Button>
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => setAuthMode("login")}
-                  className={cn(
-                    "flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all",
-                    authMode === "login"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  )}
-                >
-                  Iniciar Sesión
-                </button>
-                <button
-                  onClick={() => setAuthMode("register")}
-                  className={cn(
-                    "flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all",
-                    authMode === "register"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  )}
-                >
-                  Registrarse
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-
-              <Button
-                onClick={handleAuth}
-                className="w-full"
-                disabled={isLoading}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setAuthMode("login")}
+                className={cn(
+                  "flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                  authMode === "login"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
               >
-                <LogIn className="w-4 h-4 mr-2" />
-                {isLoading
-                  ? "Cargando..."
-                  : authMode === "login"
-                  ? "Iniciar Sesión"
-                  : "Crear Cuenta"}
-              </Button>
+                Iniciar Sesión
+              </button>
 
-              {supabaseAuth.error && (
-                <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg border border-destructive/20">
-                  {supabaseAuth.error}
-                </div>
-              )}
+              <button
+                onClick={() => {
+                  setAuthMode("register");
+                }}
+                className={cn(
+                  "flex-1 px-3  py-2 rounded-lg text-sm font-medium transition-all",
+                  authMode === "register"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                Registrarse
+              </button>
             </div>
-          )}
-        </section>
-      )}
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="tu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            <Button
+              onClick={handleAuth}
+              className="w-full"
+              disabled={isLoading}
+            >
+              <LogIn className="w-4 h-4 mr-2" />
+              {isLoading
+                ? "Cargando..."
+                : authMode === "login"
+                ? "Iniciar Sesión"
+                : "Crear Cuenta"}
+            </Button>
+
+            {supabaseAuth.error && (
+              <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg border border-destructive/20">
+                {supabaseAuth.error}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* Theme */}
       <section className="bg-card rounded-2xl p-5 shadow-soft border border-border">

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import {
   Crown,
@@ -26,18 +26,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
 
-// Lista de códigos válidos para premium (en producción esto debería estar en un servidor)
-const VALID_PREMIUM_CODES = [
-  "PREMIUM2024",
-  "UPGRADE2024",
-  "BUSINESS2024",
-  "PRO2024",
-  "LIFETIME2024",
-  // Agregar más códigos aquí
-];
-
-const WHATSAPP_NUMBER = "+53512345678"; // Cambiar por el número real
+const WHATSAPP_NUMBER = "+5363813075";
 
 const premiumFeatures = [
   {
@@ -48,7 +41,7 @@ const premiumFeatures = [
         icon: Download,
         text: "Exportación PDF/Excel en todas las herramientas",
       },
-      { icon: TrendingUp, text: "Análisis predictivo con IA" },
+      { icon: TrendingUp, text: "Análisis predictivo" },
       { icon: FileText, text: "Reportes personalizados avanzados" },
     ],
   },
@@ -69,15 +62,6 @@ const premiumFeatures = [
       { icon: Database, text: "Trabajo en equipo" },
     ],
   },
-  {
-    category: "Funcionalidades Avanzadas",
-    features: [
-      { icon: Tag, text: "Múltiples ubicaciones de inventario" },
-      { icon: FileText, text: "Facturas electrónicas" },
-      { icon: Sparkles, text: "Plantillas personalizables" },
-      { icon: CreditCard, text: "Campos y categorías ilimitadas" },
-    ],
-  },
 ];
 
 export const Premium: React.FC = () => {
@@ -88,6 +72,38 @@ export const Premium: React.FC = () => {
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
   const [isRedeeming, setIsRedeeming] = useState(false);
+  const [validPremiumCodes, setValidPremiumCodes] = useState([
+    "PREMIUM2024",
+    "UPGRADE2024",
+    "BUSINESS2024",
+    "PRO2024",
+    "LIFETIME2024",
+  ]);
+  const auth = useSupabaseAuth();
+  const navigate = useNavigate();
+
+  const searshPremiumCodes = async () => {
+    //buscar codigos que se pueden cangear
+    const { data: premiumData, error: premiumError } = await supabase
+      .from("verify_codes")
+      .select("*")
+      .eq("used", false);
+
+    if (premiumError) {
+      toast({
+        title: "Error en codigos",
+        description: "Problema al buscar los codigos de verificacion premium",
+        variant: "destructive",
+      });
+      console.log(premiumError);
+    }
+
+    setValidPremiumCodes(premiumData.map((c) => c.value));
+  };
+
+  useEffect(() => {
+    searshPremiumCodes();
+  }, []);
 
   const handleRedeemCode = () => {
     if (!redeemCode.trim()) {
@@ -101,11 +117,47 @@ export const Premium: React.FC = () => {
 
     setIsRedeeming(true);
 
-    // Simular validación (en producción esto sería una llamada al servidor)
-    setTimeout(() => {
+    // validacion
+    setTimeout(async () => {
       const code = redeemCode.trim().toUpperCase();
-      if (VALID_PREMIUM_CODES.includes(code)) {
+      if (validPremiumCodes.includes(code)) {
+        //asignar premium en local
         updateSettings({ isPremium: true });
+
+        //verificar el user existe en database
+        const { error: errorDataSupabase } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", auth.user.id)
+          .single();
+
+        if (errorDataSupabase) {
+          setShowRedeemModal(false);
+          setRedeemCode("");
+          toast({
+            title: "Error en el perfil",
+            description: "Encontramos un error al buscar tu perfil.",
+          });
+        }
+
+        //si el usuario si existe hacer el update
+        const { error: errorUpdatingSupabase } = await supabase
+          .from("profiles")
+          .update({
+            isPremium: true,
+          })
+          .eq("id", auth.user.id)
+          .single();
+
+        if (errorUpdatingSupabase) {
+          setShowRedeemModal(false);
+          setRedeemCode("");
+          toast({
+            title: "Error actualizando el perfil",
+            description: "Encontramos un error al actualizar tu perfil.",
+          });
+        }
+
         setShowRedeemModal(false);
         setRedeemCode("");
         toast({
@@ -126,7 +178,7 @@ export const Premium: React.FC = () => {
 
   const handleWhatsAppContact = () => {
     const message = encodeURIComponent(
-      "Hola, me interesa obtener un código premium para UP"
+      "Hola, me interesa obtener un código premium para UP, cual es el precio ?"
     );
     const url = `https://wa.me/${WHATSAPP_NUMBER.replace(
       /[^0-9]/g,
@@ -349,11 +401,21 @@ export const Premium: React.FC = () => {
                     Cancelar
                   </Button>
                   <Button
-                    onClick={handleRedeemCode}
+                    onClick={() => {
+                      if (auth.isAuthenticated) {
+                        handleRedeemCode();
+                      } else {
+                        navigate("/configuracion");
+                      }
+                    }}
                     className="flex-1 gradient-primary"
                     disabled={isRedeeming || !redeemCode.trim()}
                   >
-                    {isRedeeming ? "Validando..." : "Canjear"}
+                    {isRedeeming
+                      ? "Validando..."
+                      : !auth.isAuthenticated
+                      ? "Login necesario"
+                      : "Canjear"}
                   </Button>
                 </div>
               </div>

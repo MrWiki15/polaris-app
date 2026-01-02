@@ -23,42 +23,125 @@ import { cn } from "@/lib/utils";
 type FilterPeriod = "today" | "week" | "month" | "all";
 
 export const Ventas: React.FC = () => {
-  const { data, deleteSale } = useApp();
+  const { data, deleteSale, deleteServiceIncome } = useApp();
   const { sales, serviceIncomes, services, settings } = data;
   const isPremium = settings.isPremium || false;
   const [showForm, setShowForm] = useState(false);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [filter, setFilter] = useState<FilterPeriod>("week");
 
-  // Filter sales
-  const filteredSales = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
+  // Helper function to format date correctly (String-based to avoid timezone shifts)
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "-";
+    // Handle potential ISO strings (e.g. 2023-10-05T00:00:00.000Z) by taking the first part
+    const cleanDate = dateStr.split("T")[0];
+    const parts = cleanDate.split("-");
+    if (parts.length !== 3) return dateStr;
+    const [year, month, day] = parts;
+    return `${day}/${month}/${year}`;
+  };
+
+  // Combine and filter incomes
+  const filteredIncomes = useMemo(() => {
+    const today = new Date();
+    const todayStr = new Date(
+      today.getTime() - today.getTimezoneOffset() * 60000
+    )
+      .toISOString()
+      .split("T")[0];
+
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
+    weekAgo.setHours(0, 0, 0, 0);
+
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
+    monthAgo.setHours(0, 0, 0, 0);
 
-    switch (filter) {
-      case "today":
-        return sales.filter((s) => s.date === today);
-      case "week":
-        return sales.filter((s) => new Date(s.date) >= weekAgo);
-      case "month":
-        return sales.filter((s) => new Date(s.date) >= monthAgo);
-      default:
-        return sales;
-    }
-  }, [sales, filter]);
+    const checkDate = (dateStr: string) => {
+      const cleanDate = dateStr.split("T")[0];
+      if (filter === "all") return true;
+      if (filter === "today") return cleanDate === todayStr;
+
+      // Create date at noon to avoid timezone shifting
+      const date = new Date(cleanDate + "T12:00:00");
+      if (filter === "week") return date >= weekAgo;
+      if (filter === "month") return date >= monthAgo;
+      return true;
+    };
+
+    const productSales = sales.map((s) => ({
+      ...s,
+      type: "product" as const,
+      displayCategory: s.category,
+      displayName: s.description || "Venta de producto",
+    }));
+
+    const serviceSales = serviceIncomes.map((s) => {
+      const service = services.find((svc) => svc.id === s.serviceId);
+      return {
+        ...s,
+        type: "service" as const,
+        displayCategory: "Servicio",
+        displayName: service?.name || "Servicio",
+        // Map service fields to match Sale structure where needed
+        category: "Servicio",
+        productId: undefined,
+        quantity: undefined,
+      };
+    });
+
+    return [...productSales, ...serviceSales]
+      .filter((item) => checkDate(item.date))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [sales, serviceIncomes, services, filter]);
 
   // Metrics
   const weekSales = useMemo(() => getWeekSales(sales), [sales]);
-  const monthSales = useMemo(() => getMonthSales(sales), [sales]);
 
-  const totalFiltered = filteredSales.reduce((sum, s) => sum + s.amount, 0);
-  const weekTotal = weekSales.reduce((sum, s) => sum + s.amount, 0);
-  const monthTotal = monthSales.reduce((sum, s) => sum + s.amount, 0);
-  const avgSale =
-    filteredSales.length > 0 ? totalFiltered / filteredSales.length : 0;
+  // Calculate totals based on filtered unified list
+  const totalFiltered = filteredIncomes.reduce((sum, s) => sum + s.amount, 0);
+
+  const weekTotalProducts = weekSales.reduce((sum, s) => sum + s.amount, 0);
+
+  // Calculate service totals for cards
+  const serviceStats = useMemo(() => {
+    const monthAgo = new Date();
+    monthAgo.setMonth(monthAgo.getMonth() - 1);
+    monthAgo.setHours(0, 0, 0, 0);
+
+    return serviceIncomes
+      .filter((si) => {
+        const cleanDate = si.date.split("T")[0];
+        return new Date(cleanDate + "T12:00:00") >= monthAgo;
+      })
+      .reduce((sum, si) => sum + si.amount, 0);
+  }, [serviceIncomes]);
+
+  const monthTotalAll = useMemo(() => {
+    // Recalculate correctly for current month
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const prodSum = sales
+      .filter((s) => {
+        const cleanDate = s.date.split("T")[0];
+        const d = new Date(cleanDate + "T12:00:00");
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      })
+      .reduce((sum, s) => sum + s.amount, 0);
+
+    const svcSum = serviceIncomes
+      .filter((s) => {
+        const cleanDate = s.date.split("T")[0];
+        const d = new Date(cleanDate + "T12:00:00");
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      })
+      .reduce((sum, s) => sum + s.amount, 0);
+
+    return prodSum + svcSum;
+  }, [sales, serviceIncomes]);
 
   // Chart data
   const chartData = useMemo(() => {
@@ -68,7 +151,13 @@ export const Ventas: React.FC = () => {
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split("T")[0];
+      // Use local date string generation
+      const dateStr = new Date(
+        date.getTime() - date.getTimezoneOffset() * 60000
+      )
+        .toISOString()
+        .split("T")[0];
+
       const dayName = date.toLocaleDateString("es-ES", {
         weekday: "short",
         day: "numeric",
@@ -77,9 +166,19 @@ export const Ventas: React.FC = () => {
       last7Days.push({ dateStr, dayName });
     }
 
+    // Add sales
     sales.forEach((s) => {
-      if (days[s.date] !== undefined) {
-        days[s.date] += s.amount;
+      const cleanDate = s.date.split("T")[0];
+      if (days[cleanDate] !== undefined) {
+        days[cleanDate] += s.amount;
+      }
+    });
+
+    // Add services
+    serviceIncomes.forEach((s) => {
+      const cleanDate = s.date.split("T")[0];
+      if (days[cleanDate] !== undefined) {
+        days[cleanDate] += s.amount;
       }
     });
 
@@ -87,16 +186,20 @@ export const Ventas: React.FC = () => {
       name: d.dayName,
       ventas: days[d.dateStr],
     }));
-  }, [sales]);
+  }, [sales, serviceIncomes]);
 
-  const handleEdit = (sale: Sale) => {
-    setEditingSale(sale);
+  const handleEdit = (item: any) => {
+    setEditingSale(item);
     setShowForm(true);
   };
 
-  const handleDelete = (sale: Sale) => {
-    if (confirm("¿Eliminar esta venta?")) {
-      deleteSale(sale.id);
+  const handleDelete = (item: any) => {
+    if (confirm("¿Eliminar este ingreso?")) {
+      if (item.type === "service") {
+        deleteServiceIncome(item.id);
+      } else {
+        deleteSale(item.id);
+      }
     }
   };
 
@@ -104,59 +207,37 @@ export const Ventas: React.FC = () => {
     {
       key: "date",
       header: "Fecha",
-      render: (sale: Sale) => new Date(sale.date).toLocaleDateString("es-ES"),
+      render: (item: any) => formatDate(item.date),
     },
     {
       key: "amount",
       header: "Monto",
-      render: (sale: Sale) => (
+      render: (item: any) => (
         <span className="font-semibold text-success">
-          {formatCurrency(sale.amount, settings.currencySymbol)}
+          {formatCurrency(item.amount, settings.currencySymbol)}
         </span>
       ),
     },
     {
       key: "category",
-      header: "Categoría",
-      render: (sale: Sale) => (
-        <span className="px-2 py-1 bg-primary/10 text-primary rounded-lg text-sm">
-          {sale.category}
+      header: "Categoría/Servicio",
+      render: (item: any) => (
+        <span
+          className={cn(
+            "px-2 py-1 rounded-lg text-sm",
+            item.type === "service"
+              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+              : "bg-primary/10 text-primary"
+          )}
+        >
+          {item.type === "service" ? item.displayName : item.category}
         </span>
       ),
     },
     {
       key: "description",
       header: "Descripción",
-      render: (sale: Sale) => sale.description || "-",
-      className: "hidden sm:table-cell",
-    },
-  ];
-
-  const serviceColumns = [
-    {
-      key: "date",
-      header: "Fecha",
-      render: (r: any) => new Date(r.date).toLocaleDateString("es-ES"),
-    },
-    {
-      key: "amount",
-      header: "Monto",
-      render: (r: any) => (
-        <span className="font-semibold text-success">
-          {formatCurrency(r.amount, settings.currencySymbol)}
-        </span>
-      ),
-    },
-    {
-      key: "service",
-      header: "Servicio",
-      render: (r: any) =>
-        services.find((s) => s.id === r.serviceId)?.name || "-",
-    },
-    {
-      key: "description",
-      header: "Descripción",
-      render: (r: any) => r.description || "-",
+      render: (item: any) => item.description || "-",
       className: "hidden sm:table-cell",
     },
   ];
@@ -167,40 +248,21 @@ export const Ventas: React.FC = () => {
       <div className=" grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
           title="Ingresos por productos (últimos 7 días)"
-          value={formatCurrency(weekTotal, settings.currencySymbol)}
+          value={formatCurrency(weekTotalProducts, settings.currencySymbol)}
           icon={<ShoppingCart className="w-5 h-5" />}
           subtitle={`${weekSales.length} ventas`}
           variant="success"
         />
         <MetricCard
           title="Ingresos del mes (total)"
-          value={formatCurrency(
-            monthTotal +
-              (() => {
-                const ma = new Date();
-                ma.setMonth(ma.getMonth() - 1);
-                return serviceIncomes
-                  .filter((si) => new Date(si.date) >= ma)
-                  .reduce((sum, si) => sum + si.amount, 0);
-              })(),
-            settings.currencySymbol
-          )}
+          value={formatCurrency(monthTotalAll, settings.currencySymbol)}
           icon={<Calendar className="w-5 h-5" />}
           subtitle={`Productos + Servicios`}
           variant="primary"
         />
         <MetricCard
           title="Ingresos por servicios (últimos 30 días)"
-          value={formatCurrency(
-            (() => {
-              const ma = new Date();
-              ma.setMonth(ma.getMonth() - 1);
-              return serviceIncomes
-                .filter((si) => new Date(si.date) >= ma)
-                .reduce((sum, si) => sum + si.amount, 0);
-            })(),
-            settings.currencySymbol
-          )}
+          value={formatCurrency(serviceStats, settings.currencySymbol)}
           icon={<TrendingUp className="w-5 h-5" />}
           variant="default"
         />
@@ -208,7 +270,9 @@ export const Ventas: React.FC = () => {
 
       {/* Chart */}
       <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
-        <h3 className="font-semibold mb-4">Tendencia de Ingresos</h3>
+        <h3 className="font-semibold mb-4">
+          Tendencia de Ingresos (Productos + Servicios)
+        </h3>
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
@@ -272,27 +336,12 @@ export const Ventas: React.FC = () => {
 
       {/* Table */}
       <DataTable
-        data={filteredSales.sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-        )}
+        data={filteredIncomes}
         columns={columns}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        emptyMessage="No hay ingresos por productos"
+        emptyMessage="No hay ingresos registrados"
       />
-
-      <div className="mt-6">
-        <h3 className="font-semibold mb-3">Ingresos por servicios</h3>
-        <DataTable
-          data={serviceIncomes.sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-          )}
-          columns={serviceColumns}
-          onEdit={undefined}
-          onDelete={undefined}
-          emptyMessage="No hay ingresos por servicios"
-        />
-      </div>
 
       {/* Floating Button */}
       <FloatingButton
@@ -306,34 +355,25 @@ export const Ventas: React.FC = () => {
       <ExportButtons
         data={useMemo<ExportData>(
           () => ({
-            title: "Reporte de Ventas",
-            headers: ["Fecha", "Monto", "Categoría", "Descripción"],
-            rows: filteredSales
-              .sort(
-                (a, b) =>
-                  new Date(b.date).getTime() - new Date(a.date).getTime()
-              )
-              .map((sale) => [
-                new Date(sale.date).toLocaleDateString("es-ES"),
-                sale.amount,
-                sale.category,
-                sale.description || "-",
-              ]),
+            title: "Reporte de Ingresos",
+            headers: ["Fecha", "Monto", "Categoría/Servicio", "Descripción"],
+            rows: filteredIncomes.map((item) => [
+              formatDate(item.date),
+              item.amount,
+              item.type === "service" ? item.displayName : item.category,
+              item.description || "-",
+            ]),
             summary: [
-              { label: "Total de ventas", value: filteredSales.length },
+              { label: "Total de ingresos", value: filteredIncomes.length },
               {
                 label: "Total monto",
                 value: formatCurrency(totalFiltered, settings.currencySymbol),
               },
-              {
-                label: "Promedio por venta",
-                value: formatCurrency(avgSale, settings.currencySymbol),
-              },
             ],
           }),
-          [filteredSales, totalFiltered, avgSale, settings.currencySymbol]
+          [filteredIncomes, totalFiltered, settings.currencySymbol]
         )}
-        filename="ventas"
+        filename="ventas_servicios"
         isPremium={isPremium}
       />
 

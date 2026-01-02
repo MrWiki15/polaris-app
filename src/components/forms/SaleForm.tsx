@@ -50,8 +50,18 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
     "Otros",
   ]);
   const [selectedService, setSelectedService] = useState();
+
+  // Helper to ensure we only get the YYYY-MM-DD part
+  const getInitialDate = () => {
+    if (editingSale?.date) {
+      return editingSale.date.split("T")[0];
+    }
+    // Returns local date in YYYY-MM-DD format
+    return new Date().toLocaleDateString("en-CA");
+  };
+
   const [formData, setFormData] = useState({
-    date: editingSale?.date || new Date().toISOString().split("T")[0],
+    date: getInitialDate(),
     amount: editingSale?.amount?.toString() || "",
     category: editingSale?.category || categories[0],
     description: editingSale?.description || "",
@@ -98,9 +108,12 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Ensure we only send the date part
+    const cleanDate = formData.date.split("T")[0];
+
     if (saleType === "service") {
       const serviceData = {
-        date: formData.date,
+        date: cleanDate,
         amount: parseFloat(formData.amount),
         serviceId: formData.serviceId,
         description: formData.description || undefined,
@@ -114,7 +127,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
       }
     } else {
       const saleData = {
-        date: formData.date,
+        date: cleanDate,
         amount:
           saleType === "inventory"
             ? calculatedAmount
