@@ -402,20 +402,12 @@ export const Premium: React.FC = () => {
                   </Button>
                   <Button
                     onClick={() => {
-                      if (auth.isAuthenticated) {
-                        handleRedeemCode();
-                      } else {
-                        navigate("/configuracion");
-                      }
+                      handleRedeemCode();
                     }}
                     className="flex-1 gradient-primary"
                     disabled={isRedeeming || !redeemCode.trim()}
                   >
-                    {isRedeeming
-                      ? "Validando..."
-                      : !auth.isAuthenticated
-                      ? "Login necesario"
-                      : "Canjear"}
+                    {isRedeeming ? "Validando..." : "Canjear"}
                   </Button>
                 </div>
               </div>

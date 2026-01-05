@@ -223,20 +223,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                   <Package className="w-4 h-4" />
                   <span className="text-sm font-medium">Del Inventario</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSaleType("service")}
-                  className={cn(
-                    "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all",
-                    saleType === "service"
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-muted-foreground"
-                  )}
-                >
-                  <User className="w-4 h-4" />
-                  <span className="text-sm font-medium">Servicio</span>
-                </button>
               </div>
             </div>
           )}
