@@ -30,7 +30,7 @@ import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
-const WHATSAPP_NUMBER = "+5363813075";
+const WHATSAPP_NUMBER = "+5359783697";
 
 const premiumFeatures = [
   {
@@ -73,11 +73,7 @@ export const Premium: React.FC = () => {
   const [redeemCode, setRedeemCode] = useState("");
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [validPremiumCodes, setValidPremiumCodes] = useState([
-    "PREMIUM2024",
-    "UPGRADE2024",
-    "BUSINESS2024",
-    "PRO2024",
-    "LIFETIME2024",
+    "UPPREMIUM2026",
   ]);
   const auth = useSupabaseAuth();
   const navigate = useNavigate();
