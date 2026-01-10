@@ -223,8 +223,8 @@ export const PagosRecurrentes: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-24">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+      <div className="flex flex-col gap-4 items-start sm:items-center justify-between">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
           <MetricCard
             title="Total mensual"
             value={formatCurrency(monthlyTotal, settings.currencySymbol)}

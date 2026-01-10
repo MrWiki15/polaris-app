@@ -26,7 +26,7 @@ export const Servicios: React.FC = () => {
     addServiceIncome,
     deleteServiceIncome,
   } = useApp();
-  const { services, serviceIncomes, settings } = data;
+  const { services, serviceIncomes, settings, clients } = data;
   const isPremium = settings.isPremium || false;
 
   const [view, setView] = useState<"catalog" | "record">("catalog");
@@ -41,8 +41,10 @@ export const Servicios: React.FC = () => {
   const [recordForm, setRecordForm] = useState({
     date: new Date().toISOString().split("T")[0],
     serviceId: "",
+    clientId: "",
     amount: "",
     description: "",
+    multiplier: 1,
   });
 
   const totalMonthlyServices = useMemo(() => {
@@ -103,20 +105,27 @@ export const Servicios: React.FC = () => {
 
     const amount = svc.isVariablePrice
       ? parseFloat(recordForm.amount || "0")
-      : svc.price || 0;
+      : (svc.price || 0) * (recordForm.multiplier || 1);
 
     addServiceIncome({
       date: recordForm.date,
       serviceId: svc.id,
+      clientId: recordForm.clientId,
       amount,
       description: recordForm.description.trim() || undefined,
+      tags:
+        !svc.isVariablePrice && (recordForm.multiplier || 1) > 1
+          ? [`x${recordForm.multiplier}`]
+          : undefined,
     });
 
     setRecordForm({
       date: new Date().toISOString().split("T")[0],
       serviceId: "",
+      clientId: "",
       amount: "",
       description: "",
+      multiplier: 1,
     });
     setView("catalog");
   };
@@ -385,6 +394,45 @@ export const Servicios: React.FC = () => {
               </div>
             </div>
 
+            {!services.find((s) => s.id === recordForm.serviceId)
+              ?.isVariablePrice &&
+              recordForm.serviceId && (
+                <div className="space-y-2">
+                  <Label>Cantidad (multiplicador)</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {[2, 3, 4, 5, 6].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() =>
+                          setRecordForm((p) => ({ ...p, multiplier: m }))
+                        }
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                          recordForm.multiplier === m
+                            ? "bg-primary text-primary-foreground shadow-material"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        )}
+                      >
+                        x{m}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="p-4 bg-success/10 rounded-xl border border-success/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Total</span>
+                      <span className="text-xl font-bold text-success">
+                        {formatCurrency(
+                          (services.find((s) => s.id === recordForm.serviceId)
+                            ?.price || 0) * (recordForm.multiplier || 1),
+                          settings.currencySymbol
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             {services.find((s) => s.id === recordForm.serviceId)
               ?.isVariablePrice && (
               <div className="space-y-2">
@@ -402,6 +450,42 @@ export const Servicios: React.FC = () => {
                 />
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label>Cliente</Label>
+              <div className="max-h-48 overflow-y-auto space-y-2 border border-border rounded-xl p-2">
+                {clients.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-2">
+                    Agrega clientes en el CRM primero.
+                  </p>
+                ) : (
+                  clients
+                    .filter((c) => c.type === "cliente")
+                    .map((s) => (
+                      <button
+                        type="button"
+                        key={s.id}
+                        onClick={() =>
+                          setRecordForm((p) => ({ ...p, clientId: s.id }))
+                        }
+                        className={cn(
+                          "w-full flex items-center justify-between p-3 rounded-lg transition-all text-left",
+                          recordForm.clientId === s.id
+                            ? "bg-primary/10 border-2 border-primary"
+                            : "bg-muted hover:bg-muted/80 border-2 border-transparent"
+                        )}
+                      >
+                        <div>
+                          <span className="font-medium text-sm">{s.name}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {s.phone}
+                          </span>
+                        </div>
+                      </button>
+                    ))
+                )}
+              </div>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="rec_desc">Detalles (opcional)</Label>

@@ -36,7 +36,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   editingProduct,
 }) => {
   const { addProduct, updateProduct, data } = useApp();
-  const { settings, suppliers } = data;
+  const { settings, clients: suppliers } = data;
   const isPremium = settings.isPremium || false;
 
   const [formData, setFormData] = useState({
@@ -232,11 +232,15 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                 className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground"
               >
                 <option value="">Sin proveedor</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </option>
-                ))}
+                {suppliers
+                  .filter((s) => s.type === "proveedor")
+                  .map((supplier) => {
+                    return (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </option>
+                    );
+                  })}
               </select>
             </div>
           )}

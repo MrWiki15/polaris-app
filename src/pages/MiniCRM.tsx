@@ -12,12 +12,13 @@ import {
   User,
   Building2,
   Search,
+  PlusCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ExportButtons } from "@/components/ui/ExportButtons";
-import { Client, Worker } from "@/lib/storage";
+import { Client, Worker, Supplier } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import { ExportData } from "@/lib/exportUtils";
 
@@ -30,6 +31,8 @@ export const MiniCRM: React.FC = () => {
     addWorker,
     updateWorker,
     deleteWorker,
+    addSupplier,
+    updateSupplier,
   } = useApp();
 
   const { clients, settings, workers } = data;
@@ -172,7 +175,7 @@ export const MiniCRM: React.FC = () => {
             <div>
               <h2 className="text-lg sm:text-xl font-bold">Mini CRM</h2>
               <p className="text-sm text-muted-foreground">
-                {clientCount} clientes • {providerCount} proveedores 
+                {clientCount} clientes • {providerCount} proveedores
               </p>
             </div>
           </div>
@@ -187,7 +190,7 @@ export const MiniCRM: React.FC = () => {
                 }}
                 className="ml-2 gradient-secondary w-full"
               >
-                <DollarSign className="w-4 h-4 sm:mr-2" />
+                <PlusCircle className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Nuevo Trabajador</span>
               </Button>
             ) : (
