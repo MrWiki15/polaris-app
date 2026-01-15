@@ -18,6 +18,8 @@ import {
   Calendar,
   Tag,
   CreditCard,
+  History,
+  Wallet,
   Share2,
   Database,
 } from "lucide-react";
@@ -27,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
 const WHATSAPP_NUMBER = "+5359783697";
@@ -72,14 +74,15 @@ export const Premium: React.FC = () => {
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
   const [isRedeeming, setIsRedeeming] = useState(false);
-  const [validPremiumCodes, setValidPremiumCodes] = useState([
-    "UPPREMIUM2026",
-  ]);
+  const [validPremiumCodes, setValidPremiumCodes] = useState(["UPPREMIUM2026"]);
   const auth = useSupabaseAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<
+    "equipos" | "historial" | "wallet"
+  >("equipos");
 
   const searshPremiumCodes = async () => {
-    //buscar codigos que se pueden cangear
     const { data: premiumData, error: premiumError } = await supabase
       .from("verify_codes")
       .select("*")
@@ -100,6 +103,13 @@ export const Premium: React.FC = () => {
   useEffect(() => {
     searshPremiumCodes();
   }, []);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get("tab") as "equipos" | "historial" | "wallet" | null;
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [location.search]);
 
   const handleRedeemCode = () => {
     if (!redeemCode.trim()) {
@@ -113,14 +123,11 @@ export const Premium: React.FC = () => {
 
     setIsRedeeming(true);
 
-    // validacion
     setTimeout(async () => {
       const code = redeemCode.trim().toUpperCase();
       if (validPremiumCodes.includes(code)) {
-        //asignar premium en local
         updateSettings({ isPremium: true });
 
-        //verificar el user existe en database
         const { error: errorDataSupabase } = await supabase
           .from("profiles")
           .select("*")
@@ -136,7 +143,6 @@ export const Premium: React.FC = () => {
           });
         }
 
-        //si el usuario si existe hacer el update
         const { error: errorUpdatingSupabase } = await supabase
           .from("profiles")
           .update({
@@ -184,8 +190,7 @@ export const Premium: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Header */}
+    <div className="space-y-6 pb-28">
       <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-success/5 rounded-2xl p-6 sm:p-8 border border-primary/20 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="relative z-10">
@@ -214,7 +219,6 @@ export const Premium: React.FC = () => {
       </div>
 
       {isPremium ? (
-        /* Premium Activo */
         <div className="bg-success/5 border border-success/20 rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-success/20 rounded-xl">
@@ -239,9 +243,7 @@ export const Premium: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Plan Premium - No activo */
         <>
-          {/* Pricing Card */}
           <div className="bg-card rounded-2xl p-6 shadow-soft border border-border">
             <div className="text-center mb-6">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full mb-4">
@@ -256,7 +258,6 @@ export const Premium: React.FC = () => {
               </p>
             </div>
 
-            {/* Features Grid */}
             <div className="space-y-6 mb-8">
               {premiumFeatures.map((category, idx) => (
                 <div key={idx}>
@@ -278,7 +279,6 @@ export const Premium: React.FC = () => {
               ))}
             </div>
 
-            {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 onClick={handleWhatsAppContact}
@@ -298,7 +298,6 @@ export const Premium: React.FC = () => {
             </div>
           </div>
 
-          {/* Benefits Section */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
               <div className="p-2 bg-primary/10 rounded-xl w-fit mb-3">
@@ -331,7 +330,6 @@ export const Premium: React.FC = () => {
         </>
       )}
 
-      {/* Redeem Code Modal */}
       {showRedeemModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -410,6 +408,67 @@ export const Premium: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {auth.isAuthenticated && (
+        <>
+          <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
+            {activeTab === "equipos" && (
+              <div className="space-y-2">
+                <h3 className="font-semibold">Equipos</h3>
+                <p className="text-sm text-muted-foreground">
+                  Gestión y colaboración con equipos.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 rounded-xl border border-border">
+                    <div className="text-sm font-medium">Miembros</div>
+                    <div className="text-xs text-muted-foreground">
+                      Próximamente
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl border border-border">
+                    <div className="text-sm font-medium">Roles</div>
+                    <div className="text-xs text-muted-foreground">
+                      Próximamente
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {activeTab === "historial" && (
+              <div className="space-y-2">
+                <h3 className="font-semibold">Historial</h3>
+                <p className="text-sm text-muted-foreground">
+                  Actividad reciente y registros.
+                </p>
+                <div className="p-3 rounded-xl border border-border">
+                  <div className="text-sm">Sin actividad por ahora</div>
+                </div>
+              </div>
+            )}
+            {activeTab === "wallet" && (
+              <div className="space-y-2">
+                <h3 className="font-semibold">Wallet</h3>
+                <p className="text-sm text-muted-foreground">
+                  Estado y métodos de pago.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 rounded-xl border border-border">
+                    <div className="text-sm font-medium">Suscripción</div>
+                    <div className="text-xs text-muted-foreground">
+                      {isPremium ? "Activa" : "No activa"}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl border border-border">
+                    <div className="text-sm font-medium">Métodos de pago</div>
+                    <div className="text-xs text-muted-foreground">
+                      Próximamente
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

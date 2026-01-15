@@ -24,6 +24,9 @@ import PagosRecurrentes from "@/pages/PagosRecurrentes";
 import Servicios from "@/pages/Servicios";
 import Premium from "@/pages/Premium";
 import NotFound from "@/pages/NotFound";
+import Teams from "./pages/Teams";
+import History from "./pages/History";
+import Wallet from "./pages/Wallet";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +62,9 @@ const App = () => (
                 element={<PagosRecurrentes />}
               />
               <Route path="/premium" element={<Premium />} />
+              <Route path="/teams" element={<Teams />} />
+              <Route path="/history" element={<History />} />
+              <Route path="/wallet" element={<Wallet />} />
               <Route path="/configuracion" element={<Configuracion />} />
             </Route>
             <Route path="*" element={<NotFound />} />

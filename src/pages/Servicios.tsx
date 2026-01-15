@@ -26,7 +26,7 @@ export const Servicios: React.FC = () => {
     addServiceIncome,
     deleteServiceIncome,
   } = useApp();
-  const { services, serviceIncomes, settings, clients } = data;
+  const { services, serviceIncomes, settings } = data;
   const isPremium = settings.isPremium || false;
 
   const [view, setView] = useState<"catalog" | "record">("catalog");
@@ -41,7 +41,6 @@ export const Servicios: React.FC = () => {
   const [recordForm, setRecordForm] = useState({
     date: new Date().toISOString().split("T")[0],
     serviceId: "",
-    clientId: "",
     amount: "",
     description: "",
     multiplier: 1,
@@ -110,7 +109,6 @@ export const Servicios: React.FC = () => {
     addServiceIncome({
       date: recordForm.date,
       serviceId: svc.id,
-      clientId: recordForm.clientId,
       amount,
       description: recordForm.description.trim() || undefined,
       tags:
@@ -122,7 +120,6 @@ export const Servicios: React.FC = () => {
     setRecordForm({
       date: new Date().toISOString().split("T")[0],
       serviceId: "",
-      clientId: "",
       amount: "",
       description: "",
       multiplier: 1,
@@ -450,42 +447,6 @@ export const Servicios: React.FC = () => {
                 />
               </div>
             )}
-
-            <div className="space-y-2">
-              <Label>Cliente</Label>
-              <div className="max-h-48 overflow-y-auto space-y-2 border border-border rounded-xl p-2">
-                {clients.length === 0 ? (
-                  <p className="text-sm text-muted-foreground p-2">
-                    Agrega clientes en el CRM primero.
-                  </p>
-                ) : (
-                  clients
-                    .filter((c) => c.type === "cliente")
-                    .map((s) => (
-                      <button
-                        type="button"
-                        key={s.id}
-                        onClick={() =>
-                          setRecordForm((p) => ({ ...p, clientId: s.id }))
-                        }
-                        className={cn(
-                          "w-full flex items-center justify-between p-3 rounded-lg transition-all text-left",
-                          recordForm.clientId === s.id
-                            ? "bg-primary/10 border-2 border-primary"
-                            : "bg-muted hover:bg-muted/80 border-2 border-transparent"
-                        )}
-                      >
-                        <div>
-                          <span className="font-medium text-sm">{s.name}</span>
-                          <span className="block text-xs text-muted-foreground">
-                            {s.phone}
-                          </span>
-                        </div>
-                      </button>
-                    ))
-                )}
-              </div>
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="rec_desc">Detalles (opcional)</Label>

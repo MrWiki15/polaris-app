@@ -20,6 +20,7 @@ import {
 import { useApp } from "@/contexts/AppContext";
 import { AutoSyncIndicator } from "@/components/ui/AutoSyncIndicator";
 import { cn } from "@/lib/utils";
+import { BottomTabbar } from "@/components/ui/BottomTabbar";
 
 const menuItems = [
   { path: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -36,7 +37,8 @@ const menuItems = [
 
 export const AppLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { theme, toggleTheme, data, supabaseSyncState } = useApp();
+  const { theme, toggleTheme, data, supabaseSyncState, supabaseAuth } =
+    useApp();
   const location = useLocation();
   const isPremium = data.settings.isPremium || false;
 
@@ -49,7 +51,7 @@ export const AppLayout: React.FC = () => {
       {/* Overlay for mobile */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-60 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -173,6 +175,7 @@ export const AppLayout: React.FC = () => {
         >
           <Outlet />
         </main>
+        {supabaseAuth?.isAuthenticated && <BottomTabbar />}
       </div>
     </div>
   );
