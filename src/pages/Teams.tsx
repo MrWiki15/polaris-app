@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ethers } from "ethers";
 import { encrypt } from "@/lib/crypto";
+import { createHederaWallet } from "@/lib/wallet";
 
 type ProjectMember = {
   email: string;
@@ -162,9 +163,10 @@ export default function Teams() {
       // Create wallets for each department sequentially
       for (const departament of departaments) {
         try {
-          const wallet = ethers.Wallet.createRandom();
+          const wallet = await createHederaWallet();
           const privateKey = wallet.privateKey;
-          const address = wallet.address;
+          const address = wallet.accountId;
+
           const passphrase = import.meta.env.VITE_ENCRIPTED_KEY || "";
           const encryptedKey = await encrypt(privateKey, passphrase);
 

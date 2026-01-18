@@ -1,3 +1,9 @@
+import {
+  Client,
+  PrivateKey,
+  AccountCreateTransaction,
+  Hbar,
+} from "@hashgraph/sdk";
 import { supabase } from "@/lib/supabase";
 import { decrypt } from "@/lib/crypto";
 import { ethers } from "ethers";
@@ -10,7 +16,7 @@ export type UserWallet = {
 };
 
 export const getUserWallet = async (
-  userId: string
+  userId: string,
 ): Promise<UserWallet | null> => {
   const { data, error } = await supabase
     .from("wallets")
@@ -33,7 +39,7 @@ const getProvider = (): ethers.Provider => {
 };
 
 export const getDecryptedPrivateKey = async (
-  encrypted: string
+  encrypted: string,
 ): Promise<string> => {
   const passphrase = import.meta.env.VITE_ENCRIPTED_KEY || "";
   const pk = await decrypt(encrypted, passphrase);
@@ -43,7 +49,7 @@ export const getDecryptedPrivateKey = async (
 export const sendFunds = async (
   userId: string,
   toAddress: string,
-  amountEth: string
+  amountEth: string,
 ) => {
   const walletRow = await getUserWallet(userId);
   if (!walletRow) {
@@ -65,12 +71,11 @@ const API_BASE =
   (import.meta.env.VITE_PLUME_API_BASE as string) ||
   "https://explorer-plume-mainnet-1.t.conduit.xyz";
 const ERC20_ABI = [
-    "function balanceOf(address) view returns (uint256)",
-    "function decimals() view returns (uint8)",
+  "function balanceOf(address) view returns (uint256)",
+  "function decimals() view returns (uint8)",
   "function transfer(address to, uint256 value) returns (bool)",
   "event Transfer(address indexed from, address indexed to, uint256 value)",
 ];
-
 
 const fetchJson = async (url: string) => {
   const res = await fetch(url);
@@ -91,7 +96,7 @@ const getTokenDecimals = async (): Promise<number> => {
 };
 
 export const getPusdBalance = async (
-  userId: string
+  userId: string,
 ): Promise<{ raw: bigint; decimals: number }> => {
   const walletRow = await getUserWallet(userId);
   if (!walletRow) {
@@ -108,7 +113,7 @@ export const getPusdBalance = async (
 export const sendPusd = async (
   userId: string,
   toAddress: string,
-  amount: string
+  amount: string,
 ) => {
   const walletRow = await getUserWallet(userId);
   if (!walletRow) {
@@ -135,7 +140,7 @@ export type TokenTransfer = {
 };
 
 export const getPusdTransfers = async (
-  userId: string
+  userId: string,
 ): Promise<TokenTransfer[]> => {
   const walletRow = await getUserWallet(userId);
   if (!walletRow) {
@@ -162,4 +167,35 @@ export const getPusdTransfers = async (
     };
   });
   return mapped.sort((a, b) => b.timestamp - a.timestamp);
+};
+
+//Hedera
+
+const operatorId = import.meta.env.VITE_OPERATOR_ID;
+const operatorKey = import.meta.env.VITE_OPERATOR_KEY;
+const client = Client.forTestnet().setOperator(operatorId, operatorKey);
+
+export const createHederaWallet = async () => {
+  // Genera una nueva clave para la cuenta
+  const newKey = PrivateKey.generateECDSA();
+
+  // Crea la cuenta con balance inicial
+  const transaction = new AccountCreateTransaction()
+    .setKey(newKey.publicKey) // Usar .setKey() en lugar de .setKeyWithAlias()
+    .setInitialBalance(Hbar.fromTinybars(1000));
+
+  // Ejecuta la transacción
+  const txResponse = await transaction.execute(client);
+  const receipt = await txResponse.getReceipt(client);
+
+  if (!receipt.accountId) {
+    throw new Error("No se pudo crear la cuenta");
+  }
+
+  console.log("Nueva cuenta ID: " + receipt.accountId.toString());
+
+  return {
+    accountId: receipt.accountId.toString(), // Dirección de la cuenta
+    privateKey: newKey.toString(), // Private key en formato string
+  };
 };

@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/supabase";
 import { ethers } from "ethers";
 import { encrypt } from "@/lib/crypto";
+import { createHederaWallet } from "@/lib/wallet";
 
 export const useSupabaseAuth = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -83,16 +84,18 @@ export const useSupabaseAuth = () => {
             console.error("Wallet check error:", checkError);
           }
           if (!existing) {
-            const wallet = ethers.Wallet.createRandom();
-            const privateKey = wallet.privateKey;
-            const address = wallet.address;
+            const wallet = await createHederaWallet();
             const passphrase = import.meta.env.VITE_ENCRIPTED_KEY || "";
-            const encryptedKey = await encrypt(privateKey, passphrase);
+            const encryptedKey = encrypt(
+              wallet.privateKey,
+              passphrase,
+            );
+
             const { error: insertError } = await supabase
               .from("wallets")
               .insert({
                 userId: data.user.id,
-                address,
+                address: wallet.accountId,
                 privateKey: encryptedKey,
               });
             if (insertError) {
@@ -122,7 +125,7 @@ export const useSupabaseAuth = () => {
         {
           email,
           password,
-        }
+        },
       );
       if (authError) throw authError;
       if (data.user) {
