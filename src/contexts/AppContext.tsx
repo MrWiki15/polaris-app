@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, {
   createContext,
   useContext,
@@ -15,19 +16,43 @@ import {
   Worker,
   CalendarEvent,
   FinancialGoal,
+  ReinvestmentGoal,
+  ReinvestmentExecution,
   Debt,
   RecurringPayment,
   Supplier,
   SupplierOrder,
   Service,
   ServiceIncome,
+  DepartmentBudgetTransaction,
   loadData,
   saveData,
   generateId,
   formatCurrency,
+  defaultData,
 } from "@/lib/storage";
 import { useSupabaseSync } from "@/hooks/use-supabase-sync";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
+import { supabase } from "@/lib/supabase";
+
+type ProjectMember = {
+  email: string;
+  departament: string;
+  role: string;
+};
+
+type SelectedProject = {
+  id: number;
+  name: string;
+  members: ProjectMember[];
+  departaments?: string[];
+  wallets?: {
+    name: string;
+    address: string;
+    privateKey: string;
+  }[];
+  initial_balance?: string | null;
+};
 
 interface SyncState {
   isSyncing: boolean;
@@ -38,6 +63,12 @@ interface SyncState {
 interface AppContextType {
   data: AppData;
   supabaseSyncState?: SyncState;
+  currentProject: SelectedProject | null;
+  currentProjectMember: ProjectMember | null;
+  setCurrentProject: (
+    project: SelectedProject | null,
+    member: ProjectMember | null,
+  ) => void;
   // Sales
   addSale: (sale: Omit<Sale, "id">) => void;
   updateSale: (id: string, sale: Partial<Sale>) => void;
@@ -66,17 +97,30 @@ interface AppContextType {
   addGoal: (goal: Omit<FinancialGoal, "id" | "createdAt">) => void;
   updateGoal: (id: string, goal: Partial<FinancialGoal>) => void;
   deleteGoal: (id: string) => void;
+  addReinvestmentGoal: (
+    goal: Omit<ReinvestmentGoal, "id" | "createdAt">,
+  ) => void;
+  addReinvestmentExecution: (
+    execution: Omit<ReinvestmentExecution, "id">,
+  ) => void;
+  addDepartmentBudgetTransaction: (
+    tx: Omit<DepartmentBudgetTransaction, "id" | "createdAt">,
+  ) => void;
+  updateDepartmentBudgetTransaction: (
+    id: string,
+    update: Partial<DepartmentBudgetTransaction>,
+  ) => void;
   // Debts
   addDebt: (debt: Omit<Debt, "id" | "createdAt">) => void;
   updateDebt: (id: string, debt: Partial<Debt>) => void;
   deleteDebt: (id: string) => void;
   // Recurring Payments
   addRecurringPayment: (
-    payment: Omit<RecurringPayment, "id" | "createdAt">
+    payment: Omit<RecurringPayment, "id" | "createdAt">,
   ) => void;
   updateRecurringPayment: (
     id: string,
-    payment: Partial<RecurringPayment>
+    payment: Partial<RecurringPayment>,
   ) => void;
   deleteRecurringPayment: (id: string) => void;
   payRecurringPayment: (paymentId: string) => void;
@@ -135,13 +179,50 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       : "light";
   });
 
+  const [currentProject, setCurrentProjectState] =
+    useState<SelectedProject | null>(null);
+  const [currentProjectMember, setCurrentProjectMember] =
+    useState<ProjectMember | null>(null);
+
+  const isProjectMode = !!currentProject;
+
   // Supabase auth and sync
   const supabaseAuth = useSupabaseAuth();
-  const isPremium = data.settings.isPremium || false;
+  // const isPremium = data.settings.isPremium || false;
+  const isPremium = true;
   const { isSyncing, isOnline, lastSyncTime, saveToSupabase } = useSupabaseSync(
     supabaseAuth.user?.id,
-    isPremium
+    isPremium,
   );
+
+  const loadProjectData = useCallback(async (projectId: number) => {
+    try {
+      const { data: projectData, error } = await supabase
+        .from("projects")
+        .select("data")
+        .eq("id", projectId)
+        .single();
+
+      if (error) {
+        console.error("Error loading project data:", error);
+        setData(defaultData);
+        return;
+      }
+
+      const payload = (projectData as any)?.data as AppData | undefined;
+      if (payload && typeof payload === "object") {
+        setData({
+          ...defaultData,
+          ...payload,
+        });
+      } else {
+        setData(defaultData);
+      }
+    } catch (err) {
+      console.error("Unexpected error loading project data:", err);
+      setData(defaultData);
+    }
+  }, []);
 
   // Apply theme to document
   useEffect(() => {
@@ -150,29 +231,76 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     localStorage.setItem("negocio360_theme", theme);
   }, [theme]);
 
-  // Save data to localStorage
   useEffect(() => {
-    saveData(data);
-    localStorage.setItem("negocio360_data_updated", Date.now().toString());
-  }, [data]);
+    if (!isProjectMode) {
+      saveData(data);
+      localStorage.setItem("negocio360_data_updated", Date.now().toString());
+    }
+  }, [data, isProjectMode]);
 
-  // Auto-sync to Supabase when data changes and user is premium and online
   useEffect(() => {
-    if (isPremium && isOnline && supabaseAuth.isAuthenticated) {
+    if (
+      !isProjectMode &&
+      isPremium &&
+      isOnline &&
+      supabaseAuth.isAuthenticated
+    ) {
       const timer = setTimeout(() => {
         saveToSupabase(data);
-      }, 1000); // Debounce saves
+      }, 1000);
 
       return () => clearTimeout(timer);
     }
-  }, [data, isPremium, isOnline, supabaseAuth.isAuthenticated, saveToSupabase]);
+  }, [
+    data,
+    isPremium,
+    isOnline,
+    supabaseAuth.isAuthenticated,
+    saveToSupabase,
+    isProjectMode,
+  ]);
+
+  //actualiza automaticamente la data del proyecto con la data de local storage
+  // useEffect(() => {
+  //   if (!currentProject || !supabaseAuth.isAuthenticated) return;
+
+  //   const saveProject = async () => {
+  //     try {
+  //       await supabase
+  //         .from("projects")
+  //         .update({ data })
+  //         .eq("id", currentProject.id);
+  //     } catch (err) {
+  //       console.error("Error saving project data:", err);
+  //     }
+  //   };
+
+  //   saveProject();
+  // }, [data, currentProject, supabaseAuth.isAuthenticated]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
   const refreshData = () => {
-    setData(loadData());
+    if (currentProject) {
+      loadProjectData(currentProject.id);
+    } else {
+      setData(loadData());
+    }
+  };
+
+  const setCurrentProject = (
+    project: SelectedProject | null,
+    member: ProjectMember | null,
+  ) => {
+    setCurrentProjectState(project);
+    setCurrentProjectMember(member);
+    if (project) {
+      loadProjectData(project.id);
+    } else {
+      setData(loadData());
+    }
   };
 
   // Sales operations
@@ -187,7 +315,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         products: prev.products.map((p) =>
           p.id === sale.productId
             ? { ...p, quantity: Math.max(0, p.quantity - (sale.quantity || 0)) }
-            : p
+            : p,
         ),
       }));
     } else {
@@ -219,7 +347,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setData((prev) => ({
       ...prev,
       expenses: prev.expenses.map((e) =>
-        e.id === id ? { ...e, ...expenseUpdate } : e
+        e.id === id ? { ...e, ...expenseUpdate } : e,
       ),
     }));
   };
@@ -241,7 +369,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setData((prev) => ({
       ...prev,
       products: prev.products.map((p) =>
-        p.id === id ? { ...p, ...productUpdate } : p
+        p.id === id ? { ...p, ...productUpdate } : p,
       ),
     }));
   };
@@ -267,7 +395,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setData((prev) => ({
       ...prev,
       clients: prev.clients.map((c) =>
-        c.id === id ? { ...c, ...clientUpdate } : c
+        c.id === id ? { ...c, ...clientUpdate } : c,
       ),
     }));
   };
@@ -295,14 +423,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       // Update or create Salaries recurring payment
       const existing = prev.recurringPayments.find(
-        (rp) => rp.name === "Salarios" || rp.category === "Salarios"
+        (rp) => rp.name === "Salarios" || rp.category === "Salarios",
       );
       let newRecurringPayments = prev.recurringPayments;
       if (existing) {
         newRecurringPayments = prev.recurringPayments.map((rp) =>
           rp.id === existing.id
             ? { ...rp, amount: totalSalary, dayOfMonth: 10, isActive: true }
-            : rp
+            : rp,
         );
       } else {
         const rp: RecurringPayment = {
@@ -320,7 +448,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       // Remove existing salary events and create monthly events (next 12 months)
       const withoutSalaryEvents = prev.events.filter(
-        (e) => e.title !== "Pago salarios"
+        (e) => e.title !== "Pago salarios",
       );
       const eventsToAdd: CalendarEvent[] = [];
       const today = new Date();
@@ -338,7 +466,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           type: "pago",
           description: `Pago de salarios: ${formatCurrency(
             totalSalary,
-            prev.settings.currencySymbol
+            prev.settings.currencySymbol,
           )}`,
           completed: false,
         });
@@ -356,14 +484,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const updateWorker = (id: string, workerUpdate: Partial<Worker>) => {
     setData((prev) => {
       const newWorkers = prev.workers.map((w) =>
-        w.id === id ? { ...w, ...workerUpdate } : w
+        w.id === id ? { ...w, ...workerUpdate } : w,
       );
       const totalSalary = newWorkers.reduce((s, w) => s + (w.salary || 0), 0);
 
       const newRecurringPayments = prev.recurringPayments.map((rp) =>
         rp.name === "Salarios" || rp.category === "Salarios"
           ? { ...rp, amount: totalSalary, dayOfMonth: 10, isActive: true }
-          : rp
+          : rp,
       );
 
       // Update salary events descriptions
@@ -373,10 +501,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
               ...e,
               description: `Pago de salarios: ${formatCurrency(
                 totalSalary,
-                prev.settings.currencySymbol
+                prev.settings.currencySymbol,
               )}`,
             }
-          : e
+          : e,
       );
 
       return {
@@ -397,7 +525,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         .map((rp) =>
           rp.name === "Salarios" || rp.category === "Salarios"
             ? { ...rp, amount: totalSalary }
-            : rp
+            : rp,
         )
         .filter(Boolean as any);
 
@@ -407,10 +535,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
               ...e,
               description: `Pago de salarios: ${formatCurrency(
                 totalSalary,
-                prev.settings.currencySymbol
+                prev.settings.currencySymbol,
               )}`,
             }
-          : e
+          : e,
       );
 
       return {
@@ -432,7 +560,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setData((prev) => ({
       ...prev,
       events: prev.events.map((e) =>
-        e.id === id ? { ...e, ...eventUpdate } : e
+        e.id === id ? { ...e, ...eventUpdate } : e,
       ),
     }));
   };
@@ -468,6 +596,65 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }));
   };
 
+  const addReinvestmentGoal = (
+    goal: Omit<ReinvestmentGoal, "id" | "createdAt">,
+  ) => {
+    const newGoal: ReinvestmentGoal = {
+      ...goal,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((prev) => ({
+      ...prev,
+      reinvestmentGoals: [newGoal, ...(prev.reinvestmentGoals || [])],
+    }));
+  };
+
+  const addReinvestmentExecution = (
+    execution: Omit<ReinvestmentExecution, "id">,
+  ) => {
+    const newExecution: ReinvestmentExecution = {
+      ...execution,
+      id: generateId(),
+    };
+    setData((prev) => ({
+      ...prev,
+      reinvestmentExecutions: [
+        newExecution,
+        ...(prev.reinvestmentExecutions || []),
+      ],
+    }));
+  };
+
+  const addDepartmentBudgetTransaction = (
+    tx: Omit<DepartmentBudgetTransaction, "id" | "createdAt">,
+  ) => {
+    const newTx: DepartmentBudgetTransaction = {
+      ...tx,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((prev) => ({
+      ...prev,
+      departmentBudgetTransactions: [
+        newTx,
+        ...(prev.departmentBudgetTransactions || []),
+      ],
+    }));
+  };
+
+  const updateDepartmentBudgetTransaction = (
+    id: string,
+    update: Partial<DepartmentBudgetTransaction>,
+  ) => {
+    setData((prev) => ({
+      ...prev,
+      departmentBudgetTransactions: (
+        prev.departmentBudgetTransactions || []
+      ).map((tx) => (tx.id === id ? { ...tx, ...update } : tx)),
+    }));
+  };
+
   // Debts operations
   const addDebt = (debt: Omit<Debt, "id" | "createdAt">) => {
     const newDebt: Debt = {
@@ -494,7 +681,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   // Recurring Payments operations
   const addRecurringPayment = (
-    payment: Omit<RecurringPayment, "id" | "createdAt">
+    payment: Omit<RecurringPayment, "id" | "createdAt">,
   ) => {
     const newPayment: RecurringPayment = {
       ...payment,
@@ -509,12 +696,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const updateRecurringPayment = (
     id: string,
-    paymentUpdate: Partial<RecurringPayment>
+    paymentUpdate: Partial<RecurringPayment>,
   ) => {
     setData((prev) => ({
       ...prev,
       recurringPayments: prev.recurringPayments.map((rp) =>
-        rp.id === id ? { ...rp, ...paymentUpdate } : rp
+        rp.id === id ? { ...rp, ...paymentUpdate } : rp,
       ),
     }));
   };
@@ -545,7 +732,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       ...prev,
       expenses: [newExpense, ...prev.expenses],
       recurringPayments: prev.recurringPayments.map((rp) =>
-        rp.id === paymentId ? { ...rp, lastPaidDate: today } : rp
+        rp.id === paymentId ? { ...rp, lastPaidDate: today } : rp,
       ),
     }));
   };
@@ -581,7 +768,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setData((prev) => ({
       ...prev,
       suppliers: prev.suppliers.map((s) =>
-        s.id === id ? { ...s, ...supplierUpdate } : s
+        s.id === id ? { ...s, ...supplierUpdate } : s,
       ),
     }));
   };
@@ -608,12 +795,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const updateSupplierOrder = (
     id: string,
-    orderUpdate: Partial<SupplierOrder>
+    orderUpdate: Partial<SupplierOrder>,
   ) => {
     setData((prev) => ({
       ...prev,
       supplierOrders: prev.supplierOrders.map((o) =>
-        o.id === id ? { ...o, ...orderUpdate } : o
+        o.id === id ? { ...o, ...orderUpdate } : o,
       ),
     }));
   };
@@ -633,7 +820,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setData((prev) => ({
       ...prev,
       supplierOrders: prev.supplierOrders.map((o) =>
-        o.id === orderId ? { ...o, status: "received" as const } : o
+        o.id === orderId ? { ...o, status: "received" as const } : o,
       ),
       products: prev.products.map((p) => {
         const orderedItem = order.items.find((i) => i.productId === p.id);
@@ -659,7 +846,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setData((prev) => ({
       ...prev,
       services: prev.services.map((s) =>
-        s.id === id ? { ...s, ...serviceUpdate } : s
+        s.id === id ? { ...s, ...serviceUpdate } : s,
       ),
     }));
   };
@@ -682,12 +869,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const updateServiceIncome = (
     id: string,
-    incomeUpdate: Partial<ServiceIncome>
+    incomeUpdate: Partial<ServiceIncome>,
   ) => {
     setData((prev) => ({
       ...prev,
       serviceIncomes: prev.serviceIncomes.map((i) =>
-        i.id === id ? { ...i, ...incomeUpdate } : i
+        i.id === id ? { ...i, ...incomeUpdate } : i,
       ),
     }));
   };
@@ -716,6 +903,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           isOnline,
           lastSyncTime,
         },
+        currentProject,
+        currentProjectMember,
+        setCurrentProject,
         addSale,
         updateSale,
         deleteSale,
@@ -737,6 +927,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         addGoal,
         updateGoal,
         deleteGoal,
+        addReinvestmentGoal,
+        addReinvestmentExecution,
+        addDepartmentBudgetTransaction,
+        updateDepartmentBudgetTransaction,
         addDebt,
         updateDebt,
         deleteDebt,

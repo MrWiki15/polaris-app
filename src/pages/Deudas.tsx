@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { ExportData } from "@/lib/exportUtils";
 
 export const Deudas: React.FC = () => {
-  const { data, addDebt, updateDebt, deleteDebt } = useApp();
+  const { data, addDebt, updateDebt, deleteDebt, currentProject } = useApp();
   const { debts, settings } = data;
   const isPremium = settings.isPremium || false;
 
@@ -115,6 +115,13 @@ export const Deudas: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
+      {!!currentProject && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Deudas)
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="bg-gradient-to-br from-destructive/10 to-destructive/5 rounded-2xl p-4 sm:p-6 border border-destructive/20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

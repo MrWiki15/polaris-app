@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 type FilterType = "all" | "low-stock" | "in-stock";
 
 export const Inventario: React.FC = () => {
-  const { data, deleteProduct } = useApp();
+  const { data, deleteProduct, currentProject } = useApp();
   const { products, settings } = data;
   const isPremium = settings.isPremium || false;
   const [showForm, setShowForm] = useState(false);
@@ -34,6 +34,10 @@ export const Inventario: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [expFrom, setExpFrom] = useState("");
+  const [expTo, setExpTo] = useState("");
 
   // Metrics
   const inventoryValue = useMemo(() => getInventoryValue(products), [products]);
@@ -74,8 +78,31 @@ export const Inventario: React.FC = () => {
       );
     }
 
+    const min = minPrice ? Number(minPrice) : undefined;
+    const max = maxPrice ? Number(maxPrice) : undefined;
+
+    if (min !== undefined) {
+      filtered = filtered.filter((p) => p.price >= min);
+    }
+    if (max !== undefined) {
+      filtered = filtered.filter((p) => p.price <= max);
+    }
+
+    if (expFrom) {
+      const from = new Date(expFrom);
+      filtered = filtered.filter(
+        (p) => p.expirationDate && new Date(p.expirationDate) >= from
+      );
+    }
+    if (expTo) {
+      const to = new Date(expTo);
+      filtered = filtered.filter(
+        (p) => p.expirationDate && new Date(p.expirationDate) <= to
+      );
+    }
+
     return filtered;
-  }, [products, filter, searchTerm]);
+  }, [products, filter, searchTerm, minPrice, maxPrice, expFrom, expTo]);
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
@@ -166,6 +193,13 @@ export const Inventario: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-24">
+      {!!currentProject && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Inventario)
+          </div>
+        </div>
+      )}
       {/* Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -196,7 +230,6 @@ export const Inventario: React.FC = () => {
         />
       </div>
 
-      {/* Search and Filters */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 flex gap-2">
@@ -237,7 +270,51 @@ export const Inventario: React.FC = () => {
             ))}
           </div>
         </div>
-        <div className="flex justify-end"></div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">
+              Precio mínimo
+            </div>
+            <input
+              type="number"
+              value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">
+              Precio máximo
+            </div>
+            <input
+              type="number"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">
+              Vencimiento entre
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={expFrom}
+                onChange={(e) => setExpFrom(e.target.value)}
+                className="flex-1 px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+              <input
+                type="date"
+                value={expTo}
+                onChange={(e) => setExpTo(e.target.value)}
+                className="flex-1 px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Table */}

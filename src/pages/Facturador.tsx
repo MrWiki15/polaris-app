@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
 import jsPDF from "jspdf";
 
 interface InvoiceItem {
@@ -16,8 +17,20 @@ interface InvoiceItem {
 }
 
 export const Facturador: React.FC = () => {
-  const { data, addSale } = useApp();
+  const { data, addSale, currentProject, currentProjectMember } = useApp();
   const { settings, products, clients } = data;
+
+  const isProjectSelected = !!currentProject;
+  const department = currentProjectMember?.departament;
+  const permissions = department
+    ? DEPARTMENT_PERMISSIONS[department]
+    : undefined;
+  const isAuthorizedForPage =
+    !isProjectSelected ||
+    !department ||
+    !permissions ||
+    permissions.includes("all") ||
+    permissions.includes("/herramientas/facturador");
 
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
@@ -222,6 +235,24 @@ export const Facturador: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
+      {isProjectSelected && !isAuthorizedForPage && (
+        <div className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-sm text-center">
+            <h2 className="text-lg font-semibold mb-2">Acceso restringido</h2>
+            <p className="text-sm text-muted-foreground">
+              Solo el personal autorizado puede acceder a esta sección en el
+              proyecto seleccionado.
+            </p>
+          </div>
+        </div>
+      )}
+      {isProjectSelected && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Facturador)
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-4 sm:p-6 border border-primary/20">
         <div className="flex items-center gap-3 mb-2">

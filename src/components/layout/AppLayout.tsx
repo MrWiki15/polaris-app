@@ -16,13 +16,22 @@ import {
   ChevronRight,
   ClipboardList,
   Crown,
+  Users,
+  FileText,
+  Target,
+  RefreshCw,
+  Tag,
+  CreditCard,
+  Pencil,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { AutoSyncIndicator } from "@/components/ui/AutoSyncIndicator";
 import { cn } from "@/lib/utils";
 import { BottomTabbar } from "@/components/ui/BottomTabbar";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 
-const menuItems = [
+const MENU_ITEMS = [
   { path: "/", icon: LayoutDashboard, label: "Dashboard" },
   { path: "/ingresos", icon: ShoppingCart, label: "Ingresos" },
   { path: "/gastos", icon: Receipt, label: "Gastos" },
@@ -35,16 +44,167 @@ const menuItems = [
   { path: "/configuracion", icon: Settings, label: "Configuración" },
 ];
 
+const EXTRA_MENU_ITEMS = {
+  crm: { path: "/herramientas/crm", icon: Users, label: "Mini CRM" },
+  facturador: {
+    path: "/herramientas/facturador",
+    icon: FileText,
+    label: "Facturador",
+  },
+  metas: {
+    path: "/herramientas/metas",
+    icon: Target,
+    label: "Metas",
+  },
+  pagosRecurrentes: {
+    path: "/herramientas/pagos-recurrentes",
+    icon: RefreshCw,
+    label: "Recurrencia",
+  },
+  preciosDinamicos: {
+    path: "/herramientas/precios",
+    icon: Tag,
+    label: "Precios dinámicos",
+  },
+  deudas: {
+    path: "/herramientas/deudas",
+    icon: CreditCard,
+    label: "Control de deudas",
+  },
+  postas: {
+    path: "/herramientas/posts",
+    icon: Pencil,
+    label: "Redes Sociales",
+  },
+};
+
+type DepartmentConfig = {
+  [key: string]: ("all" | string)[];
+};
+
+export const DEPARTMENT_PERMISSIONS: DepartmentConfig = {
+  direccion: ["all"],
+  ventas: ["/ingresos", "/herramientas/crm"],
+  recursos_humanos: ["/herramientas/crm", "/herramientas/agenda"],
+  logistica: ["/inventario"],
+  marketing: ["/herramientas/posts"],
+  economia: [
+    "/servicios",
+    "/gastos",
+    "/analisis",
+    "/proyecciones",
+    "/herramientas/facturador",
+    "/herramientas/metas",
+    "/herramientas/pagos-recurrentes",
+    "/herramientas/precios",
+    "/herramientas/deudas",
+    "/herramientas/crm",
+  ],
+  // Add other departments here
+};
+
 export const AppLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { theme, toggleTheme, data, supabaseSyncState, supabaseAuth } =
-    useApp();
+  const {
+    theme,
+    toggleTheme,
+    data,
+    supabaseSyncState,
+    supabaseAuth,
+    currentProject,
+    currentProjectMember,
+    setCurrentProject,
+  } = useApp();
   const location = useLocation();
   const isPremium = data.settings.isPremium || false;
 
+  const getFilteredMenuItems = () => {
+    // 1. Personal Workspace (No project selected)
+    if (!currentProject) {
+      return MENU_ITEMS;
+    }
+
+    // 2. Project Workspace
+    const dept = currentProjectMember?.departament;
+    if (!dept) return MENU_ITEMS; // Fallback
+
+    const permissions = DEPARTMENT_PERMISSIONS[dept];
+    if (!permissions) return MENU_ITEMS; // Fallback if dept not defined
+
+    if (permissions.includes("all")) {
+      return MENU_ITEMS;
+    }
+
+    // Build specific menu
+    const items: any[] = [];
+    permissions.forEach((path) => {
+      if (path === "all") return;
+
+      // Check in standard items
+      const standardItem = MENU_ITEMS.find((i) => i.path === path);
+      if (standardItem) {
+        items.push(standardItem);
+        return;
+      }
+
+      // Check in extra items
+      const extraItem = Object.values(EXTRA_MENU_ITEMS).find(
+        (i) => i.path === path
+      );
+      if (extraItem) {
+        items.push(extraItem);
+        return;
+      }
+    });
+
+    return items;
+  };
+
+  const menuItems = getFilteredMenuItems();
+
+  const userEmail = supabaseAuth.user?.email || "";
+
+  const { data: projectOptions } = useQuery({
+    queryKey: ["projects-selector", userEmail],
+    enabled: !!userEmail,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id,name,members")
+        .contains("members", JSON.stringify([{ email: userEmail }]));
+      if (error) throw error;
+      return (data || []) as {
+        id: number;
+        name: string;
+        members: { email: string; departament: string; role: string }[];
+      }[];
+    },
+  });
+
+  const handleProjectChange = (value: string) => {
+    if (!projectOptions) return;
+    if (value === "personal") {
+      setCurrentProject(null, null);
+      return;
+    }
+    const id = Number(value);
+    const project = projectOptions.find((p) => p.id === id);
+    if (!project) return;
+    const member = project.members?.find((m) => m.email === userEmail) || null;
+    setCurrentProject(
+      {
+        id: project.id,
+        name: project.name,
+        members: project.members || [],
+      },
+      member
+    );
+  };
+
   const currentPage =
-    menuItems.find((item) => item.path === location.pathname)?.label ||
-    "UP  |  Gestion";
+    [...MENU_ITEMS, ...Object.values(EXTRA_MENU_ITEMS)].find(
+      (item) => item.path === location.pathname
+    )?.label || "UP  |  Gestion";
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -123,6 +283,41 @@ export const AppLayout: React.FC = () => {
               )}
             </NavLink>
           ))}
+
+          {supabaseAuth?.isAuthenticated && (
+            <div className="px-3 pb-3">
+              <div className="text-xs text-muted-foreground mb-2">
+                Proyecto actual
+              </div>
+              <div className="relative">
+                <select
+                  className={cn(
+                    "w-full appearance-none px-4 py-2.5 rounded-xl",
+                    "border border-sidebar-border bg-sidebar",
+                    "text-sidebar-foreground text-sm",
+                    "focus:outline-none focus:ring-2 focus:ring-sidebar-primary/40 focus:border-sidebar-primary",
+                    "transition-all duration-200 ease-material",
+                    "cursor-pointer hover:bg-sidebar-accent/30"
+                  )}
+                  value={
+                    currentProject ? String(currentProject.id) : "personal"
+                  }
+                  onChange={(e) => handleProjectChange(e.target.value)}
+                >
+                  <option value="personal">Personal</option>
+                  {(projectOptions || []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.id === currentProject?.id && currentProjectMember
+                        ? ` (${currentProjectMember.departament})`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+                <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+          )}
         </nav>
 
         {/* Footer */}

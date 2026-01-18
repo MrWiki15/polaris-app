@@ -31,6 +31,7 @@ import {
   Cell,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
 
 const COLORS = [
   "hsl(var(--chart-1))",
@@ -43,10 +44,22 @@ const COLORS = [
 type AnalysisPeriod = "6m" | "12m" | "24m";
 
 export const Analisis: React.FC = () => {
-  const { data } = useApp();
+  const { data, currentProject, currentProjectMember } = useApp();
   const { sales, expenses, products, settings, clients, suppliers } = data;
   const isPremium = settings.isPremium || false;
   const [analysisPeriod, setAnalysisPeriod] = useState<AnalysisPeriod>("6m");
+
+  const isProjectSelected = !!currentProject;
+  const department = currentProjectMember?.departament;
+  const permissions = department
+    ? DEPARTMENT_PERMISSIONS[department]
+    : undefined;
+  const isAuthorizedForPage =
+    !isProjectSelected ||
+    !department ||
+    !permissions ||
+    permissions.includes("all") ||
+    permissions.includes("/analisis");
 
   // Calculate metrics
   const totalSales = sales.reduce((sum, s) => sum + s.amount, 0);
@@ -362,6 +375,24 @@ export const Analisis: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
+      {isProjectSelected && !isAuthorizedForPage && (
+        <div className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-sm text-center">
+            <h2 className="text-lg font-semibold mb-2">Acceso restringido</h2>
+            <p className="text-sm text-muted-foreground">
+              Solo el personal autorizado puede acceder a esta sección en el
+              proyecto seleccionado.
+            </p>
+          </div>
+        </div>
+      )}
+      {isProjectSelected && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Análisis)
+          </div>
+        </div>
+      )}
       {/* Key Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard

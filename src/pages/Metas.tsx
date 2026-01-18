@@ -37,7 +37,7 @@ const goalCategories = [
 ];
 
 export const Metas: React.FC = () => {
-  const { data, addGoal, updateGoal, deleteGoal } = useApp();
+  const { data, addGoal, updateGoal, deleteGoal, currentProject } = useApp();
   const { goals, sales, settings } = data;
   const isPremium = settings.isPremium || false;
 
@@ -134,6 +134,13 @@ export const Metas: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
+      {!!currentProject && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Metas)
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="bg-gradient-to-br from-info/10 to-info/5 rounded-2xl p-4 sm:p-6 border border-info/20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import type { AuthUser } from "@/lib/supabase";
+import { ethers } from "ethers";
+import { encrypt } from "@/lib/crypto";
 
 export const useSupabaseAuth = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -69,6 +71,37 @@ export const useSupabaseAuth = () => {
           email: data.user.email || "",
           subscription: true,
         });
+
+        try {
+          const { data: existing, error: checkError } = await supabase
+            .from("wallets")
+            .select("*")
+            .eq("userId", data.user.id)
+            .limit(1)
+            .maybeSingle();
+          if (checkError) {
+            console.error("Wallet check error:", checkError);
+          }
+          if (!existing) {
+            const wallet = ethers.Wallet.createRandom();
+            const privateKey = wallet.privateKey;
+            const address = wallet.address;
+            const passphrase = import.meta.env.VITE_ENCRIPTED_KEY || "";
+            const encryptedKey = await encrypt(privateKey, passphrase);
+            const { error: insertError } = await supabase
+              .from("wallets")
+              .insert({
+                userId: data.user.id,
+                address,
+                privateKey: encryptedKey,
+              });
+            if (insertError) {
+              console.error("Wallet insert error:", insertError);
+            }
+          }
+        } catch (err) {
+          console.error("Wallet creation error:", err);
+        }
       }
       return { success: true, requiresVerification: true };
     } catch (err) {

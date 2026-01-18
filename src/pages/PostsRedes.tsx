@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { useApp } from '@/contexts/AppContext';
-import { 
-  Share2, 
+import React, { useState, useMemo } from "react";
+import { useApp } from "@/contexts/AppContext";
+import {
+  Share2,
   Copy,
   Check,
   TrendingUp,
@@ -9,21 +9,39 @@ import {
   Package,
   Star,
   Users,
-  RefreshCw
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { formatCurrency, getWeekSales, getMonthSales } from '@/lib/storage';
-import { cn } from '@/lib/utils';
-import { toast } from '@/hooks/use-toast';
+  RefreshCw,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { formatCurrency, getWeekSales, getMonthSales } from "@/lib/storage";
+import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
+import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
 
-type PostType = 'ventas' | 'producto' | 'promocion' | 'logro' | 'agradecimiento';
+type PostType =
+  | "ventas"
+  | "producto"
+  | "promocion"
+  | "logro"
+  | "agradecimiento";
 
 export const PostsRedes: React.FC = () => {
-  const { data } = useApp();
+  const { data, currentProject, currentProjectMember } = useApp();
   const { sales, products, clients, settings } = data;
 
-  const [selectedType, setSelectedType] = useState<PostType>('ventas');
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const isProjectSelected = !!currentProject;
+  const department = currentProjectMember?.departament;
+  const permissions = department
+    ? DEPARTMENT_PERMISSIONS[department]
+    : undefined;
+  const isAuthorizedForPage =
+    !isProjectSelected ||
+    !department ||
+    !permissions ||
+    permissions.includes("all") ||
+    permissions.includes("/herramientas/posts");
+
+  const [selectedType, setSelectedType] = useState<PostType>("ventas");
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [regenerateKey, setRegenerateKey] = useState(0);
 
@@ -31,17 +49,27 @@ export const PostsRedes: React.FC = () => {
   const monthSales = useMemo(() => getMonthSales(sales), [sales]);
   const weekTotal = weekSales.reduce((sum, s) => sum + s.amount, 0);
   const monthTotal = monthSales.reduce((sum, s) => sum + s.amount, 0);
-  const customerCount = clients.filter(c => c.type === 'cliente').length;
+  const customerCount = clients.filter((c) => c.type === "cliente").length;
 
-  const selectedProduct = products.find(p => p.id === selectedProductId);
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
 
   // Random variations for posts
   const variations = useMemo(() => {
-    const emojis = ['🎉', '✨', '🔥', '💪', '🙌', '⭐', '🎊', '💫'];
-    const greetings = ['¡Hola!', '¡Saludos!', '¡Buenos días!', '¡Feliz día!'];
-    const closings = ['¡Los esperamos!', '¡Te esperamos!', '¡Visítanos!', '¡No te lo pierdas!'];
-    const thanks = ['¡Gracias!', '¡Mil gracias!', '¡Agradecidos!', '¡Bendiciones!'];
-    
+    const emojis = ["🎉", "✨", "🔥", "💪", "🙌", "⭐", "🎊", "💫"];
+    const greetings = ["¡Hola!", "¡Saludos!", "¡Buenos días!", "¡Feliz día!"];
+    const closings = [
+      "¡Los esperamos!",
+      "¡Te esperamos!",
+      "¡Visítanos!",
+      "¡No te lo pierdas!",
+    ];
+    const thanks = [
+      "¡Gracias!",
+      "¡Mil gracias!",
+      "¡Agradecidos!",
+      "¡Bendiciones!",
+    ];
+
     return {
       emoji: emojis[Math.floor(Math.random() * emojis.length)],
       greeting: greetings[Math.floor(Math.random() * greetings.length)],
@@ -50,61 +78,80 @@ export const PostsRedes: React.FC = () => {
     };
   }, [regenerateKey]);
 
-  const businessName = settings.businessName || 'Nuestro Negocio';
+  const businessName = settings.businessName || "Nuestro Negocio";
 
   const generatePost = (): string => {
     switch (selectedType) {
-      case 'ventas':
+      case "ventas":
         return `📊 ¡Semana exitosa en ${businessName}! ${variations.emoji}
 
 💰 Ventas de la semana: ${formatCurrency(weekTotal, settings.currencySymbol)}
 📈 Ventas del mes: ${formatCurrency(monthTotal, settings.currencySymbol)}
 🛒 ${weekSales.length} transacciones esta semana
-${customerCount > 0 ? `👥 ${customerCount} clientes satisfechos` : ''}
+${customerCount > 0 ? `👥 ${customerCount} clientes satisfechos` : ""}
 
 ${variations.thanks} Por su preferencia 🙏
 
 #Negocio #Emprendimiento #Ventas #Exito #Cuba`;
 
-      case 'producto':
-        if (!selectedProduct) return 'Selecciona un producto primero';
+      case "producto":
+        if (!selectedProduct) return "Selecciona un producto primero";
         const discount = Math.floor(Math.random() * 15) + 5;
         return `${variations.emoji} ¡Producto destacado! ${variations.emoji}
 
 📦 ${selectedProduct.name}
 💵 Precio: ${formatCurrency(selectedProduct.price, settings.currencySymbol)}
-${selectedProduct.quantity > 10 ? `✅ ¡En stock!` : selectedProduct.quantity > 0 ? `⚠️ ¡Últimas ${selectedProduct.quantity} unidades!` : '❌ Agotado'}
+${
+  selectedProduct.quantity > 10
+    ? `✅ ¡En stock!`
+    : selectedProduct.quantity > 0
+    ? `⚠️ ¡Últimas ${selectedProduct.quantity} unidades!`
+    : "❌ Agotado"
+}
 
 ${variations.greeting} ${variations.closing}
 
 📍 ${businessName}
-${settings.businessPhone ? `📱 ${settings.businessPhone}` : ''}
+${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
 
-#${selectedProduct.category?.replace(/\s/g, '') || 'Producto'} #Oferta #Disponible`;
+#${
+          selectedProduct.category?.replace(/\s/g, "") || "Producto"
+        } #Oferta #Disponible`;
 
-      case 'promocion':
-        const promoProducts = products.filter(p => p.quantity > 0).slice(0, 4);
-        if (promoProducts.length === 0) return 'Agrega productos al inventario primero';
+      case "promocion":
+        const promoProducts = products
+          .filter((p) => p.quantity > 0)
+          .slice(0, 4);
+        if (promoProducts.length === 0)
+          return "Agrega productos al inventario primero";
         return `🔥 ¡OFERTAS ESPECIALES! 🔥
 
 ${variations.greeting} En ${businessName} tenemos para ti:
 
-${promoProducts.map(p => `▶️ ${p.name} - ${formatCurrency(p.price, settings.currencySymbol)}`).join('\n')}
+${promoProducts
+  .map(
+    (p) => `▶️ ${p.name} - ${formatCurrency(p.price, settings.currencySymbol)}`
+  )
+  .join("\n")}
 
 📍 ${businessName}
-${settings.businessPhone ? `📱 Contáctanos: ${settings.businessPhone}` : '📱 Contáctanos para más información'}
+${
+  settings.businessPhone
+    ? `📱 Contáctanos: ${settings.businessPhone}`
+    : "📱 Contáctanos para más información"
+}
 
 ${variations.closing} 🎉
 
 #Oferta #Promocion #Descuento #Ahorro #Cuba`;
 
-      case 'logro':
+      case "logro":
         return `🏆 ¡Celebramos con ustedes! 🏆
 
 ${variations.greeting} Este mes en ${businessName}:
 
 📊 ${monthSales.length} ventas realizadas
-${customerCount > 0 ? `👥 ${customerCount} clientes en nuestra familia` : ''}
+${customerCount > 0 ? `👥 ${customerCount} clientes en nuestra familia` : ""}
 📦 ${products.length} productos disponibles
 💰 ${formatCurrency(monthTotal, settings.currencySymbol)} en ventas
 
@@ -114,27 +161,33 @@ ${variations.thanks} Por confiar en nosotros ❤️
 
 #Logro #Gracias #Clientes #Comunidad #Emprendimiento`;
 
-      case 'agradecimiento':
-        const randomClient = clients.filter(c => c.type === 'cliente')[
-          Math.floor(Math.random() * clients.filter(c => c.type === 'cliente').length)
+      case "agradecimiento":
+        const randomClient = clients.filter((c) => c.type === "cliente")[
+          Math.floor(
+            Math.random() * clients.filter((c) => c.type === "cliente").length
+          )
         ];
         return `❤️ ¡GRACIAS! ❤️
 
 ${variations.greeting}
 
 Queremos agradecer a todos nuestros clientes por su preferencia y confianza.
-${randomClient ? `\nUn saludo especial a ${randomClient.name} y a todos los que nos visitan.` : ''}
+${
+  randomClient
+    ? `\nUn saludo especial a ${randomClient.name} y a todos los que nos visitan.`
+    : ""
+}
 
 En ${businessName} trabajamos cada día para ofrecerles lo mejor.
 
 ${variations.thanks} 🙏
 
-${settings.businessPhone ? `📱 ${settings.businessPhone}` : ''}
+${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
 
-#Gracias #Clientes #Familia #${businessName.replace(/\s/g, '')}`;
+#Gracias #Clientes #Familia #${businessName.replace(/\s/g, "")}`;
 
       default:
-        return '';
+        return "";
     }
   };
 
@@ -145,40 +198,60 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ''}
       await navigator.clipboard.writeText(postContent);
       setCopied(true);
       toast({
-        title: '¡Copiado!',
-        description: 'Pega el texto en tu red social favorita',
+        title: "¡Copiado!",
+        description: "Pega el texto en tu red social favorita",
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       toast({
-        title: 'Error',
-        description: 'No se pudo copiar el texto',
-        variant: 'destructive',
+        title: "Error",
+        description: "No se pudo copiar el texto",
+        variant: "destructive",
       });
     }
   };
 
   const handleRegenerate = () => {
-    setRegenerateKey(prev => prev + 1);
+    setRegenerateKey((prev) => prev + 1);
     toast({
-      title: 'Regenerado',
-      description: 'Se ha generado una nueva variación',
+      title: "Regenerado",
+      description: "Se ha generado una nueva variación",
     });
   };
 
   const postTypes = [
-    { value: 'ventas', label: 'Resumen ventas', icon: TrendingUp },
-    { value: 'producto', label: 'Producto', icon: Package },
-    { value: 'promocion', label: 'Promoción', icon: Star },
-    { value: 'logro', label: 'Logro', icon: ShoppingCart },
-    { value: 'agradecimiento', label: 'Gracias', icon: Users },
+    { value: "ventas", label: "Resumen ventas", icon: TrendingUp },
+    { value: "producto", label: "Producto", icon: Package },
+    { value: "promocion", label: "Promoción", icon: Star },
+    { value: "logro", label: "Logro", icon: ShoppingCart },
+    { value: "agradecimiento", label: "Gracias", icon: Users },
   ];
+
+  if (!isAuthorizedForPage) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center p-4 text-center">
+        <div className="mb-4 rounded-full bg-muted p-4">
+          <Share2 className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h2 className="mb-2 text-xl font-semibold">Acceso Restringido</h2>
+        <p className="max-w-md text-muted-foreground">
+          No tienes permisos para ver esta página.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Header */}
+      {!!currentProject && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Posts)
+          </div>
+        </div>
+      )}
       <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-4 sm:p-6 border border-primary/20">
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="p-2 bg-primary/10 rounded-xl">
             <Share2 className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
           </div>
@@ -200,16 +273,20 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ''}
                   key={type.value}
                   onClick={() => setSelectedType(type.value as PostType)}
                   className={cn(
-                    'flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center',
+                    "flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center",
                     selectedType === type.value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-muted-foreground'
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground"
                   )}
                 >
-                  <type.icon className={cn(
-                    'w-5 h-5',
-                    selectedType === type.value ? 'text-primary' : 'text-muted-foreground'
-                  )} />
+                  <type.icon
+                    className={cn(
+                      "w-5 h-5",
+                      selectedType === type.value
+                        ? "text-primary"
+                        : "text-muted-foreground"
+                    )}
+                  />
                   <span className="text-xs font-medium">{type.label}</span>
                 </button>
               ))}
@@ -217,7 +294,7 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ''}
           </div>
 
           {/* Product Selection for producto type */}
-          {selectedType === 'producto' && (
+          {selectedType === "producto" && (
             <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
               <h3 className="font-semibold mb-4">Selecciona un producto</h3>
               <div className="max-h-60 overflow-y-auto space-y-2">
@@ -227,16 +304,22 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ''}
                       key={product.id}
                       onClick={() => setSelectedProductId(product.id)}
                       className={cn(
-                        'w-full flex items-center justify-between p-3 rounded-xl transition-all text-left',
+                        "w-full flex items-center justify-between p-3 rounded-xl transition-all text-left",
                         selectedProductId === product.id
-                          ? 'bg-primary/10 border-2 border-primary'
-                          : 'bg-muted hover:bg-muted/80 border-2 border-transparent'
+                          ? "bg-primary/10 border-2 border-primary"
+                          : "bg-muted hover:bg-muted/80 border-2 border-transparent"
                       )}
                     >
                       <div>
-                        <span className="font-medium text-sm">{product.name}</span>
+                        <span className="font-medium text-sm">
+                          {product.name}
+                        </span>
                         <span className="block text-xs text-muted-foreground">
-                          {formatCurrency(product.price, settings.currencySymbol)} • Stock: {product.quantity}
+                          {formatCurrency(
+                            product.price,
+                            settings.currencySymbol
+                          )}{" "}
+                          • Stock: {product.quantity}
                         </span>
                       </div>
                     </button>
@@ -257,19 +340,15 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ''}
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Vista previa</h3>
               <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleRegenerate}
-                >
+                <Button size="sm" variant="outline" onClick={handleRegenerate}>
                   <RefreshCw className="w-4 h-4" />
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleCopy}
                   className={cn(
-                    'transition-all',
-                    copied ? 'bg-success hover:bg-success' : ''
+                    "transition-all",
+                    copied ? "bg-success hover:bg-success" : ""
                   )}
                 >
                   {copied ? (
@@ -286,7 +365,7 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ''}
                 </Button>
               </div>
             </div>
-            
+
             <div className="bg-muted rounded-xl p-4 whitespace-pre-wrap text-sm min-h-[200px]">
               {postContent}
             </div>

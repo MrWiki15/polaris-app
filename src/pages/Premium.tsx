@@ -22,6 +22,10 @@ import {
   Wallet,
   Share2,
   Database,
+  Target,
+  Building,
+  Rocket,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,10 +70,70 @@ const premiumFeatures = [
   },
 ];
 
+// Planes disponibles
+const plans = [
+  {
+    id: "emprendedor",
+    name: "Plan Emprendedor",
+    description: "Perfecto para emprendedores individuales",
+    price: "$9.99/mes",
+    features: [
+      "Hasta 3 proyectos activos",
+      "5 GB de almacenamiento en la nube",
+      "Exportaciones básicas",
+      "Soporte por email",
+      "Análisis básico",
+    ],
+    icon: Rocket,
+    color: "from-blue-500 to-cyan-500",
+    disabled: true,
+  },
+  {
+    id: "pequeno",
+    name: "Plan Proyectos Pequeños",
+    description: "Ideal para equipos pequeños",
+    price: "$24.99/mes",
+    features: [
+      "Hasta 10 proyectos activos",
+      "20 GB de almacenamiento",
+      "Exportaciones avanzadas",
+      "Soporte prioritario",
+      "Análisis predictivo básico",
+      "Hasta 5 miembros de equipo",
+    ],
+    icon: Target,
+    color: "from-purple-500 to-pink-500",
+    disabled: true,
+  },
+  {
+    id: "empresa",
+    name: "Plan Empresas",
+    description: "Para organizaciones grandes",
+    price: "$99.99/mes",
+    features: [
+      "Proyectos ilimitados",
+      "100 GB de almacenamiento",
+      "Todas las exportaciones",
+      "Soporte 24/7",
+      "Análisis predictivo avanzado",
+      "Miembros de equipo ilimitados",
+      "API personalizada",
+      "Integraciones empresariales",
+    ],
+    icon: Building,
+    color: "from-orange-500 to-red-500",
+    disabled: true,
+  },
+];
+
 export const Premium: React.FC = () => {
-  const { data, updateSettings } = useApp();
+  const { data, updateSettings, currentProject } = useApp();
   const { settings } = data;
   const isPremium = settings.isPremium || false;
+
+  // Promoción activa hasta el 25 de febrero
+  const promotionActive = true;
+  const promotionEndDate = "25 de febrero";
 
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
@@ -97,12 +161,13 @@ export const Premium: React.FC = () => {
       console.log(premiumError);
     }
 
-    setValidPremiumCodes(premiumData.map((c) => c.value));
+    setValidPremiumCodes(premiumData?.map((c) => c.value) || []);
   };
 
   useEffect(() => {
     searshPremiumCodes();
   }, []);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get("tab") as "equipos" | "historial" | "wallet" | null;
@@ -131,7 +196,7 @@ export const Premium: React.FC = () => {
         const { error: errorDataSupabase } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", auth.user.id)
+          .eq("id", auth.user?.id)
           .single();
 
         if (errorDataSupabase) {
@@ -148,7 +213,7 @@ export const Premium: React.FC = () => {
           .update({
             isPremium: true,
           })
-          .eq("id", auth.user.id)
+          .eq("id", auth.user?.id)
           .single();
 
         if (errorUpdatingSupabase) {
@@ -180,17 +245,49 @@ export const Premium: React.FC = () => {
 
   const handleWhatsAppContact = () => {
     const message = encodeURIComponent(
-      "Hola, me interesa obtener un código premium para UP, cual es el precio ?"
+      "Hola, me interesa obtener un código premium para UP, cual es el precio ?",
     );
     const url = `https://wa.me/${WHATSAPP_NUMBER.replace(
       /[^0-9]/g,
-      ""
+      "",
     )}?text=${message}`;
     window.open(url, "_blank");
   };
 
   return (
     <div className="space-y-6 pb-28">
+      {/* Banner de promoción */}
+      {promotionActive && (
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -translate-y-8 translate-x-8" />
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-xl">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg">¡Promoción Especial!</h3>
+                <p className="text-sm opacity-90">
+                  Hasta el {promotionEndDate} todas las cuentas tienen Premium
+                  activado
+                </p>
+              </div>
+            </div>
+            <div className="px-4 py-2 bg-white/20 rounded-full text-sm font-medium">
+              ¡Gratis para todos!
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!!currentProject && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Premium)
+          </div>
+        </div>
+      )}
+
       <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-success/5 rounded-2xl p-6 sm:p-8 border border-primary/20 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="relative z-10">
@@ -201,15 +298,15 @@ export const Premium: React.FC = () => {
             <div>
               <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                 Plan Premium
-                {isPremium && (
+                {(isPremium || promotionActive) && (
                   <span className="px-3 py-1 bg-success/20 text-success rounded-full text-xs sm:text-sm font-medium flex items-center gap-1">
                     <Check className="w-3 h-3" />
-                    Activo
+                    {promotionActive ? "Gratis Temporal" : "Activo"}
                   </span>
                 )}
               </h2>
               <p className="text-sm text-muted-foreground">
-                {isPremium
+                {isPremium || promotionActive
                   ? "Disfruta de todas las funcionalidades premium"
                   : "Desbloquea el poder completo de UP"}
               </p>
@@ -218,29 +315,107 @@ export const Premium: React.FC = () => {
         </div>
       </div>
 
-      {isPremium ? (
-        <div className="bg-success/5 border border-success/20 rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-success/20 rounded-xl">
-              <Check className="w-6 h-6 text-success" />
+      {isPremium || promotionActive ? (
+        <div className="space-y-6">
+          <div className="bg-success/5 border border-success/20 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-success/20 rounded-xl">
+                <Check className="w-6 h-6 text-success" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg text-success">
+                  {promotionActive && !isPremium
+                    ? "¡Premium Gratuito Temporal!"
+                    : "¡Premium Activado!"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {promotionActive && !isPremium
+                    ? `Disfruta de todas las funcionalidades premium gratis hasta el ${promotionEndDate}`
+                    : "Tienes acceso a todas las funcionalidades premium de por vida"}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-lg text-success">
-                ¡Premium Activado!
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Tienes acceso a todas las funcionalidades premium de por vida
+            <div className="space-y-2 text-sm">
+              <p className="text-muted-foreground">
+                • Acceso ilimitado a todas las herramientas avanzadas
               </p>
+              <p className="text-muted-foreground">
+                • Exportaciones sin límites
+              </p>
+              <p className="text-muted-foreground">
+                • Sincronización en la nube
+              </p>
+              <p className="text-muted-foreground">• Soporte prioritario</p>
             </div>
           </div>
-          <div className="space-y-2 text-sm">
-            <p className="text-muted-foreground">
-              • Acceso ilimitado a todas las herramientas avanzadas
-            </p>
-            <p className="text-muted-foreground">• Exportaciones sin límites</p>
-            <p className="text-muted-foreground">• Sincronización en la nube</p>
-            <p className="text-muted-foreground">• Soporte prioritario</p>
-          </div>
+
+          {/* Mostrar planes pero deshabilitados */}
+          {promotionActive && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-2xl font-bold mb-2">Planes Futuros</h3>
+                <p className="text-muted-foreground">
+                  Estos planes estarán disponibles después del{" "}
+                  {promotionEndDate}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {plans.map((plan) => (
+                  <div
+                    key={plan.id}
+                    className={`bg-card rounded-2xl p-6 shadow-soft border border-border relative overflow-hidden ${plan.disabled ? "opacity-80" : ""}`}
+                  >
+                    {plan.disabled && (
+                      <div className="absolute inset-0 bg-background/80 backdrop-blur-[1px] flex items-center justify-center z-10">
+                        <div className="text-center px-4">
+                          <Clock className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                          <p className="font-semibold">Disponible pronto</p>
+                          <p className="text-sm text-muted-foreground">
+                            A partir del {promotionEndDate}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="relative z-0">
+                      <div
+                        className={`p-3 bg-gradient-to-br ${plan.color} rounded-xl w-fit mb-4`}
+                      >
+                        <plan.icon className="w-6 h-6 text-white" />
+                      </div>
+
+                      <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {plan.description}
+                      </p>
+
+                      <div className="text-3xl font-bold mb-6">
+                        {plan.price}
+                      </div>
+
+                      <div className="space-y-3 mb-6">
+                        {plan.features.map((feature, index) => (
+                          <div key={index} className="flex items-start gap-2">
+                            <Check className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />
+                            <span className="text-sm">{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <Button
+                        className="w-full"
+                        disabled={true}
+                        variant={plan.disabled ? "outline" : "default"}
+                      >
+                        {plan.disabled ? "Próximamente" : "Seleccionar Plan"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -284,9 +459,10 @@ export const Premium: React.FC = () => {
                 onClick={handleWhatsAppContact}
                 variant="outline"
                 className="flex-1 h-12 gap-2"
+                disabled={true}
               >
                 <MessageCircle className="w-5 h-5" />
-                Contactar por WhatsApp
+                Disponible a partir del {promotionEndDate}
               </Button>
               <Button
                 onClick={() => setShowRedeemModal(true)}
@@ -295,6 +471,69 @@ export const Premium: React.FC = () => {
                 <Gift className="w-5 h-5" />
                 Canjear Código
               </Button>
+            </div>
+          </div>
+
+          {/* Sección de planes futuros */}
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="text-2xl font-bold mb-2">Planes Futuros</h3>
+              <p className="text-muted-foreground">
+                Estos planes estarán disponibles después del {promotionEndDate}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {plans.map((plan) => (
+                <div
+                  key={plan.id}
+                  className={`bg-card rounded-2xl p-6 shadow-soft border border-border relative overflow-hidden ${plan.disabled ? "opacity-80" : ""}`}
+                >
+                  {plan.disabled && (
+                    <div className="absolute inset-0 bg-background/80 backdrop-blur-[1px] flex items-center justify-center z-10">
+                      <div className="text-center px-4">
+                        <Clock className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                        <p className="font-semibold">Disponible pronto</p>
+                        <p className="text-sm text-muted-foreground">
+                          A partir del {promotionEndDate}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="relative z-0">
+                    <div
+                      className={`p-3 bg-gradient-to-br ${plan.color} rounded-xl w-fit mb-4`}
+                    >
+                      <plan.icon className="w-6 h-6 text-white" />
+                    </div>
+
+                    <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {plan.description}
+                    </p>
+
+                    <div className="text-3xl font-bold mb-6">{plan.price}</div>
+
+                    <div className="space-y-3 mb-6">
+                      {plan.features.map((feature, index) => (
+                        <div key={index} className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />
+                          <span className="text-sm">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button
+                      className="w-full"
+                      disabled={true}
+                      variant={plan.disabled ? "outline" : "default"}
+                    >
+                      {plan.disabled ? "Próximamente" : "Seleccionar Plan"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -408,67 +647,6 @@ export const Premium: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
-      {auth.isAuthenticated && (
-        <>
-          <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
-            {activeTab === "equipos" && (
-              <div className="space-y-2">
-                <h3 className="font-semibold">Equipos</h3>
-                <p className="text-sm text-muted-foreground">
-                  Gestión y colaboración con equipos.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl border border-border">
-                    <div className="text-sm font-medium">Miembros</div>
-                    <div className="text-xs text-muted-foreground">
-                      Próximamente
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-xl border border-border">
-                    <div className="text-sm font-medium">Roles</div>
-                    <div className="text-xs text-muted-foreground">
-                      Próximamente
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {activeTab === "historial" && (
-              <div className="space-y-2">
-                <h3 className="font-semibold">Historial</h3>
-                <p className="text-sm text-muted-foreground">
-                  Actividad reciente y registros.
-                </p>
-                <div className="p-3 rounded-xl border border-border">
-                  <div className="text-sm">Sin actividad por ahora</div>
-                </div>
-              </div>
-            )}
-            {activeTab === "wallet" && (
-              <div className="space-y-2">
-                <h3 className="font-semibold">Wallet</h3>
-                <p className="text-sm text-muted-foreground">
-                  Estado y métodos de pago.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl border border-border">
-                    <div className="text-sm font-medium">Suscripción</div>
-                    <div className="text-xs text-muted-foreground">
-                      {isPremium ? "Activa" : "No activa"}
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-xl border border-border">
-                    <div className="text-sm font-medium">Métodos de pago</div>
-                    <div className="text-xs text-muted-foreground">
-                      Próximamente
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </>
       )}
     </div>
   );

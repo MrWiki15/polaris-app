@@ -21,6 +21,9 @@ import { ExportButtons } from "@/components/ui/ExportButtons";
 import { Client, Worker, Supplier } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import { ExportData } from "@/lib/exportUtils";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
 
 export const MiniCRM: React.FC = () => {
   const {
@@ -33,10 +36,106 @@ export const MiniCRM: React.FC = () => {
     deleteWorker,
     addSupplier,
     updateSupplier,
+    supabaseAuth,
+    currentProject,
+    currentProjectMember,
   } = useApp();
 
   const { clients, settings, workers } = data;
   const isPremium = settings.isPremium || false;
+
+  const queryClient = useQueryClient();
+
+  const isVentas =
+    !!currentProject && currentProjectMember?.departament === "ventas";
+  const isEconomia =
+    !!currentProject && currentProjectMember?.departament === "economia";
+  const isRecursosHumanos =
+    !!currentProject &&
+    currentProjectMember?.departament === "recursos_humanos";
+
+  const inProjectCRMMode =
+    !!currentProject &&
+    !!supabaseAuth.user &&
+    (isVentas || isEconomia || isRecursosHumanos);
+
+  const isProjectSelected = !!currentProject;
+  const department = currentProjectMember?.departament;
+  const permissions = department
+    ? DEPARTMENT_PERMISSIONS[department]
+    : undefined;
+  const isAuthorizedForPage =
+    !isProjectSelected ||
+    !department ||
+    !permissions ||
+    permissions.includes("all") ||
+    permissions.includes("/herramientas/crm");
+
+  const {
+    data: projectCRMData,
+    isLoading: loadingProjectCRM,
+    error: projectCRMError,
+  } = useQuery({
+    queryKey: ["project-data-crm", currentProject?.id],
+    enabled: inProjectCRMMode && !!currentProject?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id,data")
+        .eq("id", currentProject?.id)
+        .single();
+      if (error) throw error;
+      return (data?.data || {}) as {
+        crmClients?: Client[];
+        crmWorkers?: Worker[];
+      };
+    },
+  });
+
+  const projectClients = (projectCRMData?.crmClients || []) as Client[];
+  const projectWorkers = (projectCRMData?.crmWorkers || []) as Worker[];
+
+  const projectClientsMutation = useMutation({
+    mutationFn: async (newClients: Client[]) => {
+      if (!currentProject?.id) return;
+      const { error } = await supabase
+        .from("projects")
+        .update({
+          data: {
+            ...(projectCRMData || {}),
+            crmClients: newClients,
+          },
+        })
+        .eq("id", currentProject.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["project-data-crm", currentProject?.id],
+      });
+    },
+  });
+
+  const projectWorkersMutation = useMutation({
+    mutationFn: async (newWorkers: Worker[]) => {
+      if (!currentProject?.id) return;
+      const { error } = await supabase
+        .from("projects")
+        .update({
+          data: {
+            ...(projectCRMData || {}),
+            crmWorkers: newWorkers,
+          },
+        })
+        .eq("id", currentProject.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["project-data-crm", currentProject?.id],
+      });
+    },
+  });
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -58,7 +157,8 @@ export const MiniCRM: React.FC = () => {
   });
 
   const filteredClients = useMemo(() => {
-    let result = clients;
+    const sourceClients = inProjectCRMMode ? projectClients : clients;
+    let result = sourceClients;
     if (filter !== "all") result = result.filter((c) => c.type === filter);
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -70,10 +170,14 @@ export const MiniCRM: React.FC = () => {
       );
     }
     return result;
-  }, [clients, filter, searchTerm]);
+  }, [clients, projectClients, filter, searchTerm, inProjectCRMMode]);
 
-  const clientCount = clients.filter((c) => c.type === "cliente").length;
-  const providerCount = clients.filter((c) => c.type === "proveedor").length;
+  const clientCount = (inProjectCRMMode ? projectClients : clients).filter(
+    (c) => c.type === "cliente"
+  ).length;
+  const providerCount = (inProjectCRMMode ? projectClients : clients).filter(
+    (c) => c.type === "proveedor"
+  ).length;
 
   const resetForm = () => {
     setShowForm(false);
@@ -93,6 +197,56 @@ export const MiniCRM: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (inProjectCRMMode) {
+      if (formData.type === "trabajador") {
+        const salary = Number(formData.salary || 0);
+        const baseWorker: Worker = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: formData.name,
+          role: formData.role || undefined,
+          salary,
+          phone: formData.phone || undefined,
+          email: formData.email || undefined,
+          createdAt: new Date().toISOString(),
+        };
+
+        const existing = projectWorkers || [];
+        const newWorkers =
+          editingKind === "worker" && editingId
+            ? existing.map((w) =>
+                w.id === editingId ? { ...w, ...baseWorker } : w
+              )
+            : [baseWorker, ...existing];
+
+        projectWorkersMutation.mutate(newWorkers);
+        resetForm();
+        return;
+      }
+
+      const baseClient: Client = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: formData.name,
+        phone: formData.phone || undefined,
+        email: formData.email || undefined,
+        address: formData.address || undefined,
+        type: formData.type as Client["type"],
+        notes: formData.notes || undefined,
+        createdAt: new Date().toISOString(),
+      };
+
+      const existing = projectClients || [];
+      const newClients =
+        editingKind === "client" && editingId
+          ? existing.map((c) =>
+              c.id === editingId ? { ...c, ...baseClient } : c
+            )
+          : [baseClient, ...existing];
+
+      projectClientsMutation.mutate(newClients);
+      resetForm();
+      return;
+    }
 
     if (formData.type === "trabajador") {
       const salary = Number(formData.salary || 0);
@@ -161,11 +315,58 @@ export const MiniCRM: React.FC = () => {
     if (confirm("¿Eliminar este contacto?")) deleteClient(id);
   };
   const handleDeleteWorker = (id: string) => {
-    if (confirm("¿Eliminar este trabajador?")) deleteWorker(id);
+    if (!confirm("¿Eliminar este trabajador?")) return;
+
+    if (inProjectCRMMode) {
+      const newWorkers = projectWorkers.filter((w) => w.id !== id);
+      projectWorkersMutation.mutate(newWorkers);
+      return;
+    }
+
+    deleteWorker(id);
   };
+
+  const exportData = useMemo<ExportData>(
+    () => ({
+      title: "Reporte de Contactos - Mini CRM",
+      headers: ["Tipo", "Nombre", "Teléfono", "Email", "Dirección", "Notas"],
+      rows: filteredClients.map((client) => [
+        client.type === "cliente" ? "Cliente" : "Proveedor",
+        client.name,
+        client.phone || "-",
+        client.email || "-",
+        client.address || "-",
+        client.notes || "-",
+      ]),
+      summary: [
+        { label: "Total contactos", value: filteredClients.length },
+        { label: "Clientes", value: clientCount },
+        { label: "Proveedores", value: providerCount },
+      ],
+    }),
+    [filteredClients, clientCount, providerCount]
+  );
 
   return (
     <div className="space-y-6 pb-20">
+      {isProjectSelected && !isAuthorizedForPage && (
+        <div className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-sm text-center">
+            <h2 className="text-lg font-semibold mb-2">Acceso restringido</h2>
+            <p className="text-sm text-muted-foreground">
+              Solo el personal autorizado puede acceder a esta sección en el
+              proyecto seleccionado.
+            </p>
+          </div>
+        </div>
+      )}
+      {isProjectSelected && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Mini CRM)
+          </div>
+        </div>
+      )}
       <div className="bg-gradient-to-br from-success/10 to-success/5 rounded-2xl p-4 sm:p-6 border border-success/20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -174,14 +375,51 @@ export const MiniCRM: React.FC = () => {
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-bold">Mini CRM</h2>
-              <p className="text-sm text-muted-foreground">
-                {clientCount} clientes • {providerCount} proveedores
-              </p>
+              {!isRecursosHumanos ? (
+                <p className="text-sm text-muted-foreground">
+                  {clientCount} clientes • {providerCount} proveedores
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Gestión de trabajadores
+                </p>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {isPremium ? (
+            {inProjectCRMMode ? (
+              isRecursosHumanos ? (
+                <Button
+                  onClick={() => {
+                    setEditingKind("worker");
+                    setFormData((prev) => ({ ...prev, type: "trabajador" }));
+                    setShowForm(true);
+                  }}
+                  className="ml-2 gradient-secondary w-full"
+                >
+                  <PlusCircle className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Nuevo Trabajador</span>
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setEditingKind("client");
+                    setFormData((prev) => ({
+                      ...prev,
+                      type: isEconomia ? "proveedor" : "cliente",
+                    }));
+                    setShowForm(true);
+                  }}
+                  className="gradient-primary w-full"
+                >
+                  <Plus className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">
+                    {isEconomia ? "Nuevo Proveedor" : "Nuevo Cliente"}
+                  </span>
+                </Button>
+              )
+            ) : isPremium ? (
               <Button
                 onClick={() => {
                   setEditingKind("worker");
@@ -210,39 +448,41 @@ export const MiniCRM: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nombre, teléfono..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <div className="flex gap-2">
-            {[
-              { key: "all", label: "Todos" },
-              { key: "cliente", label: "Clientes" },
-              { key: "proveedor", label: "Proveedores" },
-            ].map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key as any)}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-                  filter === f.key
-                    ? "bg-primary text-primary-foreground shadow-material"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
+      {!isRecursosHumanos && (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nombre, teléfono..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex gap-2">
+              {[
+                { key: "all", label: "Todos" },
+                { key: "cliente", label: "Clientes" },
+                { key: "proveedor", label: "Proveedores" },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key as any)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                    filter === f.key
+                      ? "bg-primary text-primary-foreground shadow-material"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -269,11 +509,24 @@ export const MiniCRM: React.FC = () => {
               <div className="space-y-2">
                 <Label>Tipo</Label>
                 <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { key: "cliente", label: "Cliente" },
-                    { key: "proveedor", label: "Proveedor" },
-                    { key: "trabajador", label: "Trabajador" },
-                  ].map((f) => (
+                  {(inProjectCRMMode
+                    ? isEconomia
+                      ? [{ key: "proveedor", label: "Proveedor" }]
+                      : isVentas
+                      ? [{ key: "cliente", label: "Cliente" }]
+                      : isRecursosHumanos
+                      ? [{ key: "trabajador", label: "Trabajador" }]
+                      : [
+                          { key: "cliente", label: "Cliente" },
+                          { key: "proveedor", label: "Proveedor" },
+                          { key: "trabajador", label: "Trabajador" },
+                        ]
+                    : [
+                        { key: "cliente", label: "Cliente" },
+                        { key: "proveedor", label: "Proveedor" },
+                        { key: "trabajador", label: "Trabajador" },
+                      ]
+                  ).map((f) => (
                     <button
                       key={f.key}
                       type="button"
@@ -411,114 +664,136 @@ export const MiniCRM: React.FC = () => {
         </div>
       )}
 
-      {filteredClients.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredClients.map((client) => (
-            <div
-              key={client.id}
-              className="bg-card rounded-2xl p-4 shadow-soft border border-border hover:shadow-material transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "p-2 rounded-xl",
-                      client.type === "cliente"
-                        ? "bg-primary/10"
-                        : "bg-success/10"
-                    )}
-                  >
-                    {client.type === "cliente" ? (
-                      <User className="w-5 h-5 text-primary" />
-                    ) : (
-                      <Building2 className="w-5 h-5 text-success" />
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="font-semibold">{client.name}</h4>
-                    <span
-                      className={cn(
-                        "text-xs px-2 py-0.5 rounded-full",
-                        client.type === "cliente"
-                          ? "bg-primary/10 text-primary"
-                          : "bg-success/10 text-success"
-                      )}
-                    >
-                      {client.type === "cliente" ? "Cliente" : "Proveedor"}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="w-8 h-8"
-                    onClick={() => handleEditClient(client)}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="w-8 h-8 text-destructive hover:bg-destructive/10"
-                    onClick={() => handleDeleteClient(client.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2 text-sm">
-                {client.phone && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="w-4 h-4" />
-                    <span>{client.phone}</span>
-                  </div>
-                )}
-                {client.email && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Mail className="w-4 h-4" />
-                    <span className="truncate">{client.email}</span>
-                  </div>
-                )}
-                {client.address && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <MapPin className="w-4 h-4" />
-                    <span className="truncate">{client.address}</span>
-                  </div>
-                )}
-              </div>
-              {client.notes && (
-                <p className="mt-3 pt-3 border-t border-border text-sm text-muted-foreground line-clamp-2">
-                  {client.notes}
-                </p>
-              )}
+      {inProjectCRMMode && (
+        <div className="bg-muted/40 border border-border rounded-2xl p-3 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (
+            {isRecursosHumanos ? "Trabajadores" : "Clientes"})
+          </div>
+          {loadingProjectCRM && <div>Cargando datos del proyecto...</div>}
+          {projectCRMError && (
+            <div className="text-red-600">
+              Error al cargar datos del proyecto.
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12 text-muted-foreground">
-          <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-          <p>No hay contactos</p>
-          <Button
-            variant="link"
-            onClick={() => {
-              setEditingKind("client");
-              setFormData((prev) => ({ ...prev, type: "cliente" }));
-              setShowForm(true);
-            }}
-            className="mt-2"
-          >
-            Agregar el primero
-          </Button>
+          )}
         </div>
       )}
 
-      {isPremium && (
+      {!isRecursosHumanos && (
+        <>
+          {filteredClients.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredClients.map((client) => (
+                <div
+                  key={client.id}
+                  className="bg-card rounded-2xl p-4 shadow-soft border border-border hover:shadow-material transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "p-2 rounded-xl",
+                          client.type === "cliente"
+                            ? "bg-primary/10"
+                            : "bg-success/10"
+                        )}
+                      >
+                        {client.type === "cliente" ? (
+                          <User className="w-5 h-5 text-primary" />
+                        ) : (
+                          <Building2 className="w-5 h-5 text-success" />
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">{client.name}</h4>
+                        <span
+                          className={cn(
+                            "text-xs px-2 py-0.5 rounded-full",
+                            client.type === "cliente"
+                              ? "bg-primary/10 text-primary"
+                              : "bg-success/10 text-success"
+                          )}
+                        >
+                          {client.type === "cliente" ? "Cliente" : "Proveedor"}
+                        </span>
+                      </div>
+                    </div>
+                    {!inProjectCRMMode && (
+                      <div className="flex gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="w-8 h-8"
+                          onClick={() => handleEditClient(client)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="w-8 h-8 text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDeleteClient(client.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    {client.phone && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Phone className="w-4 h-4" />
+                        <span>{client.phone}</span>
+                      </div>
+                    )}
+                    {client.email && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Mail className="w-4 h-4" />
+                        <span className="truncate">{client.email}</span>
+                      </div>
+                    )}
+                    {client.address && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <MapPin className="w-4 h-4" />
+                        <span className="truncate">{client.address}</span>
+                      </div>
+                    )}
+                  </div>
+                  {client.notes && (
+                    <p className="mt-3 pt-3 border-t border-border text-sm text-muted-foreground line-clamp-2">
+                      {client.notes}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>No hay contactos</p>
+              <Button
+                variant="link"
+                onClick={() => {
+                  setEditingKind("client");
+                  setFormData((prev) => ({ ...prev, type: "cliente" }));
+                  setShowForm(true);
+                }}
+                className="mt-2"
+              >
+                Agregar el primero
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+
+      {(isPremium || (inProjectCRMMode && isRecursosHumanos)) && (
         <div className="mt-6">
           <h3 className="text-lg font-semibold mb-3">Trabajadores</h3>
-          {workers && workers.length > 0 ? (
+          {(inProjectCRMMode ? projectWorkers : workers) &&
+          (inProjectCRMMode ? projectWorkers : workers).length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {workers.map((w) => (
+              {(inProjectCRMMode ? projectWorkers : workers).map((w) => (
                 <div
                   key={w.id}
                   className="bg-card rounded-2xl p-4 shadow-soft border border-border hover:shadow-material transition-shadow"
@@ -566,39 +841,15 @@ export const MiniCRM: React.FC = () => {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <ExportButtons
-          data={useMemo<ExportData>(
-            () => ({
-              title: "Reporte de Contactos - Mini CRM",
-              headers: [
-                "Tipo",
-                "Nombre",
-                "Teléfono",
-                "Email",
-                "Dirección",
-                "Notas",
-              ],
-              rows: filteredClients.map((client) => [
-                client.type === "cliente" ? "Cliente" : "Proveedor",
-                client.name,
-                client.phone || "-",
-                client.email || "-",
-                client.address || "-",
-                client.notes || "-",
-              ]),
-              summary: [
-                { label: "Total contactos", value: filteredClients.length },
-                { label: "Clientes", value: clientCount },
-                { label: "Proveedores", value: providerCount },
-              ],
-            }),
-            [filteredClients, clientCount, providerCount]
-          )}
-          filename="crm"
-          isPremium={isPremium}
-        />
-      </div>
+      {!isRecursosHumanos && (
+        <div className="flex justify-end">
+          <ExportButtons
+            data={exportData}
+            filename="crm"
+            isPremium={isPremium}
+          />
+        </div>
+      )}
     </div>
   );
 };

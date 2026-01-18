@@ -46,6 +46,7 @@ export const Proveedores: React.FC = () => {
     updateSupplierOrder,
     deleteSupplierOrder,
     receiveSupplierOrder,
+    currentProject,
   } = useApp();
   const { suppliers, supplierOrders, products, settings } = data;
   const isPremium = settings.isPremium || false;
@@ -208,6 +209,13 @@ export const Proveedores: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-24">
+      {!!currentProject && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Proveedores)
+          </div>
+        </div>
+      )}
       {/* Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard

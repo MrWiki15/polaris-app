@@ -53,6 +53,7 @@ export const PagosRecurrentes: React.FC = () => {
     updateRecurringPayment,
     deleteRecurringPayment,
     payRecurringPayment,
+    currentProject,
   } = useApp();
   const { recurringPayments, expenses, settings } = data;
   const isPremium = settings.isPremium || false;
@@ -223,6 +224,13 @@ export const PagosRecurrentes: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-24">
+      {!!currentProject && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Pagos Recurrentes)
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-4 items-start sm:items-center justify-between">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
           <MetricCard

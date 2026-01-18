@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExportData } from "@/lib/exportUtils";
+import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
+import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
 
 export const Servicios: React.FC = () => {
   const {
@@ -25,9 +27,24 @@ export const Servicios: React.FC = () => {
     deleteService,
     addServiceIncome,
     deleteServiceIncome,
+    currentProject,
+    currentProjectMember,
   } = useApp();
   const { services, serviceIncomes, settings } = data;
   const isPremium = settings.isPremium || false;
+  const supabaseAuth = useSupabaseAuth();
+
+  const isProjectSelected = !!currentProject;
+  const department = currentProjectMember?.departament;
+  const permissions = department
+    ? DEPARTMENT_PERMISSIONS[department]
+    : undefined;
+  const isAuthorizedForPage =
+    !isProjectSelected ||
+    !department ||
+    !permissions ||
+    permissions.includes("all") ||
+    permissions.includes("/servicios");
 
   const [view, setView] = useState<"catalog" | "record">("catalog");
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
@@ -129,6 +146,24 @@ export const Servicios: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-24">
+      {isProjectSelected && !isAuthorizedForPage && (
+        <div className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-sm text-center">
+            <h2 className="text-lg font-semibold mb-2">Acceso restringido</h2>
+            <p className="text-sm text-muted-foreground">
+              Solo el personal autorizado puede acceder a esta sección en el
+              proyecto seleccionado.
+            </p>
+          </div>
+        </div>
+      )}
+      {isProjectSelected && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Servicios)
+          </div>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
           <MetricCard

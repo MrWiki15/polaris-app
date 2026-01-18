@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useMemo, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { DataTable } from "@/components/ui/DataTable";
@@ -30,7 +31,7 @@ const formatDate = (dateStr: string) => {
 };
 
 const History: React.FC = () => {
-  const { data } = useApp();
+  const { data, currentProject, currentProjectMember } = useApp();
   const {
     sales,
     expenses,
@@ -48,6 +49,10 @@ const History: React.FC = () => {
   } = data;
   const [filter, setFilter] = useState<FilterPeriod>("week");
   const [selected, setSelected] = useState<ActivityEntry | null>(null);
+
+  const isPersonalMode = !currentProject;
+  const isDepartmentDirector =
+    !!currentProject && currentProjectMember?.role === "direccion";
 
   const entries = useMemo(() => {
     const all: ActivityEntry[] = [];
@@ -286,8 +291,35 @@ const History: React.FC = () => {
     },
   ];
 
+  if (currentProject && !isDepartmentDirector) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center p-4 text-center">
+        <h2 className="mb-2 text-xl font-semibold">
+          Acceso restringido al historial
+        </h2>
+        <p className="max-w-md text-muted-foreground">
+          El historial del proyecto solo está disponible para usuarios con rol
+          de dirección del departamento.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 pb-24">
+      <div className="flex flex-col gap-1">
+        {isPersonalMode ? (
+          <span className="text-xs text-muted-foreground">
+            Historial personal (datos locales)
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            Historial del proyecto {currentProject?.name} · Departamento:{" "}
+            {currentProjectMember?.departament || "Dirección"}
+          </span>
+        )}
+      </div>
+
       <div className="flex gap-2 overflow-x-auto pb-2">
         {[
           { key: "today", label: "Hoy" },

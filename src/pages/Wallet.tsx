@@ -1,5 +1,1509 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useApp } from "@/contexts/AppContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/hooks/use-toast";
+import { ethers } from "ethers";
+import {
+  getUserWallet,
+  type UserWallet,
+  getPusdBalance,
+  getPusdTransfers,
+  sendPusd,
+} from "@/lib/wallet";
+import type { Expense, AppData } from "@/lib/storage";
+import { Wallet as WalletIcon, Send, Copy, Download } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { generateId } from "@/lib/storage";
+
+type ProjectWalletTransactionType =
+  | "assignment"
+  | "emergency_withdrawal"
+  | "expense";
+
+type ProjectWalletTransaction = {
+  id: string;
+  date: string;
+  type: ProjectWalletTransactionType;
+  fromDepartament: string;
+  toDepartament: string;
+  amount: number;
+  description?: string;
+  createdBy: string;
+};
+
+type ProjectWalletRequestType = "assignment" | "emergency_withdrawal";
+
+type ProjectWalletRequest = {
+  id: string;
+  date: string;
+  requestType: ProjectWalletRequestType;
+  fromDepartament: string;
+  targetDepartament?: string;
+  amount: number;
+  description?: string;
+  createdBy: string;
+  status: "pending" | "approved" | "rejected";
+  approvedByDireccion?: string;
+  approvedByEconomia?: string;
+};
+
+type ProjectWalletData = {
+  transactions: ProjectWalletTransaction[];
+  requests: ProjectWalletRequest[];
+};
+
+type ProjectDataPayload = AppData & {
+  projectWallet?: ProjectWalletData;
+};
+
+type ProjectWallet = {
+  name: string;
+  address: string;
+  privateKey: string;
+};
+
+type ProjectDetails = {
+  id: number;
+  name: string;
+  wallets: ProjectWallet[];
+  initial_balance?: string | null;
+  data?: ProjectDataPayload | null;
+};
+
+const DEPARTAMENT_LABELS: Record<string, string> = {
+  direccion: "Dirección",
+  economia: "Economía",
+  recursos_humanos: "Recursos Humanos",
+  marketing: "Marketing",
+  ventas: "Ventas",
+  logistica: "Logística",
+};
 
 export default function Wallet() {
-  return <div>Wallet</div>;
+  const {
+    supabaseAuth,
+    data,
+    currentProject,
+    currentProjectMember,
+    addReinvestmentGoal,
+    addReinvestmentExecution,
+  } = useApp();
+  const [wallet, setWallet] = useState<UserWallet | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [toAddress, setToAddress] = useState("");
+  const [amountUsd, setAmountUsd] = useState("");
+  const [balance, setBalance] = useState<string>("0.00");
+  const [transfers, setTransfers] = useState<
+    {
+      hash: string;
+      timestamp: number;
+      from: string;
+      to: string;
+      amount: string;
+      direction: "sent" | "received";
+    }[]
+  >([]);
+  const [goalName, setGoalName] = useState("");
+  const [goalPercentage, setGoalPercentage] = useState("25");
+  const [goalDay, setGoalDay] = useState("1");
+  const isPersonalMode = !currentProject;
+  const toNumber = (value: string | number | undefined | null) => {
+    const n = typeof value === "number" ? value : Number(value || 0);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const transferableBalance = useMemo(() => {
+    return toNumber(balance);
+  }, [balance]);
+  const nonTransferableBalance = useMemo(() => {
+    const sales = data.sales || [];
+    const products = data.products || [];
+    return sales.reduce((total, sale) => {
+      const quantity = sale.quantity || 1;
+      let costTotal = 0;
+      if (sale.productId) {
+        const product = products.find((p) => p.id === sale.productId);
+        if (product) {
+          costTotal = product.cost * quantity;
+        }
+      }
+      const profit = sale.amount - costTotal;
+      return total + profit;
+    }, 0);
+  }, [data.sales, data.products]);
+  const symbolicBalance = useMemo(() => {
+    const products = data.products || [];
+    return products.reduce((total, p) => {
+      const unitProfit = p.price - p.cost;
+      const productProfit = unitProfit * p.quantity;
+      return total + productProfit;
+    }, 0);
+  }, [data.products]);
+  const totalBalance = useMemo(() => {
+    return transferableBalance + nonTransferableBalance + symbolicBalance;
+  }, [transferableBalance, nonTransferableBalance, symbolicBalance]);
+  const formatUsd = (value: number) => {
+    return value.toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const totalReinvested = useMemo(() => {
+    const executions = data.reinvestmentExecutions || [];
+    return executions.reduce((sum, item) => sum + (item.amount || 0), 0);
+  }, [data.reinvestmentExecutions]);
+
+  const remainingNonTransferable = useMemo(() => {
+    const base = nonTransferableBalance;
+    return Math.max(0, base - totalReinvested);
+  }, [nonTransferableBalance, totalReinvested]);
+
+  const reinvestmentGoals = useMemo(() => {
+    return data.reinvestmentGoals || [];
+  }, [data.reinvestmentGoals]);
+
+  const [assignmentDept, setAssignmentDept] = useState("");
+  const [assignmentAmount, setAssignmentAmount] = useState("");
+  const [assignmentDescription, setAssignmentDescription] = useState("");
+  const [deptRequestAmount, setDeptRequestAmount] = useState("");
+  const [deptRequestDescription, setDeptRequestDescription] = useState("");
+  const [deptExpenseAmount, setDeptExpenseAmount] = useState("");
+  const [deptExpenseCategory, setDeptExpenseCategory] = useState(
+    "Gasto de departamento",
+  );
+  const [deptExpenseDescription, setDeptExpenseDescription] = useState("");
+  const [emergencyDept, setEmergencyDept] = useState("");
+  const [emergencyAmount, setEmergencyAmount] = useState("");
+  const [emergencyDescription, setEmergencyDescription] = useState("");
+  const [emergencyRequestDept, setEmergencyRequestDept] = useState("");
+  const [emergencyRequestAmount, setEmergencyRequestAmount] = useState("");
+  const [emergencyRequestDescription, setEmergencyRequestDescription] =
+    useState("");
+
+  const queryClient = useQueryClient();
+
+  const {
+    data: projectDetails,
+    isLoading: loadingProjectWallet,
+    error: projectWalletError,
+  } = useQuery({
+    queryKey: ["project-wallet", currentProject?.id],
+    enabled: !!currentProject?.id,
+    queryFn: async (): Promise<ProjectDetails | null> => {
+      if (!currentProject?.id) return null;
+      const { data: project, error } = await supabase
+        .from("projects")
+        .select("id,name,wallets,initial_balance,data")
+        .eq("id", currentProject.id)
+        .single();
+      if (error) {
+        throw error;
+      }
+      return project as unknown as ProjectDetails;
+    },
+  });
+
+  const projectWalletData: ProjectWalletData | null = useMemo(() => {
+    if (!projectDetails || !projectDetails.data) return null;
+    const raw = projectDetails.data.projectWallet || {};
+    return {
+      transactions: raw.transactions || [],
+      requests: raw.requests || [],
+    };
+  }, [projectDetails]);
+
+  const projectWalletMutation = useMutation({
+    mutationFn: async (newData: ProjectDataPayload) => {
+      if (!currentProject?.id) return;
+      const { error } = await supabase
+        .from("projects")
+        .update({ data: newData })
+        .eq("id", currentProject.id);
+      if (error) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["project-wallet", currentProject?.id],
+      });
+    },
+  });
+
+  const getDepartamentLabel = (id: string) => {
+    return DEPARTAMENT_LABELS[id] || id;
+  };
+
+  const calculateProjectProfit = (): number => {
+    if (!projectDetails || !projectDetails.data) return 0;
+    const projectData = projectDetails.data;
+    const sales = projectData.sales || [];
+    const products = projectData.products || [];
+    return sales.reduce((total, sale) => {
+      const quantity = sale.quantity || 1;
+      let costTotal = 0;
+      if (sale.productId) {
+        const product = products.find((p) => p.id === sale.productId);
+        if (product) {
+          const unitCost = Number(product.cost || 0);
+          costTotal = unitCost * quantity;
+        }
+      }
+      const amount = Number(sale.amount || 0);
+      return total + (amount - costTotal);
+    }, 0);
+  };
+
+  const calculateDepartmentBudget = (dept: string): number => {
+    if (!projectDetails) return 0;
+    const initialBalance = Number(projectDetails.initial_balance || "0") || 0;
+    let balanceValue = 0;
+    if (dept === "direccion") {
+      balanceValue += initialBalance + calculateProjectProfit();
+    }
+    const txs = projectWalletData?.transactions || [];
+    for (const t of txs) {
+      if (t.toDepartament === dept) {
+        balanceValue += t.amount;
+      }
+      if (t.fromDepartament === dept) {
+        balanceValue -= t.amount;
+      }
+    }
+    return balanceValue;
+  };
+
+  const handleCreateGoal = () => {
+    const percentage = Number(goalPercentage);
+    const day = Number(goalDay);
+    if (!goalName || !percentage || percentage <= 0 || percentage > 100) {
+      toast({
+        title: "Datos inválidos",
+        description: "Revisa el nombre y el porcentaje",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!day || day < 1 || day > 31) {
+      toast({
+        title: "Día inválido",
+        description: "El día debe estar entre 1 y 31",
+        variant: "destructive",
+      });
+      return;
+    }
+    addReinvestmentGoal({
+      name: goalName,
+      percentage,
+      dayOfMonth: day,
+      isActive: true,
+    });
+    setGoalName("");
+    setGoalPercentage("25");
+  };
+
+  const handleExecuteReinvestment = (goalId: string, percentage: number) => {
+    const base = remainingNonTransferable;
+    const amount = (base * percentage) / 100;
+    if (amount <= 0) {
+      toast({
+        title: "Sin ganancias disponibles",
+        description: "No hay ganancias suficientes para reinvertir",
+      });
+      return;
+    }
+    addReinvestmentExecution({
+      goalId,
+      date: new Date().toISOString(),
+      amount,
+    });
+    toast({
+      title: "Reinversión registrada",
+      description: `Se registró una reinversión de ${formatUsd(amount)}`,
+    });
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      if (!isPersonalMode) return;
+      if (!supabaseAuth.user?.id) return;
+      setLoading(true);
+      const w = await getUserWallet(supabaseAuth.user.id);
+      setWallet(w);
+      try {
+        const b = await getPusdBalance(supabaseAuth.user.id);
+        setBalance(
+          ethers.formatUnits
+            ? ethers.formatUnits(b.raw, b.decimals)
+            : (Number(b.raw) / Math.pow(10, b.decimals)).toString(),
+        );
+      } catch {
+        setBalance("0.00");
+      }
+      try {
+        const t = await getPusdTransfers(supabaseAuth.user.id);
+        setTransfers(t);
+      } catch {
+        setTransfers([]);
+      }
+      setLoading(false);
+    };
+    load();
+  }, [supabaseAuth.user?.id, isPersonalMode]);
+
+  const copyAddress = async () => {
+    if (!wallet?.address) return;
+    await navigator.clipboard.writeText(wallet.address);
+    toast({ title: "Dirección copiada", description: "Se copió tu dirección" });
+  };
+
+  const handleSend = async () => {
+    if (!supabaseAuth.user?.id) return;
+    if (!toAddress || !amountUsd) {
+      toast({
+        title: "Datos requeridos",
+        description: "Ingresa dirección y monto",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await sendPusd(supabaseAuth.user.id, toAddress, amountUsd);
+      toast({
+        title: "Enviado",
+        description: `Tx: ${res.hash}`,
+      });
+      setToAddress("");
+      setAmountUsd("");
+      const b = await getPusdBalance(supabaseAuth.user.id);
+      setBalance(
+        ethers.formatUnits
+          ? ethers.formatUnits(b.raw, b.decimals)
+          : (Number(b.raw) / Math.pow(10, b.decimals)).toString(),
+      );
+      const t = await getPusdTransfers(supabaseAuth.user.id);
+      setTransfers(t);
+    } catch (err) {
+      toast({
+        title: "Error al enviar",
+        description: "Revisa la dirección, monto y saldo",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isProjectDirector =
+    !!currentProject && currentProjectMember?.role === "direccion";
+  const isDireccionDept = currentProjectMember?.departament === "direccion";
+  const isEconomiaDept = currentProjectMember?.departament === "economia";
+
+  const canAccessProjectWallet = !currentProject
+    ? true
+    : isDireccionDept || isEconomiaDept || isProjectDirector;
+
+  if (!isPersonalMode) {
+    if (!canAccessProjectWallet) {
+      return (
+        <div className="space-y-6 pb-28">
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-soft">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <WalletIcon className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Wallet del proyecto</h2>
+                <p className="text-sm text-muted-foreground">
+                  No tienes acceso a la wallet en este proyecto
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const mainDept =
+      isDireccionDept || isEconomiaDept
+        ? "direccion"
+        : currentProjectMember?.departament || "direccion";
+
+    const mainBalance = calculateDepartmentBudget(mainDept);
+
+    const allWallets = projectDetails?.wallets || [];
+    const visibleTransactions = (projectWalletData?.transactions || []).filter(
+      (t) =>
+        isDireccionDept ||
+        isEconomiaDept ||
+        t.fromDepartament === currentProjectMember?.departament ||
+        t.toDepartament === currentProjectMember?.departament,
+    );
+
+    const pendingRequests = (projectWalletData?.requests || []).filter(
+      (r) => r.status === "pending",
+    );
+
+    const handleDirectAssignment = () => {
+      if (!projectDetails || !projectDetails.data) return;
+      if (!assignmentDept) {
+        toast({
+          title: "Selecciona un departamento",
+          variant: "destructive",
+        });
+        return;
+      }
+      const amount = Number(assignmentAmount || "0");
+      if (!amount || amount <= 0) {
+        toast({
+          title: "Monto inválido",
+          description: "Ingresa un monto mayor que 0",
+          variant: "destructive",
+        });
+        return;
+      }
+      const currentData = projectDetails.data as ProjectDataPayload;
+      const raw = currentData.projectWallet || {};
+      const transactions: ProjectWalletTransaction[] = raw.transactions || [];
+      const requests: ProjectWalletRequest[] = raw.requests || [];
+      const newTx: ProjectWalletTransaction = {
+        id: generateId(),
+        date: new Date().toISOString(),
+        type: "assignment",
+        fromDepartament: "direccion",
+        toDepartament: assignmentDept,
+        amount,
+        description: assignmentDescription || "Asignación de presupuesto",
+        createdBy: supabaseAuth.user?.email || "",
+      };
+      const newWallet: ProjectWalletData = {
+        transactions: [newTx, ...transactions],
+        requests,
+      };
+      const newData = {
+        ...currentData,
+        projectWallet: newWallet,
+      };
+      projectWalletMutation.mutate(newData);
+      setAssignmentAmount("");
+      setAssignmentDept("");
+      setAssignmentDescription("");
+      toast({
+        title: "Presupuesto asignado",
+        description: "Se registró la asignación de presupuesto",
+      });
+    };
+
+    const handleDepartmentBudgetRequest = () => {
+      if (!projectDetails || !projectDetails.data) return;
+      if (!currentProjectMember?.departament) return;
+      const amount = Number(deptRequestAmount || "0");
+      if (!amount || amount <= 0) {
+        toast({
+          title: "Monto inválido",
+          description: "Ingresa un monto mayor que 0",
+          variant: "destructive",
+        });
+        return;
+      }
+      const currentData = projectDetails.data as ProjectDataPayload;
+      const raw = currentData.projectWallet || {};
+      const transactions: ProjectWalletTransaction[] = raw.transactions || [];
+      const requests: ProjectWalletRequest[] = raw.requests || [];
+      const newRequest: ProjectWalletRequest = {
+        id: generateId(),
+        date: new Date().toISOString(),
+        requestType: "assignment",
+        fromDepartament: currentProjectMember.departament,
+        amount,
+        description:
+          deptRequestDescription || "Solicitud de asignación de presupuesto",
+        createdBy: supabaseAuth.user?.email || "",
+        status: "pending",
+      };
+      const newWallet: ProjectWalletData = {
+        transactions,
+        requests: [newRequest, ...requests],
+      };
+      const newData = {
+        ...currentData,
+        projectWallet: newWallet,
+      };
+      projectWalletMutation.mutate(newData);
+      setDeptRequestAmount("");
+      setDeptRequestDescription("");
+      toast({
+        title: "Solicitud enviada",
+        description: "Se envió la solicitud de presupuesto a dirección",
+      });
+    };
+
+    const handleDirectEmergencyWithdrawal = () => {
+      if (!projectDetails || !projectDetails.data) return;
+      if (!emergencyDept) return;
+      const amount = Number(emergencyAmount || "0");
+      if (!amount || amount <= 0) {
+        toast({
+          title: "Monto inválido",
+          description: "Ingresa un monto mayor que 0",
+          variant: "destructive",
+        });
+        return;
+      }
+      const currentData = projectDetails.data as ProjectDataPayload;
+      const raw = currentData.projectWallet || {};
+      const transactions: ProjectWalletTransaction[] = raw.transactions || [];
+      const requests: ProjectWalletRequest[] = raw.requests || [];
+      const newTx: ProjectWalletTransaction = {
+        id: generateId(),
+        date: new Date().toISOString(),
+        type: "emergency_withdrawal",
+        fromDepartament: emergencyDept,
+        toDepartament: "direccion",
+        amount,
+        description:
+          emergencyDescription || "Extracción de capital de emergencia",
+        createdBy: supabaseAuth.user?.email || "",
+      };
+      const newWallet: ProjectWalletData = {
+        transactions: [newTx, ...transactions],
+        requests,
+      };
+      const newData = {
+        ...currentData,
+        projectWallet: newWallet,
+      };
+      projectWalletMutation.mutate(newData);
+      setEmergencyDept("");
+      setEmergencyAmount("");
+      setEmergencyDescription("");
+      toast({
+        title: "Extracción registrada",
+        description:
+          "Se registró la extracción de emergencia del departamento seleccionado",
+      });
+    };
+
+    const handleEconomyEmergencyRequest = () => {
+      if (!projectDetails || !projectDetails.data) return;
+      if (!emergencyRequestDept) return;
+      const amount = Number(emergencyRequestAmount || "0");
+      if (!amount || amount <= 0) {
+        toast({
+          title: "Monto inválido",
+          description: "Ingresa un monto mayor que 0",
+          variant: "destructive",
+        });
+        return;
+      }
+      const currentData = projectDetails.data as ProjectDataPayload;
+      const raw = currentData.projectWallet || {};
+      const transactions: ProjectWalletTransaction[] = raw.transactions || [];
+      const requests: ProjectWalletRequest[] = raw.requests || [];
+      const newRequest: ProjectWalletRequest = {
+        id: generateId(),
+        date: new Date().toISOString(),
+        requestType: "emergency_withdrawal",
+        fromDepartament: "economia",
+        targetDepartament: emergencyRequestDept,
+        amount,
+        description:
+          emergencyRequestDescription ||
+          "Solicitud de extracción de capital de emergencia",
+        createdBy: supabaseAuth.user?.email || "",
+        status: "pending",
+      };
+      const newWallet: ProjectWalletData = {
+        transactions,
+        requests: [newRequest, ...requests],
+      };
+      const newData = {
+        ...currentData,
+        projectWallet: newWallet,
+      };
+      projectWalletMutation.mutate(newData);
+      setEmergencyRequestDept("");
+      setEmergencyRequestAmount("");
+      setEmergencyRequestDescription("");
+      toast({
+        title: "Solicitud enviada",
+        description:
+          "Se envió la solicitud de extracción de emergencia a dirección",
+      });
+    };
+
+    const handleApproveRequest = (
+      mode: "direccion" | "economia",
+      id: string,
+    ) => {
+      if (!projectDetails || !projectDetails.data) return;
+      const currentData = projectDetails.data as ProjectDataPayload;
+      const raw = currentData.projectWallet || {};
+      const transactions: ProjectWalletTransaction[] = raw.transactions || [];
+      const requests: ProjectWalletRequest[] = raw.requests || [];
+      const updatedRequests: ProjectWalletRequest[] = [];
+      const newTransactions: ProjectWalletTransaction[] = [...transactions];
+
+      for (const req of requests) {
+        if (req.id !== id) {
+          updatedRequests.push(req);
+          continue;
+        }
+        const updated: ProjectWalletRequest = { ...req };
+        if (mode === "direccion") {
+          updated.approvedByDireccion = supabaseAuth.user?.email || "";
+        } else {
+          updated.approvedByEconomia = supabaseAuth.user?.email || "";
+        }
+        if (
+          updated.approvedByDireccion &&
+          updated.approvedByEconomia &&
+          updated.status === "pending"
+        ) {
+          updated.status = "approved";
+          if (updated.requestType === "assignment") {
+            const tx: ProjectWalletTransaction = {
+              id: generateId(),
+              date: new Date().toISOString(),
+              type: "assignment",
+              fromDepartament: "direccion",
+              toDepartament: updated.fromDepartament,
+              amount: updated.amount,
+              description:
+                updated.description || "Asignación aprobada desde solicitud",
+              createdBy: supabaseAuth.user?.email || "",
+            };
+            newTransactions.unshift(tx);
+          } else if (
+            updated.requestType === "emergency_withdrawal" &&
+            updated.targetDepartament
+          ) {
+            const tx: ProjectWalletTransaction = {
+              id: generateId(),
+              date: new Date().toISOString(),
+              type: "emergency_withdrawal",
+              fromDepartament: updated.targetDepartament,
+              toDepartament: "direccion",
+              amount: updated.amount,
+              description:
+                updated.description ||
+                "Extracción de emergencia aprobada desde solicitud",
+              createdBy: supabaseAuth.user?.email || "",
+            };
+            newTransactions.unshift(tx);
+          }
+        }
+        updatedRequests.push(updated);
+      }
+
+      const newWallet: ProjectWalletData = {
+        transactions: newTransactions,
+        requests: updatedRequests,
+      };
+      const newData: ProjectDataPayload = {
+        ...currentData,
+        projectWallet: newWallet,
+      };
+      projectWalletMutation.mutate(newData);
+      toast({
+        title: "Solicitud actualizada",
+        description: "Se actualizó el estado de la solicitud",
+      });
+    };
+
+    const handleRejectRequest = (id: string) => {
+      if (!projectDetails || !projectDetails.data) return;
+      const currentData = projectDetails.data as ProjectDataPayload;
+      const raw = currentData.projectWallet || {};
+      const transactions: ProjectWalletTransaction[] = raw.transactions || [];
+      const requests: ProjectWalletRequest[] = raw.requests || [];
+      const updatedRequests = requests.map((r) =>
+        r.id === id ? { ...r, status: "rejected" } : r,
+      );
+      const newWallet: ProjectWalletData = {
+        transactions,
+        requests: updatedRequests,
+      };
+      const newData: ProjectDataPayload = {
+        ...currentData,
+        projectWallet: newWallet,
+      };
+      projectWalletMutation.mutate(newData);
+      toast({
+        title: "Solicitud rechazada",
+        description: "Se marcó la solicitud como rechazada",
+      });
+    };
+
+    const handleDepartmentExpense = () => {
+      if (!projectDetails || !projectDetails.data) return;
+      if (!currentProjectMember?.departament) return;
+      const amount = Number(deptExpenseAmount || "0");
+      if (!amount || amount <= 0) {
+        toast({
+          title: "Monto inválido",
+          description: "Ingresa un monto mayor que 0",
+          variant: "destructive",
+        });
+        return;
+      }
+      const dept = currentProjectMember.departament;
+      const available = calculateDepartmentBudget(dept);
+      if (amount > available) {
+        toast({
+          title: "Saldo insuficiente",
+          description:
+            "El monto supera el presupuesto disponible del departamento",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const currentData = projectDetails.data as ProjectDataPayload;
+      const today = new Date();
+      const dateStr = today.toISOString().split("T")[0];
+
+      const descriptionText =
+        deptExpenseDescription ||
+        "Gasto registrado desde wallet de departamento";
+      const categoryText = deptExpenseCategory || "Gasto de departamento";
+
+      const expense: Expense = {
+        id: generateId(),
+        date: dateStr,
+        amount,
+        category: categoryText,
+        description: `${getDepartamentLabel(dept)}: ${descriptionText}`,
+      };
+
+      const raw = currentData.projectWallet || {};
+      const transactions: ProjectWalletTransaction[] = raw.transactions || [];
+      const requests: ProjectWalletRequest[] = raw.requests || [];
+
+      const tx: ProjectWalletTransaction = {
+        id: generateId(),
+        date: today.toISOString(),
+        type: "expense",
+        fromDepartament: dept,
+        toDepartament: "externo",
+        amount,
+        description: descriptionText,
+        createdBy: supabaseAuth.user?.email || "",
+      };
+
+      const newWallet: ProjectWalletData = {
+        transactions: [tx, ...transactions],
+        requests,
+      };
+
+      const newData: ProjectDataPayload = {
+        ...currentData,
+        expenses: [expense, ...(currentData.expenses || [])],
+        projectWallet: newWallet,
+      };
+
+      projectWalletMutation.mutate(newData);
+      setDeptExpenseAmount("");
+      setDeptExpenseDescription("");
+      toast({
+        title: "Gasto registrado",
+        description:
+          "El gasto se registró y se descontó del presupuesto del departamento",
+      });
+    };
+
+    return (
+      <div className="space-y-6 pb-28">
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-soft">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-primary/10 rounded-xl">
+              <WalletIcon className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">Wallet del proyecto</h2>
+              <p className="text-sm text-muted-foreground">
+                Presupuestos por departamento en USD
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="text-center py-6">
+              <div className="text-4xl sm:text-5xl font-bold tracking-tight">
+                {loadingProjectWallet ? "..." : formatUsd(mainBalance)}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {isDireccionDept
+                  ? "Saldo total gestionado por dirección"
+                  : isEconomiaDept
+                    ? "Saldo del proyecto gestionado por dirección"
+                    : "Presupuesto disponible de tu departamento"}
+              </div>
+            </div>
+
+            {(isDireccionDept || isEconomiaDept) && (
+              <div className="space-y-4">
+                <div className="text-sm font-medium">
+                  Saldos por departamento
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {allWallets.map((w) => {
+                    const deptBalance = calculateDepartmentBudget(w.name);
+                    return (
+                      <div
+                        key={w.name}
+                        className="border border-border rounded-xl p-3"
+                      >
+                        <div className="text-xs text-muted-foreground mb-1">
+                          {getDepartamentLabel(w.name)}
+                        </div>
+                        <div className="text-lg font-semibold">
+                          {formatUsd(deptBalance)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {isDireccionDept && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border border-border rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm">
+                    Asignar presupuesto a departamento
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <Label>Departamento</Label>
+                      <select
+                        className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                        value={assignmentDept}
+                        onChange={(e) => setAssignmentDept(e.target.value)}
+                      >
+                        <option value="">Selecciona</option>
+                        {allWallets
+                          .filter((w) => w.name !== "direccion")
+                          .map((w) => (
+                            <option key={w.name} value={w.name}>
+                              {getDepartamentLabel(w.name)}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Monto</Label>
+                      <Input
+                        type="number"
+                        value={assignmentAmount}
+                        onChange={(e) => setAssignmentAmount(e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label>Descripción</Label>
+                      <Input
+                        value={assignmentDescription}
+                        onChange={(e) =>
+                          setAssignmentDescription(e.target.value)
+                        }
+                        placeholder="Opcional"
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={handleDirectAssignment}
+                      disabled={projectWalletMutation.isPending}
+                    >
+                      Asignar presupuesto
+                    </Button>
+                  </div>
+                </div>
+                <div className="border border-border rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm">
+                    Extracción de emergencia
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <Label>Departamento origen</Label>
+                      <select
+                        className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                        value={emergencyDept}
+                        onChange={(e) => setEmergencyDept(e.target.value)}
+                      >
+                        <option value="">Selecciona</option>
+                        {allWallets
+                          .filter((w) => w.name !== "direccion")
+                          .map((w) => (
+                            <option key={w.name} value={w.name}>
+                              {getDepartamentLabel(w.name)}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Monto</Label>
+                      <Input
+                        type="number"
+                        value={emergencyAmount}
+                        onChange={(e) => setEmergencyAmount(e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label>Descripción</Label>
+                      <Input
+                        value={emergencyDescription}
+                        onChange={(e) =>
+                          setEmergencyDescription(e.target.value)
+                        }
+                        placeholder="Opcional"
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={handleDirectEmergencyWithdrawal}
+                      disabled={projectWalletMutation.isPending}
+                    >
+                      Registrar extracción
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isEconomiaDept && (
+              <div className="border border-border rounded-xl p-4 space-y-3">
+                <h3 className="font-semibold text-sm">
+                  Solicitar extracción de emergencia a dirección
+                </h3>
+                <div className="space-y-2">
+                  <div>
+                    <Label>Departamento origen</Label>
+                    <select
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                      value={emergencyRequestDept}
+                      onChange={(e) => setEmergencyRequestDept(e.target.value)}
+                    >
+                      <option value="">Selecciona</option>
+                      {allWallets
+                        .filter((w) => w.name !== "direccion")
+                        .map((w) => (
+                          <option key={w.name} value={w.name}>
+                            {getDepartamentLabel(w.name)}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Monto</Label>
+                    <Input
+                      type="number"
+                      value={emergencyRequestAmount}
+                      onChange={(e) =>
+                        setEmergencyRequestAmount(e.target.value)
+                      }
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label>Descripción</Label>
+                    <Input
+                      value={emergencyRequestDescription}
+                      onChange={(e) =>
+                        setEmergencyRequestDescription(e.target.value)
+                      }
+                      placeholder="Opcional"
+                    />
+                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={handleEconomyEmergencyRequest}
+                    disabled={projectWalletMutation.isPending}
+                  >
+                    Enviar solicitud
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {!isDireccionDept && !isEconomiaDept && isProjectDirector && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border border-border rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm">
+                    Solicitar asignación de presupuesto
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <Label>Monto</Label>
+                      <Input
+                        type="number"
+                        value={deptRequestAmount}
+                        onChange={(e) => setDeptRequestAmount(e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label>Descripción</Label>
+                      <Input
+                        value={deptRequestDescription}
+                        onChange={(e) =>
+                          setDeptRequestDescription(e.target.value)
+                        }
+                        placeholder="Opcional"
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={handleDepartmentBudgetRequest}
+                      disabled={projectWalletMutation.isPending}
+                    >
+                      Enviar solicitud a dirección
+                    </Button>
+                  </div>
+                </div>
+                <div className="border border-border rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm">
+                    Registrar gasto del departamento
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <Label>Monto</Label>
+                      <Input
+                        type="number"
+                        value={deptExpenseAmount}
+                        onChange={(e) => setDeptExpenseAmount(e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label>Categoría</Label>
+                      <Input
+                        value={deptExpenseCategory}
+                        onChange={(e) => setDeptExpenseCategory(e.target.value)}
+                        placeholder="Gasto de departamento"
+                      />
+                    </div>
+                    <div>
+                      <Label>Explicación del gasto</Label>
+                      <Input
+                        value={deptExpenseDescription}
+                        onChange={(e) =>
+                          setDeptExpenseDescription(e.target.value)
+                        }
+                        placeholder="¿En qué se usó el presupuesto?"
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={handleDepartmentExpense}
+                      disabled={projectWalletMutation.isPending}
+                    >
+                      Registrar gasto
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {pendingRequests.length > 0 &&
+              (isDireccionDept || isEconomiaDept) && (
+                <div className="border border-border rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm">
+                    Solicitudes pendientes
+                  </h3>
+                  <div className="space-y-2">
+                    {pendingRequests.map((req) => (
+                      <div
+                        key={req.id}
+                        className="flex items-center justify-between rounded-lg border border-border p-3 text-sm"
+                      >
+                        <div>
+                          <div className="font-medium">
+                            {req.requestType === "assignment"
+                              ? `Asignación para ${getDepartamentLabel(
+                                  req.fromDepartament,
+                                )}`
+                              : `Extracción de ${
+                                  req.targetDepartament
+                                    ? getDepartamentLabel(req.targetDepartament)
+                                    : "departamento"
+                                }`}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(req.date).toLocaleString()} ·{" "}
+                            {formatUsd(req.amount)}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              handleApproveRequest(
+                                isDireccionDept ? "direccion" : "economia",
+                                req.id,
+                              )
+                            }
+                            disabled={projectWalletMutation.isPending}
+                          >
+                            Aprobar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRejectRequest(req.id)}
+                            disabled={projectWalletMutation.isPending}
+                          >
+                            Rechazar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            <div className="border border-border rounded-xl p-4">
+              <h3 className="font-semibold mb-3 text-sm">
+                Movimientos de presupuesto
+              </h3>
+              {loadingProjectWallet ? (
+                <p className="text-sm text-muted-foreground">Cargando...</p>
+              ) : visibleTransactions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No hay movimientos registrados
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {visibleTransactions.map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center justify-between rounded-lg border border-border p-3 text-sm"
+                    >
+                      <div>
+                        <div className="font-medium">
+                          {t.type === "assignment" &&
+                            "Asignación de presupuesto"}
+                          {t.type === "emergency_withdrawal" &&
+                            "Extracción de emergencia"}
+                          {t.type === "expense" && "Gasto de departamento"}
+                          {" · "}
+                          {t.type === "expense" ? (
+                            getDepartamentLabel(t.fromDepartament)
+                          ) : (
+                            <>
+                              {getDepartamentLabel(t.fromDepartament)} →{" "}
+                              {getDepartamentLabel(t.toDepartament)}
+                            </>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(t.date).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="font-semibold">{formatUsd(t.amount)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pb-28">
+      <div className="bg-card border border-border rounded-2xl p-6 shadow-soft">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-primary/10 rounded-xl">
+            <WalletIcon className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">Wallet</h2>
+            <p className="text-sm text-muted-foreground">
+              Saldo y movimientos en USD
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="text-center py-6">
+            <div className="text-4xl sm:text-5xl font-bold tracking-tight">
+              {loading ? "..." : formatUsd(totalBalance)}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Saldo total combinando todos tus saldos
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="border border-border rounded-xl p-3">
+              <div className="text-xs text-muted-foreground mb-1">
+                Saldo transferible
+              </div>
+              <div className="text-lg font-semibold">
+                {formatUsd(transferableBalance)}
+              </div>
+            </div>
+            <div className="border border-border rounded-xl p-3">
+              <div className="text-xs text-muted-foreground mb-1">
+                Saldo no transferible
+              </div>
+              <div className="text-lg font-semibold">
+                {formatUsd(remainingNonTransferable)}
+              </div>
+            </div>
+            <div className="border border-border rounded-xl p-3">
+              <div className="text-xs text-muted-foreground mb-1">
+                Saldo simbólico
+              </div>
+              <div className="text-lg font-semibold">
+                {formatUsd(symbolicBalance)}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-3">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="lg" variant="secondary">
+                  <Download className="w-4 h-4 mr-2" />
+                  Recibir
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Recibir saldo</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  {wallet ? (
+                    <>
+                      <Label>Tu dirección</Label>
+                      <div className="flex items-center gap-2">
+                        <Input readOnly value={wallet.address} />
+                        <Button variant="secondary" onClick={copyAddress}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No se encontró tu wallet
+                    </p>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="lg">
+                  <Send className="w-4 h-4 mr-2" />
+                  Enviar saldo
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Enviar saldo</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Dirección destino</Label>
+                    <Input
+                      placeholder="0x..."
+                      value={toAddress}
+                      onChange={(e) => setToAddress(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Monto (USD)</Label>
+                    <Input
+                      placeholder="10"
+                      value={amountUsd}
+                      onChange={(e) => setAmountUsd(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    disabled={loading}
+                    onClick={handleSend}
+                    className="w-full"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Enviar
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="border border-border rounded-xl p-4">
+            <h3 className="font-semibold mb-3">Historial</h3>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Cargando...</p>
+            ) : transfers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No hay transacciones
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {transfers.map((t) => (
+                  <div
+                    key={t.hash}
+                    className="flex items-center justify-between rounded-lg border border-border p-3"
+                  >
+                    <div>
+                      <div className="text-sm font-medium">
+                        {t.direction === "sent" ? "Enviado" : "Recibido"}{" "}
+                        {Number(t.amount).toLocaleString("en-US", {
+                          style: "currency",
+                          currency: "USD",
+                        })}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {t.direction === "sent" ? `a ${t.to}` : `de ${t.from}`}
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(t.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {isPersonalMode && (
+            <div className="border border-border rounded-xl p-4 space-y-4">
+              <h3 className="font-semibold">
+                Objetivos de reinversión mensual
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <Label>Nombre del objetivo</Label>
+                  <Input
+                    value={goalName}
+                    onChange={(e) => setGoalName(e.target.value)}
+                    placeholder="Reinvertir en inventario"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <Label>Porcentaje de ganancias</Label>
+                    <Input
+                      type="number"
+                      value={goalPercentage}
+                      onChange={(e) => setGoalPercentage(e.target.value)}
+                      min={1}
+                      max={100}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Label>Día del mes</Label>
+                    <Input
+                      type="number"
+                      value={goalDay}
+                      onChange={(e) => setGoalDay(e.target.value)}
+                      min={1}
+                      max={31}
+                    />
+                  </div>
+                </div>
+                <Button onClick={handleCreateGoal}>Crear objetivo</Button>
+              </div>
+
+              {reinvestmentGoals.length > 0 && (
+                <div className="space-y-2">
+                  {reinvestmentGoals.map((goal) => {
+                    const suggestedAmount =
+                      (remainingNonTransferable * goal.percentage) / 100;
+                    return (
+                      <div
+                        key={goal.id}
+                        className="flex items-center justify-between rounded-lg border border-border p-3"
+                      >
+                        <div>
+                          <div className="text-sm font-medium">{goal.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Cada mes día {goal.dayOfMonth} · {goal.percentage}%
+                            de tus ganancias · Aproximado:{" "}
+                            {formatUsd(suggestedAmount)}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            handleExecuteReinvestment(goal.id, goal.percentage)
+                          }
+                        >
+                          Realizar reinversión
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {data.reinvestmentExecutions &&
+                data.reinvestmentExecutions.length > 0 && (
+                  <div className="pt-2 border-t border-border mt-2">
+                    <h4 className="text-sm font-semibold mb-2">
+                      Historial de reinversiones
+                    </h4>
+                    <div className="space-y-2">
+                      {data.reinvestmentExecutions.map((item) => {
+                        const goal = reinvestmentGoals.find(
+                          (g) => g.id === item.goalId,
+                        );
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <div>
+                              <div className="font-medium">
+                                {goal?.name || "Reinversión"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(item.date).toLocaleDateString()} ·{" "}
+                                {formatUsd(item.amount)}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useMemo, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { MetricCard } from "@/components/ui/MetricCard";
@@ -43,25 +44,77 @@ import {
 import { cn } from "@/lib/utils";
 import { GoalsState } from "@/components/dashboard/GoalsState";
 import { Separator } from "@/components/ui/separator";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 
 type ChartPeriod = "7d" | "30d" | "90d" | "365d";
 
 export const Dashboard: React.FC = () => {
-  const { data } = useApp();
+  const { data, supabaseAuth, currentProject } = useApp();
   const { sales, expenses, products, settings } = data;
   const isPremium = settings.isPremium || false;
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("7d");
 
+  const inProjectDashboardMode =
+    !!currentProject && !!supabaseAuth.user && !!currentProject.id;
+
+  const {
+    data: projectData,
+    isLoading: loadingProject,
+    error: projectError,
+  } = useQuery({
+    queryKey: ["project-data-dashboard", currentProject?.id],
+    enabled: inProjectDashboardMode && !!currentProject?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id,data")
+        .eq("id", currentProject?.id)
+        .single();
+      if (error) throw error;
+      return (data?.data || {}) as {
+        sales?: any[];
+        expenses?: any[];
+        products?: any[];
+      };
+    },
+  });
+
+  const dashboardSales = (
+    inProjectDashboardMode ? projectData?.sales || [] : sales || []
+  ) as any[];
+  const dashboardExpenses = (
+    inProjectDashboardMode ? projectData?.expenses || [] : expenses || []
+  ) as any[];
+  const dashboardProducts = (
+    inProjectDashboardMode ? projectData?.products || [] : products || []
+  ) as any[];
+
   // Calculate metrics
-  const todaySales = useMemo(() => getTodaysSales(sales), [sales]);
-  const todayExpenses = useMemo(() => getTodaysExpenses(expenses), [expenses]);
-  const yesterdaySales = useMemo(() => getYesterdaysSales(sales), [sales]);
-  const weekSales = useMemo(() => getWeekSales(sales), [sales]);
-  const lowStockProducts = useMemo(
-    () => getLowStockProducts(products),
-    [products]
+  const todaySales = useMemo(
+    () => getTodaysSales(dashboardSales),
+    [dashboardSales]
   );
-  const inventoryValue = useMemo(() => getInventoryValue(products), [products]);
+  const todayExpenses = useMemo(
+    () => getTodaysExpenses(dashboardExpenses),
+    [dashboardExpenses]
+  );
+  const yesterdaySales = useMemo(
+    () => getYesterdaysSales(dashboardSales),
+    [dashboardSales]
+  );
+  const weekSales = useMemo(
+    () => getWeekSales(dashboardSales),
+    [dashboardSales]
+  );
+  const lowStockProducts = useMemo(
+    () => getLowStockProducts(dashboardProducts),
+    [dashboardProducts]
+  );
+  const inventoryValue = useMemo(
+    () => getInventoryValue(dashboardProducts),
+    [dashboardProducts]
+  );
 
   const todaySalesTotal = todaySales.reduce((sum, s) => sum + s.amount, 0);
   const todayExpensesTotal = todayExpenses.reduce(
@@ -121,10 +174,10 @@ export const Dashboard: React.FC = () => {
           }
         }
 
-        const daySales = sales
+        const daySales = dashboardSales
           .filter((s) => s.date === dateStr)
           .reduce((sum, s) => sum + s.amount, 0);
-        const dayExpenses = expenses
+        const dayExpenses = dashboardExpenses
           .filter((e) => e.date === dateStr)
           .reduce((sum, e) => sum + e.amount, 0);
 
@@ -144,13 +197,13 @@ export const Dashboard: React.FC = () => {
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 6);
 
-        const weekSales = sales
+        const weekSales = dashboardSales
           .filter((s) => {
             const saleDate = new Date(s.date);
             return saleDate >= weekStart && saleDate <= weekEnd;
           })
           .reduce((sum, s) => sum + s.amount, 0);
-        const weekExpenses = expenses
+        const weekExpenses = dashboardExpenses
           .filter((e) => {
             const expDate = new Date(e.date);
             return expDate >= weekStart && expDate <= weekEnd;
@@ -179,13 +232,13 @@ export const Dashboard: React.FC = () => {
         monthEnd.setMonth(monthEnd.getMonth() + 1);
         monthEnd.setDate(0);
 
-        const monthSales = sales
+        const monthSales = dashboardSales
           .filter((s) => {
             const saleDate = new Date(s.date);
             return saleDate >= monthStart && saleDate <= monthEnd;
           })
           .reduce((sum, s) => sum + s.amount, 0);
-        const monthExpenses = expenses
+        const monthExpenses = dashboardExpenses
           .filter((e) => {
             const expDate = new Date(e.date);
             return expDate >= monthStart && expDate <= monthEnd;
@@ -202,7 +255,7 @@ export const Dashboard: React.FC = () => {
     }
 
     return days;
-  }, [sales, expenses, chartPeriod]);
+  }, [dashboardSales, dashboardExpenses, chartPeriod]);
 
   // Generate insights
   const insights = useMemo(() => {
@@ -301,7 +354,20 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
+      {!!currentProject && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Dashboard)
+          </div>
+        </div>
+      )}
 
+      {/* Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold tracking-tight">
+          Hola, {settings.businessName || "Emprendedor"} 👋
+        </h1>
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -633,7 +699,7 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
-            {/* Export */}
+      {/* Export */}
       <div className="flex justify-end">
         <ExportButtons
           data={exportData}

@@ -48,6 +48,15 @@ export interface Product {
   expirationDate?: string;
   barcode?: string;
   supplierId?: string;
+  isNft?: boolean;
+  nftAddress?: string;
+  nftMarketplace?:
+    | "Kabila Market"
+    | "SentX"
+    | "Open Sea"
+    | "Magic Eden"
+    | "Blur"
+    | "Otro";
 }
 
 export interface Supplier {
@@ -117,6 +126,22 @@ export interface FinancialGoal {
   createdAt: string;
 }
 
+export interface ReinvestmentGoal {
+  id: string;
+  name: string;
+  percentage: number;
+  dayOfMonth: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface ReinvestmentExecution {
+  id: string;
+  goalId: string;
+  date: string;
+  amount: number;
+}
+
 export interface Debt {
   id: string;
   personName: string;
@@ -147,6 +172,22 @@ export interface ServiceIncome {
   clientId?: string;
 }
 
+export interface DepartmentBudgetTransaction {
+  id: string;
+  projectId?: number;
+  type: "assignment" | "request" | "emergency_withdrawal";
+  fromDepartment: string;
+  toDepartment: string;
+  amount: number;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  createdBy: string;
+  createdByDepartment?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  reason?: string;
+}
+
 export interface AppData {
   sales: Sale[];
   expenses: Expense[];
@@ -155,6 +196,8 @@ export interface AppData {
   workers: Worker[];
   events: CalendarEvent[];
   goals: FinancialGoal[];
+  reinvestmentGoals?: ReinvestmentGoal[];
+  reinvestmentExecutions?: ReinvestmentExecution[];
   debts: Debt[];
   recurringPayments: RecurringPayment[];
   suppliers: Supplier[];
@@ -162,6 +205,7 @@ export interface AppData {
   services: Service[];
   serviceIncomes: ServiceIncome[];
   customTags: string[];
+  departmentBudgetTransactions?: DepartmentBudgetTransaction[];
   settings: {
     currency: string;
     currencySymbol: string;
@@ -177,7 +221,7 @@ export interface AppData {
 
 const STORAGE_KEY = "negocio360_data";
 
-const defaultData: AppData = {
+export const defaultData: AppData = {
   sales: [],
   expenses: [],
   products: [],
@@ -185,6 +229,8 @@ const defaultData: AppData = {
   workers: [],
   events: [],
   goals: [],
+  reinvestmentGoals: [],
+  reinvestmentExecutions: [],
   debts: [],
   recurringPayments: [],
   suppliers: [],
@@ -205,6 +251,7 @@ const defaultData: AppData = {
     theme: "system",
     isPremium: false,
   },
+  departmentBudgetTransactions: [],
 };
 
 // Generate demo data for a better first experience
@@ -282,6 +329,8 @@ export const loadData = (): AppData => {
         workers: parsed.workers || [],
         events: parsed.events || [],
         goals: parsed.goals || [],
+        reinvestmentGoals: parsed.reinvestmentGoals || [],
+        reinvestmentExecutions: parsed.reinvestmentExecutions || [],
         debts: parsed.debts || [],
         recurringPayments: parsed.recurringPayments || [],
         suppliers: parsed.suppliers || [],
@@ -289,6 +338,10 @@ export const loadData = (): AppData => {
         services: parsed.services || [],
         serviceIncomes: parsed.serviceIncomes || [],
         customTags: parsed.customTags || defaultData.customTags,
+        departmentBudgetTransactions:
+          parsed.departmentBudgetTransactions ||
+          defaultData.departmentBudgetTransactions ||
+          [],
       };
     }
     // First time: generate demo data
@@ -335,16 +388,19 @@ export const generateId = (): string => {
 
 // Helper functions for calculations
 export const getTodaysSales = (sales: Sale[]): Sale[] => {
+  if (!sales) return [];
   const today = new Date().toISOString().split("T")[0];
   return sales.filter((s) => s.date === today);
 };
 
 export const getTodaysExpenses = (expenses: Expense[]): Expense[] => {
+  if (!expenses) return [];
   const today = new Date().toISOString().split("T")[0];
   return expenses.filter((e) => e.date === today);
 };
 
 export const getYesterdaysSales = (sales: Sale[]): Sale[] => {
+  if (!sales) return [];
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const dateStr = yesterday.toISOString().split("T")[0];
@@ -352,28 +408,32 @@ export const getYesterdaysSales = (sales: Sale[]): Sale[] => {
 };
 
 export const getWeekSales = (sales: Sale[]): Sale[] => {
+  if (!sales) return [];
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   return sales.filter((s) => new Date(s.date) >= weekAgo);
 };
 
 export const getMonthSales = (sales: Sale[]): Sale[] => {
+  if (!sales) return [];
   const monthAgo = new Date();
   monthAgo.setMonth(monthAgo.getMonth() - 1);
   return sales.filter((s) => new Date(s.date) >= monthAgo);
 };
 
 export const getLowStockProducts = (products: Product[]): Product[] => {
+  if (!products) return [];
   return products.filter((p) => p.quantity <= (p.minStock || 10));
 };
 
 export const getInventoryValue = (products: Product[]): number => {
+  if (!products) return 0;
   return products.reduce((sum, p) => sum + p.quantity * p.cost, 0);
 };
 
 export const formatCurrency = (
   amount: number,
-  symbol: string = "$"
+  symbol: string = "$",
 ): string => {
   return `${symbol}${amount.toLocaleString("es-ES", {
     minimumFractionDigits: 0,
@@ -383,7 +443,7 @@ export const formatCurrency = (
 
 export const calculateOptimalPrice = (
   cost: number,
-  targetMargin: number = 30
+  targetMargin: number = 30,
 ): number => {
   return Math.ceil(cost * (1 + targetMargin / 100));
 };
@@ -392,7 +452,7 @@ export const calculateOptimalPrice = (
 export const getDailyBalance = (
   sales: Sale[],
   expenses: Expense[],
-  date: string
+  date: string,
 ): number => {
   const daySales = sales
     .filter((s) => s.date === date)
@@ -406,7 +466,7 @@ export const getDailyBalance = (
 export const getBalanceHistory = (
   sales: Sale[],
   expenses: Expense[],
-  days: number = 30
+  days: number = 30,
 ): { date: string; balance: number; cumulative: number }[] => {
   const history: { date: string; balance: number; cumulative: number }[] = [];
   let cumulative = 0;
@@ -427,7 +487,7 @@ export const projectCashFlow = (
   sales: Sale[],
   expenses: Expense[],
   recurringPayments: RecurringPayment[],
-  daysAhead: number = 7
+  daysAhead: number = 7,
 ): { date: string; projectedBalance: number; alerts: string[] }[] => {
   const projections: {
     date: string;
@@ -488,14 +548,14 @@ export const projectCashFlow = (
 
 export const getRecurringPaymentCompliance = (
   recurringPayments: RecurringPayment[],
-  expenses: Expense[]
+  expenses: Expense[],
 ): { total: number; paid: number; percentage: number } => {
   const today = new Date();
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
 
   const monthlyRecurring = recurringPayments.filter(
-    (rp) => rp.isActive && rp.frequency === "mensual"
+    (rp) => rp.isActive && rp.frequency === "mensual",
   );
   const total = monthlyRecurring.length;
 
@@ -505,7 +565,7 @@ export const getRecurringPaymentCompliance = (
       (e) =>
         e.recurringId === rp.id &&
         new Date(e.date).getMonth() === currentMonth &&
-        new Date(e.date).getFullYear() === currentYear
+        new Date(e.date).getFullYear() === currentYear,
     );
   }).length;
 
@@ -519,7 +579,7 @@ export const getRecurringPaymentCompliance = (
 // Expiration alerts helper
 export const getExpiringProducts = (
   products: Product[],
-  daysAhead: number = 7
+  daysAhead: number = 7,
 ): {
   product: Product;
   daysUntilExpiration: number;
@@ -554,15 +614,15 @@ export const getPendingOrders = (orders: SupplierOrder[]): SupplierOrder[] => {
 // Critical stock helper (products with low stock and no pending orders)
 export const getCriticalStockProducts = (
   products: Product[],
-  orders: SupplierOrder[]
+  orders: SupplierOrder[],
 ): Product[] => {
   const pendingProductIds = new Set(
     orders
       .filter((o) => o.status === "pending" || o.status === "ordered")
-      .flatMap((o) => o.items.map((i) => i.productId).filter(Boolean))
+      .flatMap((o) => o.items.map((i) => i.productId).filter(Boolean)),
   );
 
   return products.filter(
-    (p) => p.quantity <= (p.minStock || 10) && !pendingProductIds.has(p.id)
+    (p) => p.quantity <= (p.minStock || 10) && !pendingProductIds.has(p.id),
   );
 };

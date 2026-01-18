@@ -19,16 +19,101 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
 
 type FilterPeriod = "today" | "week" | "month" | "all";
 
 export const Ventas: React.FC = () => {
-  const { data, deleteSale, deleteServiceIncome } = useApp();
+  const {
+    data,
+    deleteSale,
+    deleteServiceIncome,
+    supabaseAuth,
+    currentProject,
+    currentProjectMember,
+  } = useApp();
   const { sales, serviceIncomes, services, settings } = data;
+  const queryClient = useQueryClient();
   const isPremium = settings.isPremium || false;
   const [showForm, setShowForm] = useState(false);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [filter, setFilter] = useState<FilterPeriod>("week");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "product" | "service">(
+    "all",
+  );
+  const [categoryFilter, setCategoryFilter] = useState("");
+
+  const inProjectVentasMode =
+    !!currentProject &&
+    !!supabaseAuth.user &&
+    currentProjectMember?.departament === "ventas";
+
+  const {
+    data: projectData,
+    isLoading: loadingProject,
+    error: projectError,
+  } = useQuery({
+    queryKey: ["project-data-sales", currentProject?.id],
+    enabled: inProjectVentasMode && !!currentProject?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id,data")
+        .eq("id", currentProject?.id)
+        .single();
+      if (error) throw error;
+      return (data?.data || {}) as { sales?: Sale[] };
+    },
+  });
+
+  const projectSales = useMemo(
+    () => (projectData?.sales || []) as Sale[],
+    [projectData]
+  );
+
+  const projectSalesMutation = useMutation({
+    mutationFn: async (newSales: Sale[]) => {
+      if (!currentProject?.id) return;
+      const { error } = await supabase
+        .from("projects")
+        .update({
+          data: {
+            ...(projectData || {}),
+            sales: newSales,
+          },
+        })
+        .eq("id", currentProject.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["project-data-sales", currentProject?.id],
+      });
+    },
+  });
+
+  const [projectSaleForm, setProjectSaleForm] = useState({
+    date: new Date().toLocaleDateString("en-CA"),
+    amount: "",
+    category: "Ventas",
+    description: "",
+  });
 
   // Helper function to format date correctly (String-based to avoid timezone shifts)
   const formatDate = (dateStr: string) => {
@@ -58,46 +143,103 @@ export const Ventas: React.FC = () => {
     monthAgo.setMonth(monthAgo.getMonth() - 1);
     monthAgo.setHours(0, 0, 0, 0);
 
-    const checkDate = (dateStr: string) => {
-      const cleanDate = dateStr.split("T")[0];
-      if (filter === "all") return true;
-      if (filter === "today") return cleanDate === todayStr;
+    const sourceSales = inProjectVentasMode ? projectSales : sales;
 
-      // Create date at noon to avoid timezone shifting
-      const date = new Date(cleanDate + "T12:00:00");
-      if (filter === "week") return date >= weekAgo;
-      if (filter === "month") return date >= monthAgo;
-      return true;
-    };
-
-    const productSales = sales.map((s) => ({
+    const productSales = sourceSales.map((s) => ({
       ...s,
       type: "product" as const,
       displayCategory: s.category,
       displayName: s.description || "Venta de producto",
     }));
 
-    const serviceSales = serviceIncomes.map((s) => {
-      const service = services.find((svc) => svc.id === s.serviceId);
-      return {
-        ...s,
-        type: "service" as const,
-        displayCategory: "Servicio",
-        displayName: service?.name || "Servicio",
-        // Map service fields to match Sale structure where needed
-        category: "Servicio",
-        productId: undefined,
-        quantity: undefined,
-      };
-    });
+    const serviceSales = inProjectVentasMode
+      ? []
+      : serviceIncomes.map((s) => {
+          const service = services.find((svc) => svc.id === s.serviceId);
+          return {
+            ...s,
+            type: "service" as const,
+            displayCategory: "Servicio",
+            displayName: service?.name || "Servicio",
+            // Map service fields to match Sale structure where needed
+            category: "Servicio",
+            productId: undefined,
+            quantity: undefined,
+          };
+        });
 
-    return [...productSales, ...serviceSales]
-      .filter((item) => checkDate(item.date))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [sales, serviceIncomes, services, filter]);
+    let result = [...productSales, ...serviceSales];
+
+    // Date filtering
+    if (startDate && endDate) {
+      const from = new Date(startDate);
+      const to = new Date(endDate);
+      result = result.filter((item) => {
+        const itemDate = new Date(item.date);
+        return itemDate >= from && itemDate <= to;
+      });
+    } else {
+      const checkDate = (dateStr: string) => {
+        const cleanDate = dateStr.split("T")[0];
+        if (filter === "all") return true;
+        if (filter === "today") return cleanDate === todayStr;
+
+        // Create date at noon to avoid timezone shifting
+        const date = new Date(cleanDate + "T12:00:00");
+        if (filter === "week") return date >= weekAgo;
+        if (filter === "month") return date >= monthAgo;
+        return true;
+      };
+      result = result.filter((item) => checkDate(item.date));
+    }
+
+    // Amount filtering
+    if (minAmount) {
+      result = result.filter((item) => item.amount >= parseFloat(minAmount));
+    }
+    if (maxAmount) {
+      result = result.filter((item) => item.amount <= parseFloat(maxAmount));
+    }
+
+    // Type filtering
+    if (typeFilter !== "all") {
+      result = result.filter((item) => item.type === typeFilter);
+    }
+
+    // Category/Search filtering
+    if (categoryFilter) {
+      const term = categoryFilter.toLowerCase();
+      result = result.filter(
+        (item) =>
+          item.category?.toLowerCase().includes(term) ||
+          item.description?.toLowerCase().includes(term) ||
+          item.displayName?.toLowerCase().includes(term)
+      );
+    }
+
+    return result.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }, [
+    sales,
+    serviceIncomes,
+    services,
+    filter,
+    inProjectVentasMode,
+    projectSales,
+    startDate,
+    endDate,
+    minAmount,
+    maxAmount,
+    typeFilter,
+    categoryFilter,
+  ]);
 
   // Metrics
-  const weekSales = useMemo(() => getWeekSales(sales), [sales]);
+  const weekSales = useMemo(
+    () => getWeekSales(inProjectVentasMode ? projectSales : sales),
+    [sales, projectSales, inProjectVentasMode],
+  );
 
   // Calculate totals based on filtered unified list
   const totalFiltered = filteredIncomes.reduce((sum, s) => sum + s.amount, 0);
@@ -124,7 +266,9 @@ export const Ventas: React.FC = () => {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    const prodSum = sales
+    const sourceSales = inProjectVentasMode ? projectSales : sales;
+
+    const prodSum = sourceSales
       .filter((s) => {
         const cleanDate = s.date.split("T")[0];
         const d = new Date(cleanDate + "T12:00:00");
@@ -132,16 +276,32 @@ export const Ventas: React.FC = () => {
       })
       .reduce((sum, s) => sum + s.amount, 0);
 
-    const svcSum = serviceIncomes
-      .filter((s) => {
-        const cleanDate = s.date.split("T")[0];
-        const d = new Date(cleanDate + "T12:00:00");
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-      })
-      .reduce((sum, s) => sum + s.amount, 0);
+    const svcSum = inProjectVentasMode
+      ? 0
+      : serviceIncomes
+          .filter((s) => {
+            const cleanDate = s.date.split("T")[0];
+            const d = new Date(cleanDate + "T12:00:00");
+            return (
+              d.getMonth() === currentMonth && d.getFullYear() === currentYear
+            );
+          })
+          .reduce((sum, s) => sum + s.amount, 0);
 
     return prodSum + svcSum;
-  }, [sales, serviceIncomes]);
+  }, [sales, serviceIncomes, projectSales, inProjectVentasMode]);
+
+  const isProjectSelected = !!currentProject;
+  const department = currentProjectMember?.departament;
+  const permissions = department
+    ? DEPARTMENT_PERMISSIONS[department]
+    : undefined;
+  const isAuthorizedForPage =
+    !isProjectSelected ||
+    !department ||
+    !permissions ||
+    permissions.includes("all") ||
+    permissions.includes("/ingresos");
 
   // Chart data
   const chartData = useMemo(() => {
@@ -153,7 +313,7 @@ export const Ventas: React.FC = () => {
       date.setDate(date.getDate() - i);
       // Use local date string generation
       const dateStr = new Date(
-        date.getTime() - date.getTimezoneOffset() * 60000
+        date.getTime() - date.getTimezoneOffset() * 60000,
       )
         .toISOString()
         .split("T")[0];
@@ -167,7 +327,9 @@ export const Ventas: React.FC = () => {
     }
 
     // Add sales
-    sales.forEach((s) => {
+    const sourceSales = inProjectVentasMode ? projectSales : sales;
+
+    sourceSales.forEach((s) => {
       const cleanDate = s.date.split("T")[0];
       if (days[cleanDate] !== undefined) {
         days[cleanDate] += s.amount;
@@ -175,18 +337,20 @@ export const Ventas: React.FC = () => {
     });
 
     // Add services
-    serviceIncomes.forEach((s) => {
-      const cleanDate = s.date.split("T")[0];
-      if (days[cleanDate] !== undefined) {
-        days[cleanDate] += s.amount;
-      }
-    });
+    if (!inProjectVentasMode) {
+      serviceIncomes.forEach((s) => {
+        const cleanDate = s.date.split("T")[0];
+        if (days[cleanDate] !== undefined) {
+          days[cleanDate] += s.amount;
+        }
+      });
+    }
 
     return last7Days.map((d) => ({
       name: d.dayName,
       ventas: days[d.dateStr],
     }));
-  }, [sales, serviceIncomes]);
+  }, [sales, serviceIncomes, projectSales, inProjectVentasMode]);
 
   const handleEdit = (item: any) => {
     setEditingSale(item);
@@ -194,6 +358,7 @@ export const Ventas: React.FC = () => {
   };
 
   const handleDelete = (item: any) => {
+    if (inProjectVentasMode) return;
     if (confirm("¿Eliminar este ingreso?")) {
       if (item.type === "service") {
         deleteServiceIncome(item.id);
@@ -227,7 +392,7 @@ export const Ventas: React.FC = () => {
             "px-2 py-1 rounded-lg text-sm",
             item.type === "service"
               ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-              : "bg-primary/10 text-primary"
+              : "bg-primary/10 text-primary",
           )}
         >
           {item.type === "service" ? item.displayName : item.category}
@@ -242,8 +407,55 @@ export const Ventas: React.FC = () => {
     },
   ];
 
+  const handleProjectSaleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanDate = projectSaleForm.date.split("T")[0];
+    const amount = parseFloat(projectSaleForm.amount);
+    if (!amount || !cleanDate) return;
+    const newSale: Sale = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      date: cleanDate,
+      amount,
+      category: projectSaleForm.category,
+      description: projectSaleForm.description || undefined,
+    };
+    const newSales = [newSale, ...projectSales];
+    projectSalesMutation.mutate(newSales);
+    setProjectSaleForm({
+      date: new Date().toLocaleDateString("en-CA"),
+      amount: "",
+      category: "Ventas",
+      description: "",
+    });
+  };
+
   return (
     <div className=" space-y-4 pb-24">
+      {isProjectSelected && !isAuthorizedForPage && (
+        <div className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-sm text-center">
+            <h2 className="text-lg font-semibold mb-2">Acceso restringido</h2>
+            <p className="text-sm text-muted-foreground">
+              Solo el personal autorizado puede acceder a esta sección en el
+              proyecto seleccionado.
+            </p>
+          </div>
+        </div>
+      )}
+      {inProjectVentasMode && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Ventas)
+          </div>
+          {loadingProject && <div>Cargando datos del proyecto...</div>}
+          {projectError && (
+            <div className="text-red-600">
+              Error al cargar datos del proyecto.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Metrics */}
       <div className=" grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
@@ -254,17 +466,17 @@ export const Ventas: React.FC = () => {
           variant="success"
         />
         <MetricCard
+          title="Ingresos por servicios (últimos 30 días)"
+          value={formatCurrency(serviceStats, settings.currencySymbol)}
+          icon={<TrendingUp className="w-5 h-5" />}
+          variant="default"
+        />
+        <MetricCard
           title="Ingresos del mes (total)"
           value={formatCurrency(monthTotalAll, settings.currencySymbol)}
           icon={<Calendar className="w-5 h-5" />}
           subtitle={`Productos + Servicios`}
           variant="primary"
-        />
-        <MetricCard
-          title="Ingresos por servicios (últimos 30 días)"
-          value={formatCurrency(serviceStats, settings.currencySymbol)}
-          icon={<TrendingUp className="w-5 h-5" />}
-          variant="default"
         />
       </div>
 
@@ -325,7 +537,7 @@ export const Ventas: React.FC = () => {
                 "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
                 filter === f.key
                   ? "bg-primary text-primary-foreground shadow-material"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80",
               )}
             >
               {f.label}
@@ -338,19 +550,96 @@ export const Ventas: React.FC = () => {
       <DataTable
         data={filteredIncomes}
         columns={columns}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        onEdit={inProjectVentasMode ? undefined : handleEdit}
+        onDelete={inProjectVentasMode ? undefined : handleDelete}
         emptyMessage="No hay ingresos registrados"
       />
 
-      {/* Floating Button */}
-      <FloatingButton
-        onClick={() => {
-          setEditingSale(null);
-          setShowForm(true);
-        }}
-        label="Nuevo ingreso (producto)"
-      />
+      {!inProjectVentasMode && (
+        <FloatingButton
+          onClick={() => {
+            setEditingSale(null);
+            setShowForm(true);
+          }}
+          label="Nuevo ingreso (producto)"
+        />
+      )}
+
+      {inProjectVentasMode && (
+        <div className="mt-4 bg-card border border-border rounded-2xl p-4 space-y-3">
+          <h3 className="font-semibold text-base">
+            Nuevo ingreso para {currentProject?.name}
+          </h3>
+          <form
+            onSubmit={handleProjectSaleSubmit}
+            className="grid gap-3 sm:grid-cols-4"
+          >
+            <div className="space-y-1">
+              <Label>Fecha</Label>
+              <Input
+                type="date"
+                value={projectSaleForm.date}
+                onChange={(e) =>
+                  setProjectSaleForm((prev) => ({
+                    ...prev,
+                    date: e.target.value,
+                  }))
+                }
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Monto</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={projectSaleForm.amount}
+                onChange={(e) =>
+                  setProjectSaleForm((prev) => ({
+                    ...prev,
+                    amount: e.target.value,
+                  }))
+                }
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Categoría</Label>
+              <Input
+                value={projectSaleForm.category}
+                onChange={(e) =>
+                  setProjectSaleForm((prev) => ({
+                    ...prev,
+                    category: e.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-1">
+              <Label>Descripción</Label>
+              <Input
+                value={projectSaleForm.description}
+                onChange={(e) =>
+                  setProjectSaleForm((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="sm:col-span-4 flex justify-end">
+              <Button
+                type="submit"
+                disabled={
+                  projectSalesMutation.isPending || !projectSaleForm.amount
+                }
+              >
+                Registrar ingreso
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <ExportButtons
         data={useMemo<ExportData>(
@@ -371,7 +660,7 @@ export const Ventas: React.FC = () => {
               },
             ],
           }),
-          [filteredIncomes, totalFiltered, settings.currencySymbol]
+          [filteredIncomes, totalFiltered, settings.currencySymbol],
         )}
         filename="ventas_servicios"
         isPremium={isPremium}

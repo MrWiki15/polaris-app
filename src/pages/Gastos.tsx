@@ -9,6 +9,8 @@ import { formatCurrency } from "@/lib/storage";
 import { Receipt, Calendar, PieChart } from "lucide-react";
 import { Expense } from "@/lib/storage";
 import { ExportData } from "@/lib/exportUtils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   PieChart as RechartsPie,
   Pie,
@@ -18,6 +20,7 @@ import {
   Tooltip,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
 
 type FilterPeriod = "today" | "week" | "month" | "all";
 
@@ -32,14 +35,19 @@ const COLORS = [
 ];
 
 export const Gastos: React.FC = () => {
-  const { data, deleteExpense } = useApp();
+  const { data, deleteExpense, currentProject, currentProjectMember } =
+    useApp();
   const { expenses, settings } = data;
   const isPremium = settings.isPremium || false;
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [filter, setFilter] = useState<FilterPeriod>("week");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
-  // Filter expenses
   const filteredExpenses = useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
     const weekAgo = new Date();
@@ -47,17 +55,49 @@ export const Gastos: React.FC = () => {
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
 
+    let result = expenses;
+
     switch (filter) {
       case "today":
-        return expenses.filter((e) => e.date === today);
+        result = result.filter((e) => e.date === today);
+        break;
       case "week":
-        return expenses.filter((e) => new Date(e.date) >= weekAgo);
+        result = result.filter((e) => new Date(e.date) >= weekAgo);
+        break;
       case "month":
-        return expenses.filter((e) => new Date(e.date) >= monthAgo);
-      default:
-        return expenses;
+        result = result.filter((e) => new Date(e.date) >= monthAgo);
+        break;
     }
-  }, [expenses, filter]);
+
+    if (departmentFilter) {
+      const term = departmentFilter.toLowerCase();
+      result = result.filter((e) => {
+        const desc = e.description?.toLowerCase() || "";
+        return desc.startsWith(term + ":") || desc.includes(term);
+      });
+    }
+
+    const min = minAmount ? Number(minAmount) : undefined;
+    const max = maxAmount ? Number(maxAmount) : undefined;
+
+    if (min !== undefined) {
+      result = result.filter((e) => e.amount >= min);
+    }
+    if (max !== undefined) {
+      result = result.filter((e) => e.amount <= max);
+    }
+
+    if (startDate) {
+      const from = new Date(startDate);
+      result = result.filter((e) => new Date(e.date) >= from);
+    }
+    if (endDate) {
+      const to = new Date(endDate);
+      result = result.filter((e) => new Date(e.date) <= to);
+    }
+
+    return result;
+  }, [expenses, filter, departmentFilter, minAmount, maxAmount, startDate, endDate]);
 
   // Metrics
   const totalFiltered = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -130,8 +170,35 @@ export const Gastos: React.FC = () => {
     },
   ];
 
+  const isProjectSelected = !!currentProject;
+  const department = currentProjectMember?.departament;
+  const permissions = department ? DEPARTMENT_PERMISSIONS[department] : undefined;
+  const isAuthorizedForPage =
+    !isProjectSelected ||
+    !department ||
+    !permissions ||
+    permissions.includes("all") ||
+    permissions.includes("/gastos");
+
   return (
     <div className="space-y-6 pb-24">
+      {isProjectSelected && !isAuthorizedForPage && (
+        <div className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-sm text-center">
+            <h2 className="text-lg font-semibold mb-2">Acceso restringido</h2>
+            <p className="text-sm text-muted-foreground">
+              Solo el personal autorizado puede acceder a esta sección en el proyecto seleccionado.
+            </p>
+          </div>
+        </div>
+      )}
+      {isProjectSelected && (
+        <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
+          <div className="font-medium">
+            Modo proyecto: {currentProject?.name} (Gastos)
+          </div>
+        </div>
+      )}
       {/* Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
@@ -201,7 +268,6 @@ export const Gastos: React.FC = () => {
         </div>
       )}
 
-      {/* Filters and Export */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex gap-2 overflow-x-auto pb-2 flex-1">
           {[
@@ -219,10 +285,60 @@ export const Gastos: React.FC = () => {
                   ? "bg-destructive text-destructive-foreground shadow-material"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               )}
-            >
-              {f.label}
-            </button>
-          ))}
+              >
+                {f.label}
+              </button>
+            ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      {
+        isProjectSelected  &&
+(
+
+       <div className="space-y-1">
+          <Label>Departamento</Label>
+          <Input
+            placeholder="Ej. Dirección, Ventas..."
+            value={departmentFilter}
+            onChange={(e) => setDepartmentFilter(e.target.value)}
+          />
+        </div>
+        ) 
+      }
+        <div className="space-y-1">
+          <Label>Fecha desde</Label>
+          <Input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Fecha hasta</Label>
+          <Input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Rango de monto</Label>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              placeholder="Mín."
+              value={minAmount}
+              onChange={(e) => setMinAmount(e.target.value)}
+            />
+            <Input
+              type="number"
+              placeholder="Máx."
+              value={maxAmount}
+              onChange={(e) => setMaxAmount(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 

@@ -14,7 +14,7 @@ export type AuthUser = {
 
 export type DataBackup = {
   id?: string;
-  user_id: string;
+  userId: string;
   data: string;
   updated_at?: string;
   created_at?: string;

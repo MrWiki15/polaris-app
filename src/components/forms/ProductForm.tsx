@@ -3,6 +3,14 @@ import { ScanBarcode, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useApp } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 import { BarcodeScanner } from "../inventory/BarcodeScanner";
@@ -18,6 +26,10 @@ interface ProductFormProps {
     category?: string;
     minStock?: number;
     barcode?: string;
+    supplierId?: string;
+    isNft?: boolean;
+    nftAddress?: string;
+    nftMarketplace?: string;
   };
 }
 
@@ -47,7 +59,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     category: editingProduct?.category || categories[0],
     minStock: editingProduct?.minStock?.toString() || "10",
     barcode: editingProduct?.barcode || "",
-    supplierId: (editingProduct as any)?.supplierId || "",
+    supplierId: editingProduct?.supplierId || "",
+    isNft: editingProduct?.isNft || false,
+    nftAddress: editingProduct?.nftAddress || "",
+    nftMarketplace: editingProduct?.nftMarketplace || "",
   });
   // Add state for scanner
   const [showScanner, setShowScanner] = useState(false);
@@ -64,6 +79,13 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       minStock: parseInt(formData.minStock) || 10,
       barcode: formData.barcode || undefined,
       supplierId: formData.supplierId || undefined,
+      isNft: formData.isNft,
+      nftAddress:
+        formData.isNft && formData.nftAddress ? formData.nftAddress : undefined,
+      nftMarketplace:
+        formData.isNft && formData.nftMarketplace
+          ? formData.nftMarketplace
+          : undefined,
     };
 
     if (editingProduct) {
@@ -99,7 +121,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         className={cn(
           "relative w-full sm:max-w-md bg-card rounded-t-3xl sm:rounded-2xl shadow-material-xl",
           "animate-slide-in-up sm:animate-scale-in",
-          "max-h-[90vh] overflow-auto"
+          "max-h-[90vh] overflow-auto",
         )}
       >
         {/* Handle bar for mobile */}
@@ -245,6 +267,66 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             </div>
           )}
 
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Es NFT</Label>
+              <Switch
+                checked={formData.isNft}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    isNft: checked,
+                    ...(checked ? {} : { nftAddress: "", nftMarketplace: "" }),
+                  }))
+                }
+              />
+            </div>
+            {formData.isNft && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="nftAddress">Dirección del NFT</Label>
+                  <Input
+                    id="nftAddress"
+                    placeholder="Dirección del NFT o contrato"
+                    value={formData.nftAddress}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        nftAddress: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nftMarketplace">Marketplace</Label>
+                  <Select
+                    value={formData.nftMarketplace}
+                    onValueChange={(v) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        nftMarketplace: v,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="nftMarketplace">
+                      <SelectValue placeholder="Selecciona un marketplace" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Kabila Market">
+                        Kabila Market
+                      </SelectItem>
+                      <SelectItem value="SentX">SentX</SelectItem>
+                      <SelectItem value="Open Sea">Open Sea</SelectItem>
+                      <SelectItem value="Magic Eden">Magic Eden</SelectItem>
+                      <SelectItem value="Blur">Blur</SelectItem>
+                      <SelectItem value="Otro">Otro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Margin indicator */}
           {formData.cost && formData.price && (
             <div
@@ -252,7 +334,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                 "p-3 rounded-xl text-center",
                 parseFloat(margin) > 0
                   ? "bg-success/10 text-success"
-                  : "bg-destructive/10 text-destructive"
+                  : "bg-destructive/10 text-destructive",
               )}
             >
               <span className="font-medium">Margen: {margin}%</span>
@@ -273,7 +355,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     "px-4 py-2 rounded-xl text-sm font-medium transition-all",
                     formData.category === cat
                       ? "bg-primary text-primary-foreground shadow-material"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80",
                   )}
                 >
                   {cat}
