@@ -149,7 +149,7 @@ export const AppLayout: React.FC = () => {
 
       // Check in extra items
       const extraItem = Object.values(EXTRA_MENU_ITEMS).find(
-        (i) => i.path === path
+        (i) => i.path === path,
       );
       if (extraItem) {
         items.push(extraItem);
@@ -197,14 +197,14 @@ export const AppLayout: React.FC = () => {
         name: project.name,
         members: project.members || [],
       },
-      member
+      member,
     );
   };
 
   const currentPage =
     [...MENU_ITEMS, ...Object.values(EXTRA_MENU_ITEMS)].find(
-      (item) => item.path === location.pathname
-    )?.label || "UP  |  Gestion";
+      (item) => item.path === location.pathname,
+    )?.label || "Polaris  |  Gestion";
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -221,7 +221,7 @@ export const AppLayout: React.FC = () => {
         className={cn(
           "fixed lg:sticky top-0 left-0 z-50 h-screen w-72 bg-sidebar border-r border-sidebar-border",
           "transform transition-transform duration-300 ease-material",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
         {/* Header */}
@@ -231,7 +231,7 @@ export const AppLayout: React.FC = () => {
               <img src="/icon.svg" className="w-10 h-10" />
             </div>
             <div>
-              <h1 className="font-semibold text-sidebar-foreground">UP</h1>
+              <h1 className="font-semibold text-sidebar-foreground">Polaris</h1>
               <p className="text-xs text-muted-foreground">Panel de control</p>
             </div>
           </div>
@@ -256,7 +256,7 @@ export const AppLayout: React.FC = () => {
                   "group relative overflow-hidden",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-soft"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/50",
                 )
               }
             >
@@ -267,7 +267,7 @@ export const AppLayout: React.FC = () => {
                       "w-5 h-5 transition-colors",
                       isActive
                         ? "text-sidebar-primary"
-                        : "text-muted-foreground group-hover:text-sidebar-primary"
+                        : "text-muted-foreground group-hover:text-sidebar-primary",
                     )}
                   />
                   <span className="flex-1">{item.label}</span>
@@ -297,7 +297,7 @@ export const AppLayout: React.FC = () => {
                     "text-sidebar-foreground text-sm",
                     "focus:outline-none focus:ring-2 focus:ring-sidebar-primary/40 focus:border-sidebar-primary",
                     "transition-all duration-200 ease-material",
-                    "cursor-pointer hover:bg-sidebar-accent/30"
+                    "cursor-pointer hover:bg-sidebar-accent/30",
                   )}
                   value={
                     currentProject ? String(currentProject.id) : "personal"

@@ -237,7 +237,7 @@ export const Configuracion: React.FC = () => {
                   "flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all",
                   authMode === "login"
                     ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80",
                 )}
               >
                 Iniciar Sesión
@@ -251,7 +251,7 @@ export const Configuracion: React.FC = () => {
                   "flex-1 px-3  py-2 rounded-lg text-sm font-medium transition-all",
                   authMode === "register"
                     ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80",
                 )}
               >
                 Registrarse
@@ -289,8 +289,8 @@ export const Configuracion: React.FC = () => {
               {isLoading
                 ? "Cargando..."
                 : authMode === "login"
-                ? "Iniciar Sesión"
-                : "Crear Cuenta"}
+                  ? "Iniciar Sesión"
+                  : "Crear Cuenta"}
             </Button>
 
             {supabaseAuth.error && (
@@ -319,7 +319,7 @@ export const Configuracion: React.FC = () => {
               "flex-1 p-4 rounded-xl border-2 transition-all",
               theme === "light"
                 ? "border-primary bg-primary/5"
-                : "border-border hover:border-muted-foreground"
+                : "border-border hover:border-muted-foreground",
             )}
           >
             <div className="flex items-center justify-center gap-2">
@@ -334,7 +334,7 @@ export const Configuracion: React.FC = () => {
               "flex-1 p-4 rounded-xl border-2 transition-all",
               theme === "dark"
                 ? "border-primary bg-primary/5"
-                : "border-border hover:border-muted-foreground"
+                : "border-border hover:border-muted-foreground",
             )}
           >
             <div className="flex items-center justify-center gap-2">
@@ -361,7 +361,7 @@ export const Configuracion: React.FC = () => {
                 "p-3 rounded-xl border-2 transition-all text-left",
                 settings.currency === currency.code
                   ? "border-primary bg-primary/5"
-                  : "border-border hover:border-muted-foreground"
+                  : "border-border hover:border-muted-foreground",
               )}
             >
               <div className="flex items-center justify-between">
@@ -478,7 +478,7 @@ export const Configuracion: React.FC = () => {
 
       {/* Version */}
       <div className="text-center text-sm text-muted-foreground">
-        <p>UP v0.0.3</p>
+        <p>Polaris v1.0.3</p>
         <p>Todos los datos se guardan localmente en tu dispositivo</p>
       </div>
     </div>

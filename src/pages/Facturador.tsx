@@ -39,13 +39,13 @@ export const Facturador: React.FC = () => {
     { description: "", quantity: 1, price: 0 },
   ]);
   const [invoiceNumber, setInvoiceNumber] = useState(
-    `FAC-${Date.now().toString().slice(-6)}`
+    `FAC-${Date.now().toString().slice(-6)}`,
   );
   const [registerAsSale, setRegisterAsSale] = useState(true);
 
   const customerClients = useMemo(
     () => clients.filter((c) => c.type === "cliente"),
-    [clients]
+    [clients],
   );
 
   const total = useMemo(() => {
@@ -74,7 +74,7 @@ export const Facturador: React.FC = () => {
   const updateItem = (
     index: number,
     field: keyof InvoiceItem,
-    value: string | number
+    value: string | number,
   ) => {
     const newItems = [...items];
     if (field === "description") {
@@ -87,7 +87,7 @@ export const Facturador: React.FC = () => {
 
   const addProductToInvoice = (product: (typeof products)[0]) => {
     const existingIndex = items.findIndex(
-      (i) => i.description === product.name
+      (i) => i.description === product.name,
     );
     if (existingIndex >= 0) {
       const newItems = [...items];
@@ -116,7 +116,7 @@ export const Facturador: React.FC = () => {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(24);
     doc.setFont("helvetica", "bold");
-    doc.text(settings.businessName || "UP", 20, 25);
+    doc.text(settings.businessName || "Polaris", 20, 25);
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
@@ -175,7 +175,7 @@ export const Facturador: React.FC = () => {
         doc.text(
           formatCurrency(item.quantity * item.price, settings.currencySymbol),
           175,
-          y
+          y,
         );
         y += 8;
       });
@@ -196,7 +196,7 @@ export const Facturador: React.FC = () => {
     doc.setFontSize(8);
     doc.setTextColor(128, 128, 128);
     doc.text("Gracias por su compra", pageWidth / 2, 280, { align: "center" });
-    doc.text("Generado con UP", pageWidth / 2, 285, { align: "center" });
+    doc.text("Generado con Polaris", pageWidth / 2, 285, { align: "center" });
 
     // Save
     doc.save(`factura_${invoiceNumber}.pdf`);
@@ -215,7 +215,7 @@ export const Facturador: React.FC = () => {
         title: "Venta registrada",
         description: `Se registró una venta por ${formatCurrency(
           total,
-          settings.currencySymbol
+          settings.currencySymbol,
         )}`,
       });
     }
@@ -312,7 +312,7 @@ export const Facturador: React.FC = () => {
                     "w-full p-3 rounded-xl border-2 transition-all text-sm font-medium",
                     registerAsSale
                       ? "border-success bg-success/10 text-success"
-                      : "border-border text-muted-foreground"
+                      : "border-border text-muted-foreground",
                   )}
                 >
                   {registerAsSale
@@ -375,7 +375,7 @@ export const Facturador: React.FC = () => {
                     <span className="font-semibold text-success sm:hidden">
                       {formatCurrency(
                         item.quantity * item.price,
-                        settings.currencySymbol
+                        settings.currencySymbol,
                       )}
                     </span>
                     <Button
@@ -430,7 +430,7 @@ export const Facturador: React.FC = () => {
                       "w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left",
                       selectedClientId === client.id
                         ? "bg-primary/10 border-2 border-primary"
-                        : "bg-muted hover:bg-muted/80 border-2 border-transparent"
+                        : "bg-muted hover:bg-muted/80 border-2 border-transparent",
                     )}
                   >
                     <div>

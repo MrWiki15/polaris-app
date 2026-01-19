@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg", "robots.txt"],
       manifest: {
-        name: "UP - Panel de Control",
-        short_name: "UP",
+        name: "Polaris - Panel de Control",
+        short_name: "Polaris",
         description: "Gestiona tu negocio: ventas, gastos, inventario y más",
         theme_color: "#2563eb",
         background_color: "#ffffff",

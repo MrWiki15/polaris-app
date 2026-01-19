@@ -245,7 +245,7 @@ export const Premium: React.FC = () => {
 
   const handleWhatsAppContact = () => {
     const message = encodeURIComponent(
-      "Hola, me interesa obtener un código premium para UP, cual es el precio ?",
+      "Hola, me interesa obtener un código premium para Polaris, cual es el precio ?",
     );
     const url = `https://wa.me/${WHATSAPP_NUMBER.replace(
       /[^0-9]/g,
@@ -308,7 +308,7 @@ export const Premium: React.FC = () => {
               <p className="text-sm text-muted-foreground">
                 {isPremium || promotionActive
                   ? "Disfruta de todas las funcionalidades premium"
-                  : "Desbloquea el poder completo de UP"}
+                  : "Desbloquea el poder completo de Polaris"}
               </p>
             </div>
           </div>

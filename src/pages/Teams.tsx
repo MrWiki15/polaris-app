@@ -31,7 +31,8 @@ import {
 import { cn } from "@/lib/utils";
 import { ethers } from "ethers";
 import { encrypt } from "@/lib/crypto";
-import { createHederaWallet } from "@/lib/wallet";
+import { createHederaNftCollection, createHederaWallet } from "@/lib/wallet";
+import { Collection } from "@zxing/library/esm/customTypings";
 
 type ProjectMember = {
   email: string;
@@ -43,6 +44,12 @@ type Wallet = {
   name: string;
   address: string;
   privateKey: string;
+};
+
+type Collection = {
+  tokenId: string;
+  supplyKey: string;
+  metadataKey: string;
 };
 
 type Project = {
@@ -57,6 +64,7 @@ type Project = {
   data?: Record<string, any> | null;
   history?: Record<string, any>[] | null;
   wallets: Wallet[];
+  collection: Collection;
   initial_balance?: string | null;
 };
 
@@ -117,7 +125,7 @@ export default function Teams() {
   const [name, setName] = useState("");
   const [type, setType] = useState<"tradicional" | "digital">("tradicional");
   const [departaments, setDepartaments] = useState<string[]>(
-    DEPARTAMENTS.map((d) => d.id)
+    DEPARTAMENTS.map((d) => d.id),
   );
   const [initialBalance, setInitialBalance] = useState<string>("0");
   const [file, setFile] = useState<File | null>(null);
@@ -136,7 +144,7 @@ export default function Teams() {
     setDepartaments((prev) =>
       checked
         ? Array.from(new Set([...prev, id]))
-        : prev.filter((d) => d !== id)
+        : prev.filter((d) => d !== id),
     );
   };
 
@@ -181,6 +189,10 @@ export default function Teams() {
         }
       }
 
+      //crear la coleccion nft del proyecto
+      const nftColection = await createHederaNftCollection(name);
+      const collection = nftColection;
+
       const newProject: Omit<Project, "id"> = {
         name,
         image: imageUrl,
@@ -196,6 +208,7 @@ export default function Teams() {
         data: {},
         history: [],
         wallets,
+        collection,
         initial_balance: initialBalance || "0",
       };
 
@@ -241,7 +254,7 @@ export default function Teams() {
       if (error) throw error;
       const members = (data?.members as ProjectMember[]) || [];
       const exists = members.some(
-        (m) => m.email.toLowerCase() === memberEmail.toLowerCase()
+        (m) => m.email.toLowerCase() === memberEmail.toLowerCase(),
       );
       if (exists) {
         toast({
@@ -298,7 +311,7 @@ export default function Teams() {
       if (error) throw error;
       const members = (data?.members as ProjectMember[]) || [];
       const updatedMembers = members.filter(
-        (m) => m.email.toLowerCase() !== member.email.toLowerCase()
+        (m) => m.email.toLowerCase() !== member.email.toLowerCase(),
       );
       const { error: updateError } = await supabase
         .from("projects")
@@ -324,7 +337,7 @@ export default function Teams() {
 
   if (isRestrictedDirector) {
     const activeProject = (projects || []).find(
-      (p) => p.id === currentProject!.id
+      (p) => p.id === currentProject!.id,
     );
     const members = activeProject?.members || currentProject!.members || [];
 
@@ -422,7 +435,7 @@ export default function Teams() {
                         key={d.id}
                         className={cn(
                           "flex items-center gap-2 rounded-md border p-2",
-                          checked ? "bg-muted" : ""
+                          checked ? "bg-muted" : "",
                         )}
                       >
                         <Checkbox
@@ -489,7 +502,7 @@ export default function Teams() {
                   wallets: p.wallets || [],
                   initial_balance: p.initial_balance,
                 },
-                member
+                member,
               );
             }}
           >
