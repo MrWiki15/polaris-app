@@ -1,8 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider } from "@/contexts/AppContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
@@ -27,17 +26,49 @@ import NotFound from "@/pages/NotFound";
 import Teams from "./pages/Teams";
 import History from "./pages/History";
 import Wallet from "./pages/Wallet";
+import Onboarding from "./pages/Onboarding";
+import { useState, useEffect } from "react";
 
 const queryClient = new QueryClient();
+
+// Component to check if user is new
+const OnboardingRoute = () => {
+  const [isNew, setIsNew] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const hasData = localStorage.getItem("negocio360_data");
+    const hasCompleted = localStorage.getItem(
+      "negocio360_onboarding_completed",
+    );
+
+    // Si no tiene data y no ha completado el onboarding, es nuevo
+    if (!hasData && !hasCompleted) {
+      setIsNew(true);
+    }
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-900">
+        <div className="text-white">Cargando...</div>
+      </div>
+    );
+  }
+
+  return isNew ? <Onboarding /> : <Navigate to="/" replace />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AppProvider>
       <TooltipProvider>
         <Toaster />
-        <Sonner />
+
         <BrowserRouter>
           <Routes>
+            <Route path="/onboarding" element={<OnboardingRoute />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/ingresos" element={<Ventas />} />

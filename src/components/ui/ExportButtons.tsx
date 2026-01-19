@@ -21,7 +21,7 @@ interface ExportButtonsProps {
 export const ExportButtons: React.FC<ExportButtonsProps> = ({
   data,
   filename = "reporte",
-  isPremium = false,
+  isPremium = true,
   className,
 }) => {
   const handleExportPDF = () => {

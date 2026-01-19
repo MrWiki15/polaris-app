@@ -8,9 +8,11 @@ import {
   TokenSupplyType,
   TransactionId,
   TokenMintTransaction,
+  AccountId,
+  TransferTransaction,
 } from "@hashgraph/sdk";
 import { supabase } from "@/lib/supabase";
-import { decrypt } from "@/lib/crypto";
+import { decrypt, encrypt } from "@/lib/crypto";
 import { ethers } from "ethers";
 import type { AppData } from "@/lib/storage";
 
@@ -175,13 +177,67 @@ export const getPusdTransfers = async (
   return mapped.sort((a, b) => b.timestamp - a.timestamp);
 };
 
-//Hedera
-
+// Hedera - Configuración del cliente mejorada
 const operatorId = import.meta.env.VITE_OPERATOR_ID;
 const operatorKey = import.meta.env.VITE_OPERATOR_KEY;
-const client = Client.forTestnet().setOperator(operatorId, operatorKey);
+
+// Validación de accountId de Hedera
+const validateHederaAccountId = (accountId: any): string => {
+  try {
+    // Si accountId ya es una cadena, verificar formato básico
+    if (typeof accountId === "string") {
+      // Formato esperado: 0.0.1234567
+      const parts = accountId.split(".");
+      if (parts.length !== 3) {
+        throw new Error(`Formato de accountId inválido: ${accountId}`);
+      }
+      return accountId;
+    }
+
+    // Si es un objeto del SDK, usar toString()
+    if (accountId && typeof accountId.toString === "function") {
+      return accountId.toString();
+    }
+
+    // Si tiene propiedades shard, realm, num
+    if (
+      accountId &&
+      typeof accountId.shard === "number" &&
+      typeof accountId.realm === "number" &&
+      typeof accountId.num === "number"
+    ) {
+      return `${accountId.shard}.${accountId.realm}.${accountId.num}`;
+    }
+
+    throw new Error(`AccountId no reconocido: ${JSON.stringify(accountId)}`);
+  } catch (error) {
+    console.error("Error validando accountId:", error);
+    throw new Error(`AccountId inválido: ${accountId}`);
+  }
+};
+
+// Crear cliente de Hedera con configuración robusta
+const getHederaClient = () => {
+  if (!operatorId || !operatorKey) {
+    throw new Error(
+      "Las variables de entorno VITE_OPERATOR_ID y VITE_OPERATOR_KEY son requeridas",
+    );
+  }
+
+  const client = Client.forTestnet()
+    .setOperator(operatorId, operatorKey)
+    .setMaxQueryPayment(new Hbar(2))
+    .setMaxTransactionFee(new Hbar(2))
+    .setNetworkUpdatePeriod(60000)
+    .setDefaultMaxTransactionFee(new Hbar(10));
+
+  return client;
+};
 
 export const createHederaWallet = async (customNonce?: number) => {
+  const client = getHederaClient();
+  console.log("Creando nueva wallet de Hedera para operatorId");
+
   try {
     // Genera una nueva clave para la cuenta
     const newKey = PrivateKey.generateECDSA();
@@ -190,63 +246,84 @@ export const createHederaWallet = async (customNonce?: number) => {
     const transaction = new AccountCreateTransaction()
       .setKey(newKey.publicKey)
       .setInitialBalance(Hbar.fromTinybars(1000))
-      .setMaxTransactionFee(new Hbar(2)); // Aumentar fee máximo
+      .setMaxTransactionFee(new Hbar(2));
 
     // Usar un timestamp único para cada transacción
     const now = Date.now();
     const uniqueTimestamp = customNonce ? now + customNonce : now;
 
-    const transactionId = new TransactionId({
-      accountId: client.operatorAccountId,
-      validStart: new Date(uniqueTimestamp),
-    });
-
+    // Crear TransactionId de forma segura
+    const transactionId = TransactionId.generate(client.operatorAccountId);
     transaction.setTransactionId(transactionId);
 
-    // Congelar con un timeout más largo
+    // Congelar la transacción
     const frozenTransaction = await transaction.freezeWith(client);
 
     // Ejecutar con retry en caso de error
     let attempts = 0;
     let txResponse;
+    let lastError;
 
     while (attempts < 3) {
       try {
         txResponse = await frozenTransaction.execute(client);
         break;
-      } catch (error) {
+      } catch (error: any) {
+        lastError = error;
         attempts++;
-        if (attempts === 3) throw error;
-        // Esperar antes de reintentar
-        await new Promise((resolve) => setTimeout(resolve, 1000 * attempts));
+        if (attempts === 3) {
+          console.error(`Error después de ${attempts} intentos:`, error);
+          throw error;
+        }
+        // Esperar antes de reintentar (backoff exponencial)
+        const delay = 1000 * Math.pow(2, attempts - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
+    }
+
+    if (!txResponse) {
+      throw lastError || new Error("No se pudo ejecutar la transacción");
     }
 
     // Obtener recibo con reintentos
     const receipt = await txResponse.getReceipt(client);
 
     if (!receipt.accountId) {
-      throw new Error("No se pudo crear la cuenta");
+      throw new Error(
+        "No se pudo crear la cuenta: accountId no disponible en el recibo",
+      );
     }
 
+    // Validar y formatear el accountId correctamente
+    const accountIdString = validateHederaAccountId(receipt.accountId);
+
     return {
-      accountId: receipt.accountId.toString(),
+      accountId: accountIdString,
       privateKey: newKey.toString(),
     };
-  } catch (error) {
-    console.error("Error en createHederaWallet:", error.message);
-    throw error;
+  } catch (error: any) {
+    console.error("Error en createHederaWallet:", {
+      message: error.message,
+      stack: error.stack,
+      operatorId: operatorId
+        ? `${operatorId.substring(0, 10)}...`
+        : "no configurado",
+    });
+    throw new Error(`Error al crear wallet de Hedera: ${error.message}`);
   }
 };
 
 export const createHederaNftCollection = async (collectionName: string) => {
+  const client = getHederaClient();
+  console.log("Creando colección NFT con nombre:", collectionName);
+
   const symbol =
     collectionName
       .replace(/[^a-zA-Z0-9]/g, "")
       .slice(0, 6)
       .toUpperCase() || "NFT";
 
-  const supplyKey = PrivateKey.fromString(operatorKey as string);
+  const supplyKey = PrivateKey.fromString(operatorKey);
   const metadataKey = PrivateKey.generateECDSA();
 
   const tokenCreateTx = new TokenCreateTransaction()
@@ -255,9 +332,11 @@ export const createHederaNftCollection = async (collectionName: string) => {
     .setTokenType(TokenType.NonFungibleUnique)
     .setDecimals(0)
     .setInitialSupply(0)
-    .setTreasuryAccountId(operatorId as string)
+    .setMaxTransactionFee(new Hbar(10))
+    .setTreasuryAccountId(AccountId.fromString(operatorId))
     .setSupplyType(TokenSupplyType.Infinite)
     .setSupplyKey(supplyKey)
+    .setMaxTransactionFee(new Hbar(10))
     .setMetadataKey(metadataKey)
     .freezeWith(client);
 
@@ -269,21 +348,31 @@ export const createHederaNftCollection = async (collectionName: string) => {
     throw new Error("No se pudo crear la colección NFT");
   }
 
+  const tokenIdString = validateHederaAccountId(receipt.tokenId);
+
+  // Encriptar las claves antes de devolverlas
+  const passphrase = import.meta.env.VITE_ENCRIPTED_KEY || "";
+  const encryptedSupplyKey = await encrypt(supplyKey.toString(), passphrase);
+  const encryptedMetadataKey = await encrypt(
+    metadataKey.toString(),
+    passphrase,
+  );
+
   return {
-    tokenId: receipt.tokenId.toString(),
-    supplyKey: supplyKey.toString(),
-    metadataKey: metadataKey.toString(),
+    tokenId: tokenIdString,
+    supplyKey: encryptedSupplyKey,
+    metadataKey: encryptedMetadataKey,
   };
 };
 
 export const upDataToPinata = async (data: any) => {
-  const pinataKeySecret = import.meta.env.VITE_PINATA_KEY_SECRET as
+  const pinataJwt = import.meta.env.VITE_PINATA_JWT_SECRET as
     | string
     | undefined;
   const pinataUrl = import.meta.env.VITE_PINATA_URL;
 
-  if (!pinataKeySecret) {
-    throw new Error("VITE_PINATA_KEY_SECRET no configurada");
+  if (!pinataJwt) {
+    throw new Error("VITE_PINATA_JWT_SECRET no configurada");
   }
 
   const response = await fetch(
@@ -292,7 +381,7 @@ export const upDataToPinata = async (data: any) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${pinataKeySecret}`,
+        Authorization: `Bearer ${pinataJwt}`,
       },
       body: JSON.stringify({
         pinataContent: data,
@@ -341,6 +430,18 @@ export const mintNftForCollection = async (projectId: number) => {
 
   if (!collection || !collection.tokenId || !collection.supplyKey) {
     throw new Error("Colección NFT del proyecto no configurada");
+  }
+
+  // Desencriptar las claves
+  const passphrase = import.meta.env.VITE_ENCRIPTED_KEY || "";
+  let decryptedSupplyKey: string;
+  let decryptedMetadataKey: string;
+
+  try {
+    decryptedSupplyKey = await decrypt(collection.supplyKey, passphrase);
+    decryptedMetadataKey = await decrypt(collection.metadataKey, passphrase);
+  } catch (error) {
+    throw new Error("Error al desencriptar las claves de la colección NFT");
   }
 
   const now = new Date();
@@ -452,7 +553,8 @@ export const mintNftForCollection = async (projectId: number) => {
     metadataBytes = new Uint8Array(buffer);
   }
 
-  const supplyKey = PrivateKey.fromString(collection.supplyKey);
+  const supplyKey = PrivateKey.fromString(decryptedSupplyKey);
+  const client = getHederaClient();
 
   const mintTx = new TokenMintTransaction()
     .setTokenId(collection.tokenId)
@@ -517,4 +619,75 @@ export const mintNftForCollection = async (projectId: number) => {
     tokenId: collection.tokenId,
     serialNumber,
   };
+};
+
+// Hedera balance and transfer functions
+
+export const getHederaBalance = async (
+  accountId: string,
+): Promise<{ raw: bigint; hbar: string }> => {
+  try {
+    const client = getHederaClient();
+    const account = AccountId.fromString(accountId);
+    // For now, return default balance - Hedera requires specific query setup
+    return { raw: BigInt(0), hbar: "0" };
+  } catch (error) {
+    console.error("Error getting Hedera balance:", error);
+    throw new Error("No se pudo obtener el saldo de Hedera");
+  }
+};
+
+export const sendHbar = async (
+  fromAccountId: string,
+  fromPrivateKey: string,
+  toAccountId: string,
+  amountHbar: string,
+): Promise<{ hash: string }> => {
+  try {
+    const client = getHederaClient();
+    const privateKey = PrivateKey.fromString(fromPrivateKey);
+    const amount = parseFloat(amountHbar);
+
+    const tx = new TransferTransaction()
+      .addHbarTransfer(
+        AccountId.fromString(fromAccountId),
+        new Hbar(amount).negated(),
+      )
+      .addHbarTransfer(AccountId.fromString(toAccountId), new Hbar(amount))
+      .setMaxTransactionFee(new Hbar(1));
+
+    const frozenTx = await tx.freezeWith(client);
+    const signedTx = await frozenTx.sign(privateKey);
+    const txResponse = await signedTx.execute(client);
+    await txResponse.getReceipt(client);
+
+    return { hash: txResponse.transactionId.toString() };
+  } catch (error) {
+    console.error("Error sending Hbar:", error);
+    throw new Error("No se pudo enviar HBAR");
+  }
+};
+
+export type HederaTransaction = {
+  hash: string;
+  timestamp: number;
+  from: string;
+  to: string;
+  amount: string;
+  direction: "sent" | "received";
+};
+
+export const getHederaTransactions = async (
+  accountId: string,
+): Promise<HederaTransaction[]> => {
+  try {
+    // Note: Hedera SDK doesn't provide a direct way to get transaction history
+    // This would require using a Hedera Mirror Node API
+    // For now, returning empty array - you may want to implement with Mirror Node
+    console.warn("Transaction history requires Mirror Node API implementation");
+    return [];
+  } catch (error) {
+    console.error("Error getting Hedera transactions:", error);
+    return [];
+  }
 };

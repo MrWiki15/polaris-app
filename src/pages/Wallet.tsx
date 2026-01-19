@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,10 @@ import {
   getPusdTransfers,
   sendPusd,
   mintNftForCollection,
+  getHederaBalance,
+  sendHbar,
+  getHederaTransactions,
+  type HederaTransaction,
 } from "@/lib/wallet";
 import type { Expense, AppData } from "@/lib/storage";
 import {
@@ -20,6 +25,9 @@ import {
   Copy,
   Download,
   Settings,
+  ExternalLink,
+  Calendar,
+  Award,
 } from "lucide-react";
 import {
   Dialog,
@@ -87,12 +95,31 @@ type ProjectWallet = {
   privateKey: string;
 };
 
+type PeriodHistory = {
+  id: string;
+  type: "period";
+  startDate: string;
+  endDate: string;
+  totals: {
+    ingresos: number;
+    gastos: number;
+    inventarioCoste: number;
+    inventarioPrecio: number;
+  };
+  ipfsHash: string;
+  ipfsUri: string;
+  ipfsGatewayUrl: string;
+  tokenId: string;
+  serialNumber: number;
+};
+
 type ProjectDetails = {
   id: number;
   name: string;
   wallets: ProjectWallet[];
   initial_balance?: string | null;
   data?: ProjectDataPayload | null;
+  history?: PeriodHistory[];
 };
 
 const DEPARTAMENT_LABELS: Record<string, string> = {
@@ -114,6 +141,7 @@ export default function Wallet() {
     addReinvestmentExecution,
   } = useApp();
   const [wallet, setWallet] = useState<UserWallet | null>(null);
+  const [hederaAccountId, setHederaAccountId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [toAddress, setToAddress] = useState("");
   const [amountUsd, setAmountUsd] = useState("");
@@ -163,6 +191,7 @@ export default function Wallet() {
       return total + productProfit;
     }, 0);
   }, [data.products]);
+
   const totalBalance = useMemo(() => {
     return transferableBalance + nonTransferableBalance + symbolicBalance;
   }, [transferableBalance, nonTransferableBalance, symbolicBalance]);
@@ -221,7 +250,7 @@ export default function Wallet() {
       if (!currentProject?.id) return null;
       const { data: project, error } = await supabase
         .from("projects")
-        .select("id,name,wallets,initial_balance,data")
+        .select("id,name,wallets,initial_balance,data,history")
         .eq("id", currentProject.id)
         .single();
       if (error) {
@@ -233,7 +262,7 @@ export default function Wallet() {
 
   const projectWalletData: ProjectWalletData | null = useMemo(() => {
     if (!projectDetails || !projectDetails.data) return null;
-    const raw = projectDetails.data.projectWallet || {};
+    const raw = (projectDetails.data.projectWallet || {}) as ProjectWalletData;
     return {
       transactions: raw.transactions || [],
       requests: raw.requests || [],
@@ -257,6 +286,62 @@ export default function Wallet() {
       });
     },
   });
+
+  // Project balance calculations (similar to personal mode)
+  const projectTransferableBalance = useMemo(() => {
+    if (!projectDetails?.data) return 0;
+    const initialBalance = toNumber(projectDetails.initial_balance || 0);
+    const expenses = projectDetails.data.expenses || [];
+    const serviceIncomes = projectDetails.data.serviceIncomes || [];
+
+    const expensesTotal = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const serviceIncomesTotal = serviceIncomes.reduce(
+      (sum, s) => sum + (s.amount || 0),
+      0,
+    );
+
+    return initialBalance + serviceIncomesTotal - expensesTotal;
+  }, [projectDetails]);
+
+  const projectNonTransferableBalance = useMemo(() => {
+    if (!projectDetails?.data) return 0;
+    const sales = projectDetails.data.sales || [];
+    const products = projectDetails.data.products || [];
+    return sales.reduce((total, sale) => {
+      const quantity = sale.quantity || 1;
+      let costTotal = 0;
+      if (sale.productId) {
+        const product = products.find((p) => p.id === sale.productId);
+        if (product) {
+          costTotal = product.cost * quantity;
+        }
+      }
+      const profit = sale.amount - costTotal;
+      return total + profit;
+    }, 0);
+  }, [projectDetails?.data]);
+
+  const projectSymbolicBalance = useMemo(() => {
+    if (!projectDetails?.data) return 0;
+    const products = projectDetails.data.products || [];
+    return products.reduce((total, p) => {
+      const unitProfit = p.price - p.cost;
+      const productProfit = unitProfit * p.quantity;
+      return total + productProfit;
+    }, 0);
+  }, [projectDetails?.data]);
+
+  const projectTotalBalance = useMemo(() => {
+    return (
+      projectTransferableBalance +
+      projectNonTransferableBalance +
+      projectSymbolicBalance
+    );
+  }, [
+    projectTransferableBalance,
+    projectNonTransferableBalance,
+    projectSymbolicBalance,
+  ]);
 
   const getDepartamentLabel = (id: string) => {
     return DEPARTAMENT_LABELS[id] || id;
@@ -353,35 +438,64 @@ export default function Wallet() {
 
   useEffect(() => {
     const load = async () => {
-      if (!isPersonalMode) return;
       if (!supabaseAuth.user?.id) return;
       setLoading(true);
-      const w = await getUserWallet(supabaseAuth.user.id);
-      setWallet(w);
-      try {
-        const b = await getPusdBalance(supabaseAuth.user.id);
-        setBalance(
-          ethers.formatUnits
-            ? ethers.formatUnits(b.raw, b.decimals)
-            : (Number(b.raw) / Math.pow(10, b.decimals)).toString(),
-        );
-      } catch {
-        setBalance("0.00");
+
+      if (isPersonalMode) {
+        // Load personal Plume wallet (PUSD)
+        const w = await getUserWallet(supabaseAuth.user.id);
+        setWallet(w);
+        setHederaAccountId(null);
+        try {
+          const b = await getPusdBalance(supabaseAuth.user.id);
+          setBalance(
+            ethers.formatUnits
+              ? ethers.formatUnits(b.raw, b.decimals)
+              : (Number(b.raw) / Math.pow(10, b.decimals)).toString(),
+          );
+        } catch {
+          setBalance("0.00");
+        }
+        try {
+          const t = await getPusdTransfers(supabaseAuth.user.id);
+          setTransfers(t);
+        } catch {
+          setTransfers([]);
+        }
+      } else {
+        // Load project Hedera wallet (HBAR) + project balances
+        setWallet(null);
+        if (projectDetails?.wallets && projectDetails.wallets.length > 0) {
+          const projectWallet = projectDetails.wallets[0];
+          // projectWallet.address should contain the Hedera account ID
+          setHederaAccountId(projectWallet.address);
+
+          // Use the project total balance (transferable + non-transferable + symbolic)
+          setBalance(projectTotalBalance.toString());
+
+          try {
+            const t = await getHederaTransactions(projectWallet.address);
+            setTransfers(t);
+          } catch {
+            setTransfers([]);
+          }
+        }
       }
-      try {
-        const t = await getPusdTransfers(supabaseAuth.user.id);
-        setTransfers(t);
-      } catch {
-        setTransfers([]);
-      }
+
       setLoading(false);
     };
     load();
-  }, [supabaseAuth.user?.id, isPersonalMode]);
+  }, [
+    supabaseAuth.user?.id,
+    isPersonalMode,
+    projectDetails,
+    projectTotalBalance,
+  ]);
 
   const copyAddress = async () => {
-    if (!wallet?.address) return;
-    await navigator.clipboard.writeText(wallet.address);
+    const addressToCopy = isPersonalMode ? wallet?.address : hederaAccountId;
+    if (!addressToCopy) return;
+    await navigator.clipboard.writeText(addressToCopy);
     toast({ title: "Dirección copiada", description: "Se copió tu dirección" });
   };
 
@@ -397,21 +511,47 @@ export default function Wallet() {
     }
     try {
       setLoading(true);
-      const res = await sendPusd(supabaseAuth.user.id, toAddress, amountUsd);
-      toast({
-        title: "Enviado",
-        description: `Tx: ${res.hash}`,
-      });
-      setToAddress("");
-      setAmountUsd("");
-      const b = await getPusdBalance(supabaseAuth.user.id);
-      setBalance(
-        ethers.formatUnits
-          ? ethers.formatUnits(b.raw, b.decimals)
-          : (Number(b.raw) / Math.pow(10, b.decimals)).toString(),
-      );
-      const t = await getPusdTransfers(supabaseAuth.user.id);
-      setTransfers(t);
+
+      if (isPersonalMode) {
+        // Personal mode: send PUSD
+        const res = await sendPusd(supabaseAuth.user.id, toAddress, amountUsd);
+        toast({
+          title: "Enviado",
+          description: `Tx: ${res.hash}`,
+        });
+        setToAddress("");
+        setAmountUsd("");
+        const b = await getPusdBalance(supabaseAuth.user.id);
+        setBalance(
+          ethers.formatUnits
+            ? ethers.formatUnits(b.raw, b.decimals)
+            : (Number(b.raw) / Math.pow(10, b.decimals)).toString(),
+        );
+        const t = await getPusdTransfers(supabaseAuth.user.id);
+        setTransfers(t);
+      } else {
+        // Project mode: send HBAR
+        if (!hederaAccountId || !projectDetails?.wallets?.[0]) {
+          throw new Error("No Hedera wallet configured for project");
+        }
+        const projectWallet = projectDetails.wallets[0];
+        const res = await sendHbar(
+          hederaAccountId,
+          projectWallet.privateKey,
+          toAddress,
+          amountUsd,
+        );
+        toast({
+          title: "Enviado",
+          description: `Tx: ${res.hash}`,
+        });
+        setToAddress("");
+        setAmountUsd("");
+        const b = await getHederaBalance(hederaAccountId);
+        setBalance(b.hbar);
+        const t = await getHederaTransactions(hederaAccountId);
+        setTransfers(t);
+      }
     } catch (err) {
       toast({
         title: "Error al enviar",
@@ -861,7 +1001,7 @@ export default function Wallet() {
               currentProjectMember?.departament === "direccion" &&
               currentProjectMember?.role
                 ?.toLowerCase()
-                ?.includes("director") && (
+                ?.includes("direccion") && (
                 <div className="ml-auto">
                   <Dialog>
                     <DialogTrigger asChild>
@@ -873,15 +1013,15 @@ export default function Wallet() {
                         <Settings className="w-5 h-5" />
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-h-[80vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle>Configuración de wallet</DialogTitle>
                       </DialogHeader>
-                      <div className="space-y-4 mt-2">
-                        <div className="text-sm text-muted-foreground">
-                          Acciones sobre periodos y certificaciones.
-                        </div>
-                        <div className="flex gap-2">
+                      <div className="space-y-6 mt-2">
+                        <div>
+                          <div className="text-sm text-muted-foreground mb-3">
+                            Acciones sobre periodos y certificaciones.
+                          </div>
                           <Button
                             onClick={async () => {
                               if (!currentProject?.id) return;
@@ -914,10 +1054,90 @@ export default function Wallet() {
                               }
                             }}
                             disabled={closingPeriod}
+                            className="w-full"
                           >
                             {closingPeriod ? "Cerrando..." : "Cerrar periodo"}
                           </Button>
                         </div>
+
+                        {projectDetails?.history &&
+                          projectDetails.history.length > 0 && (
+                            <div className="border-t border-border pt-4">
+                              <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                                <Award className="w-4 h-4" />
+                                Períodos cerrados
+                              </h3>
+                              <div className="space-y-3">
+                                {projectDetails.history
+                                  .filter((h: any) => h.type === "period")
+                                  .reverse()
+                                  .map((period: PeriodHistory) => (
+                                    <div
+                                      key={period.id}
+                                      className="border border-border rounded-lg p-3 space-y-2"
+                                    >
+                                      <div className="flex items-start justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <Calendar className="w-4 h-4 text-primary" />
+                                          <div>
+                                            <div className="text-sm font-medium">
+                                              {new Date(
+                                                period.startDate,
+                                              ).toLocaleDateString()}{" "}
+                                              -{" "}
+                                              {new Date(
+                                                period.endDate,
+                                              ).toLocaleDateString()}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                              NFT #{period.serialNumber}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <div>
+                                          <span className="text-muted-foreground">
+                                            Ingresos:
+                                          </span>
+                                          <div className="font-medium">
+                                            ${period.totals.ingresos.toFixed(2)}
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <span className="text-muted-foreground">
+                                            Gastos:
+                                          </span>
+                                          <div className="font-medium">
+                                            ${period.totals.gastos.toFixed(2)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <a
+                                          href={`https://hashscan.io/testnet/token/${period.tokenId}?serial=${period.serialNumber}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                        >
+                                          HashScan{" "}
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                        <a
+                                          href={period.ipfsGatewayUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                        >
+                                          IPFS{" "}
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
                       </div>
                     </DialogContent>
                   </Dialog>
@@ -1332,10 +1552,15 @@ export default function Wallet() {
         <div className="space-y-6">
           <div className="text-center py-6">
             <div className="text-4xl sm:text-5xl font-bold tracking-tight">
-              {loading ? "..." : formatUsd(totalBalance)}
+              {loading
+                ? "..."
+                : formatUsd(
+                    isPersonalMode ? totalBalance : projectTotalBalance,
+                  )}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Saldo total combinando todos tus saldos
+              Saldo total{" "}
+              {isPersonalMode ? "combinando todos tus saldos" : "del proyecto"}
             </div>
           </div>
 
@@ -1345,7 +1570,11 @@ export default function Wallet() {
                 Saldo transferible
               </div>
               <div className="text-lg font-semibold">
-                {formatUsd(transferableBalance)}
+                {formatUsd(
+                  isPersonalMode
+                    ? transferableBalance
+                    : projectTransferableBalance,
+                )}
               </div>
             </div>
             <div className="border border-border rounded-xl p-3">
@@ -1353,7 +1582,11 @@ export default function Wallet() {
                 Saldo no transferible
               </div>
               <div className="text-lg font-semibold">
-                {formatUsd(remainingNonTransferable)}
+                {formatUsd(
+                  isPersonalMode
+                    ? remainingNonTransferable
+                    : projectNonTransferableBalance,
+                )}
               </div>
             </div>
             <div className="border border-border rounded-xl p-3">
@@ -1361,7 +1594,9 @@ export default function Wallet() {
                 Saldo simbólico
               </div>
               <div className="text-lg font-semibold">
-                {formatUsd(symbolicBalance)}
+                {formatUsd(
+                  isPersonalMode ? symbolicBalance : projectSymbolicBalance,
+                )}
               </div>
             </div>
           </div>
@@ -1379,11 +1614,27 @@ export default function Wallet() {
                   <DialogTitle>Recibir saldo</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3">
-                  {wallet ? (
+                  {isPersonalMode ? (
+                    wallet ? (
+                      <>
+                        <Label>Tu dirección</Label>
+                        <div className="flex items-center gap-2">
+                          <Input readOnly value={wallet.address} />
+                          <Button variant="secondary" onClick={copyAddress}>
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No se encontró tu wallet
+                      </p>
+                    )
+                  ) : hederaAccountId ? (
                     <>
-                      <Label>Tu dirección</Label>
+                      <Label>Dirección del proyecto (Hedera)</Label>
                       <div className="flex items-center gap-2">
-                        <Input readOnly value={wallet.address} />
+                        <Input readOnly value={hederaAccountId} />
                         <Button variant="secondary" onClick={copyAddress}>
                           <Copy className="w-4 h-4" />
                         </Button>
@@ -1391,7 +1642,7 @@ export default function Wallet() {
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      No se encontró tu wallet
+                      No se encontró la wallet del proyecto
                     </p>
                   )}
                 </div>
@@ -1410,15 +1661,18 @@ export default function Wallet() {
                 </DialogHeader>
                 <div className="space-y-3">
                   <div>
-                    <Label>Dirección destino</Label>
+                    <Label>
+                      Dirección destino{" "}
+                      {isPersonalMode ? "(Ethereum/Plume)" : "(Hedera)"}
+                    </Label>
                     <Input
-                      placeholder="0x..."
+                      placeholder={isPersonalMode ? "0x..." : "0.0.xxxxx"}
                       value={toAddress}
                       onChange={(e) => setToAddress(e.target.value)}
                     />
                   </div>
                   <div>
-                    <Label>Monto (USD)</Label>
+                    <Label>Monto {isPersonalMode ? "(PUSD)" : "(HBAR)"}</Label>
                     <Input
                       placeholder="10"
                       value={amountUsd}

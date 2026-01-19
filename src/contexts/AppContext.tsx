@@ -188,8 +188,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   // Supabase auth and sync
   const supabaseAuth = useSupabaseAuth();
-  // const isPremium = data.settings.isPremium || false;
-  const isPremium = true;
+  const isPremium = data.settings.isPremium || true;
+  //const isPremium = true;
   const { isSyncing, isOnline, lastSyncTime, saveToSupabase } = useSupabaseSync(
     supabaseAuth.user?.id,
     isPremium,
@@ -260,23 +260,33 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     isProjectMode,
   ]);
 
-  //actualiza automaticamente la data del proyecto con la data de local storage
-  // useEffect(() => {
-  //   if (!currentProject || !supabaseAuth.isAuthenticated) return;
+  // Automatically save project data to Supabase when in project mode
+  useEffect(() => {
+    if (!isProjectMode || !supabaseAuth.isAuthenticated || !isPremium) return;
 
-  //   const saveProject = async () => {
-  //     try {
-  //       await supabase
-  //         .from("projects")
-  //         .update({ data })
-  //         .eq("id", currentProject.id);
-  //     } catch (err) {
-  //       console.error("Error saving project data:", err);
-  //     }
-  //   };
+    const timer = setTimeout(() => {
+      const saveProject = async () => {
+        try {
+          await supabase
+            .from("projects")
+            .update({ data })
+            .eq("id", currentProject?.id);
+        } catch (err) {
+          console.error("Error saving project data:", err);
+        }
+      };
 
-  //   saveProject();
-  // }, [data, currentProject, supabaseAuth.isAuthenticated]);
+      saveProject();
+    }, 1000); // Debounce saves to prevent too many requests
+
+    return () => clearTimeout(timer);
+  }, [
+    data,
+    isProjectMode,
+    currentProject?.id,
+    supabaseAuth.isAuthenticated,
+    isPremium,
+  ]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));

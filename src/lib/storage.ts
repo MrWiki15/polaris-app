@@ -249,7 +249,7 @@ export const defaultData: AppData = {
     currencySymbol: "$",
     language: "es",
     theme: "system",
-    isPremium: false,
+    isPremium: true,
   },
   departmentBudgetTransactions: [],
 };

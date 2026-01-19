@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Outlet, NavLink, useLocation } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -116,7 +116,8 @@ export const AppLayout: React.FC = () => {
     setCurrentProject,
   } = useApp();
   const location = useLocation();
-  const isPremium = data.settings.isPremium || false;
+  const isPremium = data.settings.isPremium || true;
+  const navigate = useNavigate();
 
   const getFilteredMenuItems = () => {
     // 1. Personal Workspace (No project selected)
