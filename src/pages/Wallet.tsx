@@ -11,9 +11,16 @@ import {
   getPusdBalance,
   getPusdTransfers,
   sendPusd,
+  mintNftForCollection,
 } from "@/lib/wallet";
 import type { Expense, AppData } from "@/lib/storage";
-import { Wallet as WalletIcon, Send, Copy, Download } from "lucide-react";
+import {
+  Wallet as WalletIcon,
+  Send,
+  Copy,
+  Download,
+  Settings,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -201,6 +208,7 @@ export default function Wallet() {
     useState("");
 
   const queryClient = useQueryClient();
+  const [closingPeriod, setClosingPeriod] = useState(false);
 
   const {
     data: projectDetails,
@@ -416,7 +424,9 @@ export default function Wallet() {
   };
 
   const isProjectDirector =
-    !!currentProject && currentProjectMember?.role === "direccion";
+    !!currentProject &&
+    !!currentProjectMember?.role &&
+    currentProjectMember.role.toLowerCase().includes("director");
   const isDireccionDept = currentProjectMember?.departament === "direccion";
   const isEconomiaDept = currentProjectMember?.departament === "economia";
 
@@ -846,6 +856,73 @@ export default function Wallet() {
                 Presupuestos por departamento en USD
               </p>
             </div>
+
+            {currentProject &&
+              currentProjectMember?.departament === "direccion" &&
+              currentProjectMember?.role
+                ?.toLowerCase()
+                ?.includes("director") && (
+                <div className="ml-auto">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Configuración"
+                      >
+                        <Settings className="w-5 h-5" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Configuración de wallet</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 mt-2">
+                        <div className="text-sm text-muted-foreground">
+                          Acciones sobre periodos y certificaciones.
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={async () => {
+                              if (!currentProject?.id) return;
+                              try {
+                                setClosingPeriod(true);
+                                const res = await mintNftForCollection(
+                                  currentProject.id,
+                                );
+                                toast({
+                                  title: "Periodo cerrado",
+                                  description: `NFT minteado: ${res.tokenId} #${res.serialNumber}`,
+                                });
+                                queryClient.invalidateQueries({
+                                  queryKey: [
+                                    "project-wallet",
+                                    currentProject.id,
+                                  ],
+                                });
+                                queryClient.invalidateQueries({
+                                  queryKey: ["projects", currentProject.id],
+                                });
+                              } catch (err: any) {
+                                toast({
+                                  title: "Error",
+                                  description: err?.message || String(err),
+                                  variant: "destructive",
+                                });
+                              } finally {
+                                setClosingPeriod(false);
+                              }
+                            }}
+                            disabled={closingPeriod}
+                          >
+                            {closingPeriod ? "Cerrando..." : "Cerrar periodo"}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
           </div>
 
           <div className="space-y-6">
