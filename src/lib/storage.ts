@@ -48,6 +48,11 @@ export interface Product {
   expirationDate?: string;
   barcode?: string;
   supplierId?: string;
+  additionalPrices?: {
+    id: string;
+    name: string;
+    price: number;
+  }[];
   isNft?: boolean;
   nftAddress?: string;
   nftMarketplace?:

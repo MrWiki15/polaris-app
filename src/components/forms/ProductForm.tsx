@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ScanBarcode, X } from "lucide-react";
+import { ScanBarcode, X, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import {
 import { useApp } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 import { BarcodeScanner } from "../inventory/BarcodeScanner";
+import { generateId } from "@/lib/storage";
 
 interface ProductFormProps {
   onClose: () => void;
@@ -27,6 +28,7 @@ interface ProductFormProps {
     minStock?: number;
     barcode?: string;
     supplierId?: string;
+    additionalPrices?: { id: string; name: string; price: number }[];
     isNft?: boolean;
     nftAddress?: string;
     nftMarketplace?: string;
@@ -60,12 +62,37 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     minStock: editingProduct?.minStock?.toString() || "10",
     barcode: editingProduct?.barcode || "",
     supplierId: editingProduct?.supplierId || "",
+    additionalPrices: editingProduct?.additionalPrices || [],
     isNft: editingProduct?.isNft || false,
     nftAddress: editingProduct?.nftAddress || "",
     nftMarketplace: editingProduct?.nftMarketplace || "",
   });
   // Add state for scanner
   const [showScanner, setShowScanner] = useState(false);
+  const [newPrice, setNewPrice] = useState({ name: "", price: "" });
+
+  const handleAddPrice = () => {
+    if (!newPrice.name || !newPrice.price) return;
+    setFormData((prev) => ({
+      ...prev,
+      additionalPrices: [
+        ...prev.additionalPrices,
+        {
+          id: generateId(),
+          name: newPrice.name,
+          price: parseFloat(newPrice.price),
+        },
+      ],
+    }));
+    setNewPrice({ name: "", price: "" });
+  };
+
+  const handleRemovePrice = (id: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      additionalPrices: prev.additionalPrices.filter((p) => p.id !== id),
+    }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +106,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       minStock: parseInt(formData.minStock) || 10,
       barcode: formData.barcode || undefined,
       supplierId: formData.supplierId || undefined,
+      additionalPrices: formData.additionalPrices,
       isNft: formData.isNft,
       nftAddress:
         formData.isNft && formData.nftAddress ? formData.nftAddress : undefined,
@@ -237,6 +265,66 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                 required
               />
             </div>
+          </div>
+
+          {/* Additional Prices */}
+          <div className="space-y-3 p-3 bg-muted/50 rounded-xl border border-border">
+            <Label className="text-sm font-medium">Precios adicionales</Label>
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="Nombre (ej: Mayorista)"
+                value={newPrice.name}
+                onChange={(e) =>
+                  setNewPrice((prev) => ({ ...prev, name: e.target.value }))
+                }
+                className="flex-1"
+              />
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Precio"
+                value={newPrice.price}
+                onChange={(e) =>
+                  setNewPrice((prev) => ({ ...prev, price: e.target.value }))
+                }
+                className="w-24"
+              />
+              <Button
+                type="button"
+                size="icon"
+                onClick={handleAddPrice}
+                disabled={!newPrice.name || !newPrice.price}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {formData.additionalPrices.length > 0 && (
+              <div className="space-y-2">
+                {formData.additionalPrices.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between p-2 bg-background rounded-lg border border-border"
+                  >
+                    <span className="text-sm font-medium">{p.name}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold">
+                        {settings.currencySymbol}
+                        {p.price}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePrice(p.id)}
+                        className="text-destructive hover:bg-destructive/10 p-1 rounded transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {isPremium && (

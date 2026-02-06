@@ -163,9 +163,16 @@ export const Inventario: React.FC = () => {
       key: "price",
       header: "Precio",
       render: (product: Product) => (
-        <span className="font-semibold text-success">
-          {formatCurrency(product.price, settings.currencySymbol)}
-        </span>
+        <div className="flex flex-col">
+          <span className="font-semibold text-success">
+            {formatCurrency(product.price, settings.currencySymbol)}
+          </span>
+          {product.additionalPrices && product.additionalPrices.length > 0 && (
+            <span className="text-[10px] text-muted-foreground">
+              +{product.additionalPrices.length} precios
+            </span>
+          )}
+        </div>
       ),
     },
     {

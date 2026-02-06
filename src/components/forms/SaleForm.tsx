@@ -34,8 +34,8 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
     editingSale?.productId
       ? "inventory"
       : editingSale?.serviceId
-      ? "service"
-      : "manual"
+        ? "service"
+        : "manual",
   );
   const [categories, setCategories] = useState([
     "Alimentos",
@@ -75,6 +75,9 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
   const [showImputFromNewCategory, setShowInputFromNewCategory] =
     useState(false);
   const [newCategory, setNewcategory] = useState("");
+  const [selectedPriceVariant, setSelectedPriceVariant] =
+    useState<string>("default");
+
   const handleScan = (code: string) => {
     const product = products.find((p) => p.barcode === code);
     if (product) {
@@ -84,6 +87,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
         quantity: "1",
       }));
       setSaleType("inventory");
+      setSelectedPriceVariant("default");
       toast.success(`Producto encontrado: ${product.name}`);
     } else {
       toast.error("Producto no encontrado en el inventario");
@@ -101,9 +105,18 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
   };
 
   const selectedProduct = products.find((p) => p.id === formData.productId);
-  const calculatedAmount = selectedProduct
-    ? selectedProduct.price * parseInt(formData.quantity || "1")
-    : 0;
+
+  const getSelectedPrice = () => {
+    if (!selectedProduct) return 0;
+    if (selectedPriceVariant === "default") return selectedProduct.price;
+    const variant = selectedProduct.additionalPrices?.find(
+      (p) => p.id === selectedPriceVariant,
+    );
+    return variant ? variant.price : selectedProduct.price;
+  };
+
+  const unitPrice = getSelectedPrice();
+  const calculatedAmount = unitPrice * parseInt(formData.quantity || "1");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,6 +139,19 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
         addServiceIncome(serviceData);
       }
     } else {
+      let description = formData.description;
+      if (saleType === "inventory" && selectedProduct) {
+        description = `Ingreso: ${selectedProduct.name} x${formData.quantity}`;
+        if (selectedPriceVariant !== "default") {
+          const variant = selectedProduct.additionalPrices?.find(
+            (p) => p.id === selectedPriceVariant,
+          );
+          if (variant) {
+            description += ` (${variant.name})`;
+          }
+        }
+      }
+
       const saleData = {
         date: cleanDate,
         amount:
@@ -136,10 +162,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
           saleType === "inventory" && selectedProduct?.category
             ? selectedProduct.category
             : formData.category,
-        description:
-          saleType === "inventory" && selectedProduct
-            ? `Ingreso: ${selectedProduct.name} x${formData.quantity}`
-            : formData.description || undefined,
+        description: description || undefined,
         productId: saleType === "inventory" ? formData.productId : undefined,
         quantity:
           saleType === "inventory" ? parseInt(formData.quantity) : undefined,
@@ -169,7 +192,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
         className={cn(
           "relative w-full sm:max-w-md bg-card rounded-t-3xl sm:rounded-2xl shadow-material-xl",
           "animate-slide-in-up sm:animate-scale-in",
-          "max-h-[90vh] overflow-auto"
+          "max-h-[90vh] overflow-auto",
         )}
       >
         {/* Handle bar for mobile */}
@@ -204,7 +227,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                     "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all",
                     saleType === "manual"
                       ? "border-primary bg-primary/5"
-                      : "border-border hover:border-muted-foreground"
+                      : "border-border hover:border-muted-foreground",
                   )}
                 >
                   <DollarSign className="w-4 h-4" />
@@ -217,7 +240,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                     "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all",
                     saleType === "inventory"
                       ? "border-primary bg-primary/5"
-                      : "border-border hover:border-muted-foreground"
+                      : "border-border hover:border-muted-foreground",
                   )}
                 >
                   <Package className="w-4 h-4" />
@@ -273,7 +296,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                           "w-full flex items-center justify-between p-3 rounded-lg transition-all text-left",
                           formData.productId === product.id
                             ? "bg-primary/10 border-2 border-primary"
-                            : "bg-muted hover:bg-muted/80 border-2 border-transparent"
+                            : "bg-muted hover:bg-muted/80 border-2 border-transparent",
                         )}
                       >
                         <div>
@@ -284,7 +307,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                             Stock: {product.quantity} |{" "}
                             {formatCurrency(
                               product.price,
-                              settings.currencySymbol
+                              settings.currencySymbol,
                             )}
                           </span>
                         </div>
@@ -297,6 +320,51 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                   </p>
                 )}
               </div>
+
+              {/* Price Selection */}
+              {selectedProduct &&
+                selectedProduct.additionalPrices &&
+                selectedProduct.additionalPrices.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Precio de venta</Label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPriceVariant("default")}
+                        className={cn(
+                          "px-3 py-2 rounded-lg border text-sm font-medium transition-all",
+                          selectedPriceVariant === "default"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background border-border hover:bg-muted",
+                        )}
+                      >
+                        Principal (
+                        {formatCurrency(
+                          selectedProduct.price,
+                          settings.currencySymbol,
+                        )}
+                        )
+                      </button>
+                      {selectedProduct.additionalPrices.map((price) => (
+                        <button
+                          key={price.id}
+                          type="button"
+                          onClick={() => setSelectedPriceVariant(price.id)}
+                          className={cn(
+                            "px-3 py-2 rounded-lg border text-sm font-medium transition-all",
+                            selectedPriceVariant === price.id
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background border-border hover:bg-muted",
+                          )}
+                        >
+                          {price.name} (
+                          {formatCurrency(price.price, settings.currencySymbol)}
+                          )
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
               {/* Quantity */}
               {selectedProduct && (
@@ -332,7 +400,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                     <span className="text-xl font-bold text-success">
                       {formatCurrency(
                         calculatedAmount,
-                        settings.currencySymbol
+                        settings.currencySymbol,
                       )}
                     </span>
                   </div>
@@ -360,7 +428,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                           "w-full flex items-center justify-between p-3 rounded-lg transition-all text-left",
                           formData.serviceId === svc.id
                             ? "bg-primary/10 border-2 border-primary"
-                            : "bg-muted hover:bg-muted/80 border-2 border-transparent"
+                            : "bg-muted hover:bg-muted/80 border-2 border-transparent",
                         )}
                       >
                         <div>
@@ -372,7 +440,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                               ? "Precio variable"
                               : formatCurrency(
                                   svc.price || 0,
-                                  settings.currencySymbol
+                                  settings.currencySymbol,
                                 )}
                           </span>
                         </div>
@@ -415,7 +483,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                     <span className="text-xl font-bold text-success">
                       {formatCurrency(
                         selectedService.price || 0,
-                        settings.currencySymbol
+                        settings.currencySymbol,
                       )}
                     </span>
                   </div>
@@ -509,7 +577,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                     "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
                     formData.category === cat
                       ? "bg-primary text-primary-foreground shadow-material"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80",
                   )}
                 >
                   {cat}
@@ -540,8 +608,8 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                 saleType === "manual"
                   ? !formData.amount
                   : saleType === "inventory"
-                  ? !formData.productId || !formData.quantity
-                  : !formData.serviceId
+                    ? !formData.productId || !formData.quantity
+                    : !formData.serviceId
               }
             >
               {editingSale ? "Guardar" : "Registrar"}
