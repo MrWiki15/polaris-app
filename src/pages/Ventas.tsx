@@ -1,13 +1,20 @@
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
 import { FloatingButton } from "@/components/ui/FloatingButton";
 import { DataTable } from "@/components/ui/DataTable";
 import { SaleForm } from "@/components/forms/SaleForm";
+import { ServiceIncomeForm } from "@/components/forms/ServiceIncomeForm";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { ExportButtons } from "@/components/ui/ExportButtons";
-import { formatCurrency, getWeekSales, getMonthSales } from "@/lib/storage";
+import {
+  formatCurrency,
+  getWeekSales,
+  getMonthSales,
+  Sale,
+  ServiceIncome,
+} from "@/lib/storage";
 import { ShoppingCart, Calendar, TrendingUp } from "lucide-react";
-import { Sale } from "@/lib/storage";
 import { ExportData } from "@/lib/exportUtils";
 import {
   LineChart,
@@ -34,20 +41,28 @@ import {
 import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
 
 type FilterPeriod = "today" | "week" | "month" | "all";
+type SaleOrServiceIncome = (Sale | ServiceIncome) & {
+  type?: string;
+  displayName?: string;
+};
 
 export const Ventas: React.FC = () => {
+  const navigate = useNavigate();
   const {
     data,
     deleteSale,
     deleteServiceIncome,
+    addServiceIncome,
+    addExpense,
     supabaseAuth,
     currentProject,
     currentProjectMember,
   } = useApp();
-  const { sales, serviceIncomes, services, settings } = data;
+  const { sales, serviceIncomes, services, settings, products } = data;
   const queryClient = useQueryClient();
   const isPremium = settings.isPremium || false;
   const [showForm, setShowForm] = useState(false);
+  const [showServiceIncomeForm, setShowServiceIncomeForm] = useState(false);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [filter, setFilter] = useState<FilterPeriod>("week");
   const [minAmount, setMinAmount] = useState("");
@@ -84,7 +99,7 @@ export const Ventas: React.FC = () => {
 
   const projectSales = useMemo(
     () => (projectData?.sales || []) as Sale[],
-    [projectData]
+    [projectData],
   );
 
   const projectSalesMutation = useMutation({
@@ -130,7 +145,7 @@ export const Ventas: React.FC = () => {
   const filteredIncomes = useMemo(() => {
     const today = new Date();
     const todayStr = new Date(
-      today.getTime() - today.getTimezoneOffset() * 60000
+      today.getTime() - today.getTimezoneOffset() * 60000,
     )
       .toISOString()
       .split("T")[0];
@@ -213,12 +228,12 @@ export const Ventas: React.FC = () => {
         (item) =>
           item.category?.toLowerCase().includes(term) ||
           item.description?.toLowerCase().includes(term) ||
-          item.displayName?.toLowerCase().includes(term)
+          item.displayName?.toLowerCase().includes(term),
       );
     }
 
     return result.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
   }, [
     sales,
@@ -244,20 +259,32 @@ export const Ventas: React.FC = () => {
   // Calculate totals based on filtered unified list
   const totalFiltered = filteredIncomes.reduce((sum, s) => sum + s.amount, 0);
 
-  const weekTotalProducts = weekSales.reduce((sum, s) => sum + s.amount, 0);
+  const weekProductsGross = weekSales.reduce((sum, s) => sum + s.amount, 0);
+  const weekProductsNet = weekSales.reduce((sum, s) => {
+    if (s.productId) {
+      const product = products.find((p) => p.id === s.productId);
+      const qty = s.quantity || 1;
+      const cost = product ? (product.cost || 0) * qty : 0;
+      return sum + (s.amount - cost);
+    }
+    // Manual sales considered full net
+    return sum + s.amount;
+  }, 0);
 
-  // Calculate service totals for cards
-  const serviceStats = useMemo(() => {
+  // Calculate service totals for cards (gross and net for last 30 days)
+  const { serviceGross30, serviceNet30 } = useMemo(() => {
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
     monthAgo.setHours(0, 0, 0, 0);
 
-    return serviceIncomes
-      .filter((si) => {
-        const cleanDate = si.date.split("T")[0];
-        return new Date(cleanDate + "T12:00:00") >= monthAgo;
-      })
-      .reduce((sum, si) => sum + si.amount, 0);
+    const incomes = serviceIncomes.filter((si) => {
+      const cleanDate = si.date.split("T")[0];
+      return new Date(cleanDate + "T12:00:00") >= monthAgo;
+    });
+
+    const gross = incomes.reduce((sum, si) => sum + (si.gross ?? si.amount), 0);
+    const net = incomes.reduce((sum, si) => sum + (si.amount || 0), 0);
+    return { serviceGross30: gross, serviceNet30: net };
   }, [serviceIncomes]);
 
   const monthTotalAll = useMemo(() => {
@@ -352,12 +379,21 @@ export const Ventas: React.FC = () => {
     }));
   }, [sales, serviceIncomes, projectSales, inProjectVentasMode]);
 
-  const handleEdit = (item: any) => {
-    setEditingSale(item);
-    setShowForm(true);
+  const handleEdit = (item: SaleOrServiceIncome) => {
+    if (item.type === "service") {
+      // For service income, we can't edit inline yet, so show the detail page
+      navigate(`/ingresos/${item.id}`);
+    } else {
+      setEditingSale(item as Sale);
+      setShowForm(true);
+    }
   };
 
-  const handleDelete = (item: any) => {
+  const handleView = (item: SaleOrServiceIncome) => {
+    navigate(`/ingresos/${item.id}`);
+  };
+
+  const handleDelete = (item: SaleOrServiceIncome) => {
     if (inProjectVentasMode) return;
     if (confirm("¿Eliminar este ingreso?")) {
       if (item.type === "service") {
@@ -368,16 +404,33 @@ export const Ventas: React.FC = () => {
     }
   };
 
+  const handleSaveServiceIncome = (
+    income: Omit<import("@/lib/storage").ServiceIncome, "id">,
+  ) => {
+    addServiceIncome(income);
+    // Si se indicó porcentaje para inversor, crear un gasto automático
+    if (income.investorPercent && income.gross) {
+      const expenseAmount = (income.gross * income.investorPercent) / 100;
+      addExpense({
+        date: income.date,
+        amount: expenseAmount,
+        category: `Gasto - ${services.find((s) => s.id === income.serviceId)?.name || "Servicio"}`,
+        description: `Gaso por servicio (${income.investorPercent}%)`,
+      });
+    }
+    setShowServiceIncomeForm(false);
+  };
+
   const columns = [
     {
       key: "date",
       header: "Fecha",
-      render: (item: any) => formatDate(item.date),
+      render: (item: SaleOrServiceIncome) => formatDate(item.date),
     },
     {
       key: "amount",
       header: "Monto",
-      render: (item: any) => (
+      render: (item: SaleOrServiceIncome) => (
         <span className="font-semibold text-success">
           {formatCurrency(item.amount, settings.currencySymbol)}
         </span>
@@ -386,7 +439,7 @@ export const Ventas: React.FC = () => {
     {
       key: "category",
       header: "Categoría/Servicio",
-      render: (item: any) => (
+      render: (item: SaleOrServiceIncome) => (
         <span
           className={cn(
             "px-2 py-1 rounded-lg text-sm",
@@ -395,14 +448,14 @@ export const Ventas: React.FC = () => {
               : "bg-primary/10 text-primary",
           )}
         >
-          {item.type === "service" ? item.displayName : item.category}
+          {item.type === "service" ? item.displayName : (item as Sale).category}
         </span>
       ),
     },
     {
       key: "description",
       header: "Descripción",
-      render: (item: any) => item.description || "-",
+      render: (item: SaleOrServiceIncome) => item.description || "-",
       className: "hidden sm:table-cell",
     },
   ];
@@ -460,15 +513,16 @@ export const Ventas: React.FC = () => {
       <div className=" grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
           title="Ingresos por productos (últimos 7 días)"
-          value={formatCurrency(weekTotalProducts, settings.currencySymbol)}
+          value={formatCurrency(weekProductsGross, settings.currencySymbol)}
           icon={<ShoppingCart className="w-5 h-5" />}
-          subtitle={`${weekSales.length} ventas`}
+          subtitle={`${weekSales.length} ventas · Neto: ${formatCurrency(weekProductsNet, settings.currencySymbol)}`}
           variant="success"
         />
         <MetricCard
           title="Ingresos por servicios (últimos 30 días)"
-          value={formatCurrency(serviceStats, settings.currencySymbol)}
+          value={formatCurrency(serviceGross30, settings.currencySymbol)}
           icon={<TrendingUp className="w-5 h-5" />}
+          subtitle={`Neto: ${formatCurrency(serviceNet30, settings.currencySymbol)}`}
           variant="default"
         />
         <MetricCard
@@ -551,18 +605,21 @@ export const Ventas: React.FC = () => {
         data={filteredIncomes}
         columns={columns}
         onEdit={inProjectVentasMode ? undefined : handleEdit}
+        onView={inProjectVentasMode ? undefined : handleView}
         onDelete={inProjectVentasMode ? undefined : handleDelete}
         emptyMessage="No hay ingresos registrados"
       />
 
       {!inProjectVentasMode && (
-        <FloatingButton
-          onClick={() => {
-            setEditingSale(null);
-            setShowForm(true);
-          }}
-          label="Nuevo ingreso (producto)"
-        />
+        <div className="fixed bottom-8 right-6 flex flex-col gap-3">
+          <FloatingButton
+            onClick={() => {
+              setEditingSale(null);
+              setShowForm(true);
+            }}
+            label="Nuevo ingreso "
+          />
+        </div>
       )}
 
       {inProjectVentasMode && (
@@ -666,7 +723,7 @@ export const Ventas: React.FC = () => {
         isPremium={isPremium}
       />
 
-      {/* Form Modal */}
+      {/* Form Modals */}
       {showForm && (
         <SaleForm
           onClose={() => {
@@ -674,6 +731,16 @@ export const Ventas: React.FC = () => {
             setEditingSale(null);
           }}
           editingSale={editingSale || undefined}
+        />
+      )}
+
+      {showServiceIncomeForm && (
+        <ServiceIncomeForm
+          services={services}
+          onSubmit={handleSaveServiceIncome}
+          onCancel={() => setShowServiceIncomeForm(false)}
+          isOpen={showServiceIncomeForm}
+          currencySymbol={settings.currencySymbol}
         />
       )}
     </div>

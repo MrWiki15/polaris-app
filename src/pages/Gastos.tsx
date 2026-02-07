@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
 import { FloatingButton } from "@/components/ui/FloatingButton";
 import { DataTable } from "@/components/ui/DataTable";
@@ -35,6 +36,7 @@ const COLORS = [
 ];
 
 export const Gastos: React.FC = () => {
+  const navigate = useNavigate();
   const { data, deleteExpense, currentProject, currentProjectMember } =
     useApp();
   const { expenses, settings } = data;
@@ -97,7 +99,15 @@ export const Gastos: React.FC = () => {
     }
 
     return result;
-  }, [expenses, filter, departmentFilter, minAmount, maxAmount, startDate, endDate]);
+  }, [
+    expenses,
+    filter,
+    departmentFilter,
+    minAmount,
+    maxAmount,
+    startDate,
+    endDate,
+  ]);
 
   // Metrics
   const totalFiltered = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -125,10 +135,13 @@ export const Gastos: React.FC = () => {
     });
     return Object.entries(categories).map(([name, value]) => ({ name, value }));
   }, [filteredExpenses]);
-
   const handleEdit = (expense: Expense) => {
     setEditingExpense(expense);
     setShowForm(true);
+  };
+
+  const handleView = (expense: Expense) => {
+    navigate(`/gastos/${expense.id}`);
   };
 
   const handleDelete = (expense: Expense) => {
@@ -172,7 +185,9 @@ export const Gastos: React.FC = () => {
 
   const isProjectSelected = !!currentProject;
   const department = currentProjectMember?.departament;
-  const permissions = department ? DEPARTMENT_PERMISSIONS[department] : undefined;
+  const permissions = department
+    ? DEPARTMENT_PERMISSIONS[department]
+    : undefined;
   const isAuthorizedForPage =
     !isProjectSelected ||
     !department ||
@@ -187,7 +202,8 @@ export const Gastos: React.FC = () => {
           <div className="bg-card border border-border rounded-2xl p-6 max-w-sm text-center">
             <h2 className="text-lg font-semibold mb-2">Acceso restringido</h2>
             <p className="text-sm text-muted-foreground">
-              Solo el personal autorizado puede acceder a esta sección en el proyecto seleccionado.
+              Solo el personal autorizado puede acceder a esta sección en el
+              proyecto seleccionado.
             </p>
           </div>
         </div>
@@ -283,30 +299,26 @@ export const Gastos: React.FC = () => {
                 "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
                 filter === f.key
                   ? "bg-destructive text-destructive-foreground shadow-material"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80",
               )}
-              >
-                {f.label}
-              </button>
-            ))}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-      {
-        isProjectSelected  &&
-(
-
-       <div className="space-y-1">
-          <Label>Departamento</Label>
-          <Input
-            placeholder="Ej. Dirección, Ventas..."
-            value={departmentFilter}
-            onChange={(e) => setDepartmentFilter(e.target.value)}
-          />
-        </div>
-        ) 
-      }
+        {isProjectSelected && (
+          <div className="space-y-1">
+            <Label>Departamento</Label>
+            <Input
+              placeholder="Ej. Dirección, Ventas..."
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+            />
+          </div>
+        )}
         <div className="space-y-1">
           <Label>Fecha desde</Label>
           <Input
@@ -345,10 +357,11 @@ export const Gastos: React.FC = () => {
       {/* Table */}
       <DataTable
         data={filteredExpenses.sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
         )}
         columns={columns}
         onEdit={handleEdit}
+        onView={handleView}
         onDelete={handleDelete}
         emptyMessage="No hay gastos registrados"
       />
@@ -371,7 +384,7 @@ export const Gastos: React.FC = () => {
             rows: filteredExpenses
               .sort(
                 (a, b) =>
-                  new Date(b.date).getTime() - new Date(a.date).getTime()
+                  new Date(b.date).getTime() - new Date(a.date).getTime(),
               )
               .map((expense) => [
                 new Date(expense.date).toLocaleDateString("es-ES"),
@@ -401,20 +414,17 @@ export const Gastos: React.FC = () => {
             weekTotal,
             monthTotal,
             settings.currencySymbol,
-          ]
+          ],
         )}
         filename="gastos"
         isPremium={isPremium}
       />
-
       {/* Form Modal */}
-      {showForm && (
+      {showForm && !editingExpense && (
         <ExpenseForm
           onClose={() => {
             setShowForm(false);
-            setEditingExpense(null);
           }}
-          editingExpense={editingExpense || undefined}
         />
       )}
     </div>

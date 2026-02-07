@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "@/contexts/AppContext";
 import {
   DollarSign,
@@ -21,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { exportData, importData, resetData } from "@/lib/storage";
+import { exportData, importData, resetData, saveData } from "@/lib/storage";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/toast";
@@ -34,6 +34,9 @@ const currencies = [
   { code: "MXN", symbol: "$", name: "Peso Mexicano" },
 ];
 
+import { DataComparisonModal } from "@/components/ui/DataComparisonModal";
+import type { AppData } from "@/lib/storage";
+
 export const Configuracion: React.FC = () => {
   const {
     data,
@@ -42,6 +45,7 @@ export const Configuracion: React.FC = () => {
     toggleTheme,
     refreshData,
     supabaseAuth,
+    supabaseSync,
   } = useApp();
   const { settings } = data;
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -49,6 +53,145 @@ export const Configuracion: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{
+    hasLocalChanges: boolean;
+    hasRemoteChanges: boolean;
+    localTime: number;
+    remoteTime: number;
+  } | null>(null);
+
+  const [forceUploadComparison, setForceUploadComparison] = useState<{
+    cloudStats: { products: number; sales: number; clients: number };
+    localStats: { products: number; sales: number; clients: number };
+  } | null>(null);
+
+  const [importComparison, setImportComparison] = useState<{
+    cloudData: AppData;
+    cloudStats: { products: number; sales: number; clients: number };
+    localStats: { products: number; sales: number; clients: number };
+  } | null>(null);
+
+  useEffect(() => {
+    const check = async () => {
+      if (supabaseAuth.isAuthenticated && supabaseSync) {
+        const status = await supabaseSync.checkSyncStatus();
+        setSyncStatus(status);
+      }
+    };
+    check();
+    // Set up an interval to check periodically
+    const interval = setInterval(check, 30000);
+    return () => clearInterval(interval);
+  }, [supabaseAuth.isAuthenticated, supabaseSync]);
+
+  const getStats = (data: AppData) => ({
+    products: data.products?.length || 0,
+    sales: data.sales?.length || 0,
+    clients: data.clients?.length || 0,
+  });
+
+  const handleCloudImport = async () => {
+    setIsLoading(true);
+    try {
+      const cloudData = await supabaseSync.restoreFromCloud();
+      if (cloudData) {
+        const cloudStats = getStats(cloudData);
+        const localStats = getStats(data);
+        setImportComparison({ cloudData, cloudStats, localStats });
+      } else {
+        toast({
+          title: "Error",
+          description: "No se encontraron datos en la nube",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Ocurrió un error al obtener datos de la nube",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!importComparison) return;
+
+    setIsLoading(true);
+    try {
+      const { cloudData } = importComparison;
+      saveData(cloudData);
+      localStorage.setItem("negocio360_data_updated", Date.now().toString());
+      refreshData();
+      toast({
+        title: "Datos importados",
+        description: "La información se ha descargado de la nube correctamente",
+      });
+
+      // Refresh status
+      const status = await supabaseSync.checkSyncStatus();
+      setSyncStatus(status);
+      setImportComparison(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForceUpload = async () => {
+    setIsLoading(true);
+    try {
+      const cloudData = await supabaseSync.restoreFromCloud();
+      // Even if null (no cloud data), we can proceed, but if null we create 0-stats
+      const cloudStats = cloudData
+        ? getStats(cloudData)
+        : { products: 0, sales: 0, clients: 0 };
+      const localStats = getStats(data);
+
+      setForceUploadComparison({ cloudStats, localStats });
+    } catch (err) {
+      // If error (e.g. network), we still might want to allow force upload but let's show stats as unknown or 0?
+      // Better to just show current local stats and 0 for cloud if we can't reach it?
+      // Or maybe error out.
+      toast({
+        title: "Advertencia",
+        description:
+          "No se pudo verificar el estado actual de la nube. Mostrando comparación estimada.",
+        variant: "destructive",
+      });
+      const localStats = getStats(data);
+      setForceUploadComparison({
+        cloudStats: { products: 0, sales: 0, clients: 0 },
+        localStats,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const confirmForceUpload = async () => {
+    setIsLoading(true);
+    try {
+      await supabaseSync.saveToSupabase(data, true);
+      toast({
+        title: "Sincronización Forzada Exitosa",
+        description: "Tus datos locales han sobrescrito la nube.",
+      });
+      const status = await supabaseSync.checkSyncStatus();
+      setSyncStatus(status);
+      setForceUploadComparison(null);
+    } catch (error) {
+      console.log(error);
+      toast({
+        title: "Error",
+        description: "Falló la subida forzada de datos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleExport = () => {
     const dataStr = exportData();
@@ -185,10 +328,183 @@ export const Configuracion: React.FC = () => {
                 {supabaseAuth.user?.email}
               </p>
             </div>
-            <Button onClick={handleLogout} variant="outline" className="w-full">
-              <LogOut className="w-4 h-4 mr-2" />
-              Cerrar Sesión
-            </Button>
+
+            {supabaseSync?.syncConflict && (
+              <div className="p-4 bg-red-50 rounded-xl border border-red-200 dark:bg-red-950/20 dark:border-red-700 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-red-900 dark:text-red-100">
+                      ⚠️ Conflicto de Sincronización
+                    </p>
+                    <p className="text-sm text-red-800 dark:text-red-200 mt-1">
+                      Hemos detectado diferencias entre tus datos locales y la
+                      nube. Por favor utiliza el modal emergente para resolverlo
+                      o selecciona una acción abajo.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-red-100 dark:border-red-900/50">
+                    <p className="font-semibold mb-2 text-center text-red-700 dark:text-red-300">
+                      Local (Actual)
+                    </p>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span>Productos:</span>
+                        <span className="font-mono">
+                          {supabaseSync.syncConflict.localStats.products}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Ventas:</span>
+                        <span className="font-mono">
+                          {supabaseSync.syncConflict.localStats.sales}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Clientes:</span>
+                        <span className="font-mono">
+                          {supabaseSync.syncConflict.localStats.clients}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-green-100 dark:border-green-900/50">
+                    <p className="font-semibold mb-2 text-center text-green-700 dark:text-green-300">
+                      Nube (Respaldo)
+                    </p>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span>Productos:</span>
+                        <span className="font-mono">
+                          {supabaseSync.syncConflict.cloudStats.products}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Ventas:</span>
+                        <span className="font-mono">
+                          {supabaseSync.syncConflict.cloudStats.sales}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Clientes:</span>
+                        <span className="font-mono">
+                          {supabaseSync.syncConflict.cloudStats.clients}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Button
+                    variant="outline"
+                    className="w-full border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:hover:bg-red-900/20"
+                    onClick={async () => {
+                      if (
+                        confirm(
+                          "¿Estás seguro? Esto borrará tus datos locales y descargará la copia de la nube.",
+                        )
+                      ) {
+                        setIsLoading(true);
+                        try {
+                          const cloudData =
+                            await supabaseSync.restoreFromCloud();
+                          if (cloudData) {
+                            saveData(cloudData);
+                            localStorage.setItem(
+                              "negocio360_data_updated",
+                              Date.now().toString(),
+                            );
+                            refreshData();
+                            supabaseSync.resolveConflict();
+                            toast({
+                              title: "Restaurado",
+                              description: "Datos recuperados de la nube",
+                            });
+                          }
+                        } finally {
+                          setIsLoading(false);
+                        }
+                      }
+                    }}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Descargar de Nube (Recomendado)
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full text-red-600 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/20"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "¿PELIGRO: Estás a punto de borrar los datos de la nube y reemplazarlos con tus datos locales vacíos o incompletos? Esta acción no se puede deshacer.",
+                        )
+                      ) {
+                        supabaseSync.saveToSupabase(data, true);
+                        supabaseSync.resolveConflict();
+                        toast({
+                          title: "Sincronización Forzada",
+                          description: "Se ha sobrescrito la nube",
+                        });
+                      }
+                    }}
+                  >
+                    Sobrescribir Nube (Peligroso)
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {syncStatus?.hasLocalChanges && !supabaseSync?.syncConflict && (
+              <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 dark:bg-amber-950/20 dark:border-amber-700">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500" />
+                  <div>
+                    <p className="font-semibold text-amber-900 dark:text-amber-100">
+                      Datos desactualizados en la nube
+                    </p>
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      Tienes datos guardados en local que no están en la base de
+                      datos.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button
+                onClick={handleLogout}
+                variant="outline"
+                className="flex-1"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Cerrar Sesión
+              </Button>
+              <Button
+                onClick={handleCloudImport}
+                variant="outline"
+                className="flex-1"
+                disabled={isLoading}
+              >
+                <Cloud className="w-4 h-4 mr-2" />
+                Importar de Nube
+              </Button>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleForceUpload}
+                variant="outline"
+                className="w-full text-amber-700 border-amber-200 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:hover:bg-amber-900/20"
+                disabled={isLoading}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Forzar subida a la Nube
+              </Button>
+            </div>
           </div>
         ) : supabaseAuth.verificationPending && supabaseAuth.registeredEmail ? (
           <div className="space-y-4">
@@ -481,6 +797,40 @@ export const Configuracion: React.FC = () => {
         <p>Polaris v1.0.3</p>
         <p>Todos los datos se guardan localmente en tu dispositivo</p>
       </div>
+
+      {importComparison && (
+        <DataComparisonModal
+          isOpen={!!importComparison}
+          onClose={() => setImportComparison(null)}
+          title="Confirmar Importación"
+          description="Se descargarán los siguientes datos desde la nube. Reemplazarán a los datos actuales."
+          localStats={importComparison.localStats}
+          cloudStats={importComparison.cloudStats}
+          onConfirm={confirmImport}
+          onCancel={() => setImportComparison(null)}
+          confirmLabel="Confirmar y Descargar"
+          confirmIcon={<Download className="w-4 h-4" />}
+          cancelLabel="Cancelar"
+          variant="default"
+        />
+      )}
+
+      {forceUploadComparison && (
+        <DataComparisonModal
+          isOpen={!!forceUploadComparison}
+          onClose={() => setForceUploadComparison(null)}
+          title="Confirmar Subida Forzada"
+          description="¡ATENCIÓN! Esto sobrescribirá PERMANENTEMENTE los datos de la nube con los datos de este dispositivo."
+          localStats={forceUploadComparison.localStats}
+          cloudStats={forceUploadComparison.cloudStats}
+          onConfirm={confirmForceUpload}
+          onCancel={() => setForceUploadComparison(null)}
+          confirmLabel="Sí, sobrescribir Nube"
+          confirmIcon={<Upload className="w-4 h-4" />}
+          cancelLabel="Cancelar"
+          variant="destructive"
+        />
+      )}
     </div>
   );
 };

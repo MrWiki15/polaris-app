@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
 import { FloatingButton } from "@/components/ui/FloatingButton";
 import { DataTable } from "@/components/ui/DataTable";
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button";
 type FilterType = "all" | "low-stock" | "in-stock";
 
 export const Inventario: React.FC = () => {
+  const navigate = useNavigate();
   const { data, deleteProduct, currentProject } = useApp();
   const { products, settings } = data;
   const isPremium = settings.isPremium || false;
@@ -43,7 +45,7 @@ export const Inventario: React.FC = () => {
   const inventoryValue = useMemo(() => getInventoryValue(products), [products]);
   const lowStockProducts = useMemo(
     () => getLowStockProducts(products),
-    [products]
+    [products],
   );
   const totalProducts = products.length;
   const totalUnits = products.reduce((sum, p) => sum + p.quantity, 0);
@@ -51,6 +53,51 @@ export const Inventario: React.FC = () => {
   // Potential revenue
   const potentialRevenue = useMemo(() => {
     return products.reduce((sum, p) => sum + p.quantity * p.price, 0);
+  }, [products]);
+
+  // Check compound product alerts
+  const compoundProductAlerts = useMemo(() => {
+    const alerts: {
+      productId: string;
+      productName: string;
+      missingComponents: { name: string; needed: number; available: number }[];
+    }[] = [];
+
+    products.forEach((product) => {
+      if (
+        product.type === "compound" &&
+        product.components &&
+        product.minStock
+      ) {
+        const missingComponents = [];
+
+        for (const component of product.components) {
+          const componentProduct = products.find(
+            (p) => p.id === component.productId,
+          );
+          if (componentProduct) {
+            const needed = component.quantity * product.minStock;
+            if (componentProduct.quantity < needed) {
+              missingComponents.push({
+                name: componentProduct.name,
+                needed,
+                available: componentProduct.quantity,
+              });
+            }
+          }
+        }
+
+        if (missingComponents.length > 0) {
+          alerts.push({
+            productId: product.id,
+            productName: product.name,
+            missingComponents,
+          });
+        }
+      }
+    });
+
+    return alerts;
   }, [products]);
 
   // Filtered products
@@ -74,7 +121,7 @@ export const Inventario: React.FC = () => {
         (p) =>
           p.name.toLowerCase().includes(term) ||
           p.category?.toLowerCase().includes(term) ||
-          p.barcode?.includes(term)
+          p.barcode?.includes(term),
       );
     }
 
@@ -91,13 +138,13 @@ export const Inventario: React.FC = () => {
     if (expFrom) {
       const from = new Date(expFrom);
       filtered = filtered.filter(
-        (p) => p.expirationDate && new Date(p.expirationDate) >= from
+        (p) => p.expirationDate && new Date(p.expirationDate) >= from,
       );
     }
     if (expTo) {
       const to = new Date(expTo);
       filtered = filtered.filter(
-        (p) => p.expirationDate && new Date(p.expirationDate) <= to
+        (p) => p.expirationDate && new Date(p.expirationDate) <= to,
       );
     }
 
@@ -107,6 +154,10 @@ export const Inventario: React.FC = () => {
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setShowForm(true);
+  };
+
+  const handleView = (product: Product) => {
+    navigate(`/inventario/${product.id}`);
   };
 
   const handleDelete = (product: Product) => {
@@ -121,11 +172,33 @@ export const Inventario: React.FC = () => {
       header: "Producto",
       render: (product: Product) => (
         <div>
-          <span className="font-medium">{product.name}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{product.name}</span>
+            {product.type === "compound" && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                Compuesto
+              </span>
+            )}
+          </div>
           {product.category && (
             <span className="block text-xs text-muted-foreground">
               {product.category}
             </span>
+          )}
+          {product.type === "compound" && product.components && (
+            <div className="text-xs text-muted-foreground mt-1">
+              {product.components.map((comp) => {
+                const compProduct = products.find(
+                  (p) => p.id === comp.productId,
+                );
+                return (
+                  <div key={comp.productId}>
+                    {comp.quantity}x{" "}
+                    {compProduct?.name || "Producto desconocido"}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       ),
@@ -143,8 +216,8 @@ export const Inventario: React.FC = () => {
               isEmpty
                 ? "bg-destructive/10 text-destructive"
                 : isLow
-                ? "bg-warning/10 text-warning"
-                : "bg-success/10 text-success"
+                  ? "bg-warning/10 text-warning"
+                  : "bg-success/10 text-success",
             )}
           >
             {product.quantity} uds
@@ -187,7 +260,7 @@ export const Inventario: React.FC = () => {
           <span
             className={cn(
               "text-sm font-medium",
-              Number(margin) > 0 ? "text-success" : "text-destructive"
+              Number(margin) > 0 ? "text-success" : "text-destructive",
             )}
           >
             {margin}%
@@ -237,6 +310,36 @@ export const Inventario: React.FC = () => {
         />
       </div>
 
+      {/* Compound Product Alerts */}
+      {compoundProductAlerts.length > 0 && (
+        <div className="space-y-2">
+          {compoundProductAlerts.map((alert) => (
+            <div
+              key={alert.productId}
+              className="p-4 rounded-xl border border-warning/30 bg-warning/5 flex gap-3"
+            >
+              <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium text-warning">
+                  {alert.productName} - Stock mínimo no disponible
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Faltan componentes simples para mantener el stock mínimo:
+                </p>
+                <ul className="text-sm text-muted-foreground mt-2 space-y-1 ml-4">
+                  {alert.missingComponents.map((component) => (
+                    <li key={component.name}>
+                      • {component.name}: necesitas {component.needed} pero solo
+                      hay {component.available}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 flex gap-2">
@@ -269,7 +372,7 @@ export const Inventario: React.FC = () => {
                   "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
                   filter === f.key
                     ? "bg-primary text-primary-foreground shadow-material"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80",
                 )}
               >
                 {f.label}
@@ -329,6 +432,7 @@ export const Inventario: React.FC = () => {
         data={filteredProducts}
         columns={columns}
         onEdit={handleEdit}
+        onView={handleView}
         onDelete={handleDelete}
         emptyMessage="No hay productos en el inventario"
       />
@@ -384,7 +488,7 @@ export const Inventario: React.FC = () => {
                 label: "Ingreso potencial",
                 value: formatCurrency(
                   potentialRevenue,
-                  settings.currencySymbol
+                  settings.currencySymbol,
                 ),
               },
               {
@@ -399,7 +503,7 @@ export const Inventario: React.FC = () => {
             potentialRevenue,
             lowStockProducts,
             settings.currencySymbol,
-          ]
+          ],
         )}
         filename="inventario"
         isPremium={isPremium}

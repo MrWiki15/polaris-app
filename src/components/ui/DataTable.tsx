@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { Trash2, Edit2 } from 'lucide-react';
+import { Trash2, Edit2, Eye } from 'lucide-react';
 
 interface Column<T> {
   key: keyof T | string;
@@ -13,6 +13,7 @@ interface DataTableProps<T> {
   data: T[];
   columns: Column<T>[];
   onEdit?: (item: T) => void;
+  onView?: (item: T) => void;
   onDelete?: (item: T) => void;
   emptyMessage?: string;
   className?: string;
@@ -22,6 +23,7 @@ export function DataTable<T extends { id: string }>({
   data,
   columns,
   onEdit,
+  onView,
   onDelete,
   emptyMessage = 'No hay datos para mostrar',
   className,
@@ -58,8 +60,8 @@ export function DataTable<T extends { id: string }>({
                   {col.header}
                 </th>
               ))}
-              {(onEdit || onDelete) && (
-                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground w-24">
+              {(onEdit || onView || onDelete) && (
+                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground w-32">
                   Acciones
                 </th>
               )}
@@ -85,7 +87,7 @@ export function DataTable<T extends { id: string }>({
                       : String((item as Record<string, unknown>)[col.key as string] ?? '')}
                   </td>
                 ))}
-                {(onEdit || onDelete) && (
+                {(onEdit || onView || onDelete) && (
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
                       {onEdit && (
@@ -93,8 +95,19 @@ export function DataTable<T extends { id: string }>({
                           onClick={() => onEdit(item)}
                           className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                           aria-label="Editar"
+                          title="Editar"
                         >
                           <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      {onView && (
+                        <button
+                          onClick={() => onView(item)}
+                          className="p-2 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-100/50 dark:hover:bg-blue-900/50 transition-colors"
+                          aria-label="Ver detalles"
+                          title="Ver detalles"
+                        >
+                          <Eye className="w-4 h-4" />
                         </button>
                       )}
                       {onDelete && (
@@ -102,6 +115,7 @@ export function DataTable<T extends { id: string }>({
                           onClick={() => onDelete(item)}
                           className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                           aria-label="Eliminar"
+                          title="Eliminar"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -117,3 +131,4 @@ export function DataTable<T extends { id: string }>({
     </div>
   );
 }
+

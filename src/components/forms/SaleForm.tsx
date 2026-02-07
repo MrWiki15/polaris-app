@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { TagSelector } from "@/components/forms/TagSelector";
 import { useApp } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/storage";
+import { formatCurrency, Service, ServiceIncome } from "@/lib/storage";
 import { BarcodeScanner } from "@/components/inventory/BarcodeScanner";
 import { toast } from "sonner";
 
@@ -22,11 +22,19 @@ interface SaleFormProps {
     quantity?: number;
     serviceId?: string;
     tags?: string[];
+    clientId?: string;
   };
 }
 
 export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
-  const { addSale, updateSale, addServiceIncome, data } = useApp();
+  const {
+    addSale,
+    updateSale,
+    addServiceIncome,
+    updateServiceIncome,
+    addExpense,
+    data,
+  } = useApp();
   const { products, settings, services, clients } = data;
   const isPremium = settings.isPremium || false;
 
@@ -49,7 +57,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
     "Envios",
     "Otros",
   ]);
-  const [selectedService, setSelectedService] = useState();
 
   // Helper to ensure we only get the YYYY-MM-DD part
   const getInitialDate = () => {
@@ -69,7 +76,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
     quantity: editingSale?.quantity?.toString() || "1",
     serviceId: editingSale?.serviceId || "",
     tags: editingSale?.tags || [],
-    clientId: (editingSale as any)?.clientId || "",
+    clientId: editingSale?.clientId || "",
   });
   const [showScanner, setShowScanner] = useState(false);
   const [showImputFromNewCategory, setShowInputFromNewCategory] =
@@ -77,6 +84,13 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
   const [newCategory, setNewcategory] = useState("");
   const [selectedPriceVariant, setSelectedPriceVariant] =
     useState<string>("default");
+  const [serviceSelectedMargin, setServiceSelectedMargin] = useState<
+    number | "" | "custom"
+  >("");
+  const [serviceInvestorPercent, setServiceInvestorPercent] = useState<
+    number | ""
+  >("");
+  const [selectedService, setSelectedService] = useState<Service | undefined>();
 
   const handleScan = (code: string) => {
     const product = products.find((p) => p.barcode === code);
@@ -96,9 +110,10 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
   };
 
   const handleAddCategory = () => {
+    setCategories((prev) => [...prev, newCategory]);
     setFormData((prev) => ({
       ...prev,
-      category: [...prev.category, newCategory],
+      category: newCategory,
     }));
     setNewcategory("");
     setShowInputFromNewCategory(false);
@@ -125,22 +140,90 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
     const cleanDate = formData.date.split("T")[0];
 
     if (saleType === "service") {
-      const serviceData = {
+      const svc = services.find((s) => s.id === formData.serviceId);
+      if (!svc) return;
+
+      // Validar que si es precio variable, el usuario ingresó un monto
+      if (svc.priceType === "variable" && !formData.amount) {
+        alert(
+          "Debes ingresar el monto cobrado para servicios de precio variable",
+        );
+        return;
+      }
+
+      // Validar que si seleccionó margen personalizado, tiene un número
+      if (serviceSelectedMargin === "custom") {
+        alert("Si elegiste margen personalizado, debes ingresar un valor en %");
+        return;
+      }
+
+      const gross =
+        svc.priceType === "variable"
+          ? parseFloat(formData.amount)
+          : svc.price || 0;
+      const marginPercent =
+        typeof serviceSelectedMargin === "number"
+          ? serviceSelectedMargin
+          : svc.priceType === "variable"
+            ? undefined
+            : 100;
+      const ownerNet =
+        marginPercent !== undefined ? (gross * marginPercent) / 100 : gross;
+      const investorPct =
+        serviceInvestorPercent !== ""
+          ? Number(serviceInvestorPercent)
+          : undefined;
+
+      const serviceData: Omit<ServiceIncome, "id"> = {
         date: cleanDate,
-        amount: parseFloat(formData.amount),
+        amount: ownerNet,
+        gross,
         serviceId: formData.serviceId,
+        selectedMargin: marginPercent,
+        investorPercent: investorPct,
         description: formData.description || undefined,
         tags: formData.tags.length > 0 ? formData.tags : undefined,
         clientId: formData.clientId || undefined,
       };
+
       if (editingSale) {
-        updateSale(editingSale.id, serviceData);
+        updateServiceIncome(editingSale.id, serviceData);
       } else {
         addServiceIncome(serviceData);
+        if (investorPct && investorPct > 0) {
+          const expenseAmount = (gross * investorPct) / 100;
+          addExpense({
+            date: cleanDate,
+            amount: expenseAmount,
+            category: `Gasto - ${svc.name}`,
+            description: `Gasto (${investorPct}%) por ${svc.name}`,
+          });
+        }
       }
-    } else {
+    } else if (saleType === "inventory") {
+      // Validar productos compuestos
+      if (selectedProduct?.type === "compound" && selectedProduct.components) {
+        const quantity = parseInt(formData.quantity);
+        for (const component of selectedProduct.components) {
+          const componentProduct = products.find(
+            (p) => p.id === component.productId,
+          );
+          const requiredQuantity = component.quantity * quantity;
+          if (
+            !componentProduct ||
+            componentProduct.quantity < requiredQuantity
+          ) {
+            alert(
+              `No hay suficiente ${componentProduct?.name || "producto"} en inventario. ` +
+                `Necesitas ${requiredQuantity} unidades pero solo hay ${componentProduct?.quantity || 0}.`,
+            );
+            return;
+          }
+        }
+      }
+
       let description = formData.description;
-      if (saleType === "inventory" && selectedProduct) {
+      if (selectedProduct) {
         description = `Ingreso: ${selectedProduct.name} x${formData.quantity}`;
         if (selectedPriceVariant !== "default") {
           const variant = selectedProduct.additionalPrices?.find(
@@ -154,18 +237,32 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
 
       const saleData = {
         date: cleanDate,
-        amount:
-          saleType === "inventory"
-            ? calculatedAmount
-            : parseFloat(formData.amount),
-        category:
-          saleType === "inventory" && selectedProduct?.category
-            ? selectedProduct.category
-            : formData.category,
+        amount: calculatedAmount,
+        category: selectedProduct?.category
+          ? selectedProduct.category
+          : formData.category,
         description: description || undefined,
-        productId: saleType === "inventory" ? formData.productId : undefined,
-        quantity:
-          saleType === "inventory" ? parseInt(formData.quantity) : undefined,
+        productId: formData.productId,
+        quantity: parseInt(formData.quantity),
+        tags: formData.tags.length > 0 ? formData.tags : undefined,
+        clientId: formData.clientId || undefined,
+      };
+
+      if (editingSale) {
+        updateSale(editingSale.id, saleData);
+      } else {
+        addSale(saleData);
+      }
+    } else {
+      const description = formData.description;
+
+      const saleData = {
+        date: cleanDate,
+        amount: parseFloat(formData.amount),
+        category: formData.category,
+        description: description || undefined,
+        productId: undefined,
+        quantity: undefined,
         tags: formData.tags.length > 0 ? formData.tags : undefined,
         clientId: formData.clientId || undefined,
       };
@@ -219,7 +316,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
           {!editingSale && (
             <div className="space-y-2">
               <Label>Tipo de ingreso</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setSaleType("manual")}
@@ -244,7 +341,20 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                   )}
                 >
                   <Package className="w-4 h-4" />
-                  <span className="text-sm font-medium">Del Inventario</span>
+                  <span className="text-sm font-medium">Inventario</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSaleType("service")}
+                  className={cn(
+                    "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all",
+                    saleType === "service"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground",
+                  )}
+                >
+                  <User className="w-4 h-4" />
+                  <span className="text-sm font-medium">Servicio</span>
                 </button>
               </div>
             </div>
@@ -436,7 +546,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                             {svc.name}
                           </span>
                           <span className="block text-xs text-muted-foreground">
-                            {svc.isVariablePrice
+                            {svc.priceType === "variable"
                               ? "Precio variable"
                               : formatCurrency(
                                   svc.price || 0,
@@ -454,9 +564,9 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                 )}
               </div>
 
-              {selectedService && selectedService.isVariablePrice && (
+              {selectedService?.priceType === "variable" && (
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Monto cobrado</Label>
+                  <Label htmlFor="amount">Monto cobrado ($) *</Label>
                   <Input
                     id="amount"
                     type="number"
@@ -474,7 +584,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                 </div>
               )}
 
-              {!selectedService?.isVariablePrice && selectedService && (
+              {selectedService?.priceType !== "variable" && selectedService && (
                 <div className="p-4 bg-success/10 rounded-xl border border-success/20">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">
@@ -486,6 +596,142 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                         settings.currencySymbol,
                       )}
                     </span>
+                  </div>
+                </div>
+              )}
+
+              {selectedService && (
+                <div className="space-y-3">
+                  <Label>Margen a aplicar</Label>
+                  <div className="space-y-2">
+                    {selectedService.minMargin !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setServiceSelectedMargin(selectedService.minMargin!)
+                        }
+                        className={cn(
+                          "w-full p-3 rounded-lg border-2 transition-all text-left",
+                          serviceSelectedMargin === selectedService.minMargin
+                            ? "border-primary bg-primary/10"
+                            : "border-border hover:border-primary/50",
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium">Margen Mínimo</div>
+                            <div className="text-xs text-muted-foreground">
+                              Ganancia mínima posible
+                            </div>
+                          </div>
+                          <div className="text-lg font-bold">
+                            {selectedService.minMargin}%
+                          </div>
+                        </div>
+                      </button>
+                    )}
+
+                    {selectedService.standardMargin !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setServiceSelectedMargin(
+                            selectedService.standardMargin!,
+                          )
+                        }
+                        className={cn(
+                          "w-full p-3 rounded-lg border-2 transition-all text-left",
+                          serviceSelectedMargin ===
+                            selectedService.standardMargin
+                            ? "border-primary bg-primary/10"
+                            : "border-border hover:border-primary/50",
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium">Margen Estándar</div>
+                            <div className="text-xs text-muted-foreground">
+                              Ganancia recomendada
+                            </div>
+                          </div>
+                          <div className="text-lg font-bold">
+                            {selectedService.standardMargin}%
+                          </div>
+                        </div>
+                      </button>
+                    )}
+
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setServiceSelectedMargin("custom")}
+                        className={cn(
+                          "w-full p-3 rounded-lg border-2 transition-all text-left",
+                          serviceSelectedMargin === "custom"
+                            ? "border-primary bg-primary/10"
+                            : "border-border hover:border-primary/50",
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium">
+                              Margen Personalizado
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Ingresa otro margen
+                            </div>
+                          </div>
+                          <div className="text-lg font-bold">Otro</div>
+                        </div>
+                      </button>
+                      {serviceSelectedMargin === "custom" && (
+                        <Input
+                          type="number"
+                          placeholder="Ingresa el margen en %"
+                          value={
+                            typeof serviceSelectedMargin === "number"
+                              ? serviceSelectedMargin
+                              : ""
+                          }
+                          onChange={(e) =>
+                            setServiceSelectedMargin(
+                              e.target.value
+                                ? parseFloat(e.target.value)
+                                : "custom",
+                            )
+                          }
+                          step="0.01"
+                          min="0"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="investor-percent">
+                      Gasto del servicio (opcional %)
+                    </Label>
+                    <Input
+                      id="investor-percent"
+                      type="number"
+                      placeholder="Ej: 5"
+                      value={
+                        serviceInvestorPercent === ""
+                          ? ""
+                          : String(serviceInvestorPercent)
+                      }
+                      onChange={(e) =>
+                        setServiceInvestorPercent(
+                          e.target.value ? parseFloat(e.target.value) : "",
+                        )
+                      }
+                      step="0.01"
+                      min="0"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Si indicas un % aquí se registrará como gasto automático
+                      al guardar el ingreso.
+                    </p>
                   </div>
                 </div>
               )}
@@ -609,7 +855,9 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
                   ? !formData.amount
                   : saleType === "inventory"
                     ? !formData.productId || !formData.quantity
-                    : !formData.serviceId
+                    : !formData.serviceId ||
+                      (selectedService?.priceType === "variable" &&
+                        !formData.amount)
               }
             >
               {editingSale ? "Guardar" : "Registrar"}

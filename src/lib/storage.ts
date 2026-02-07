@@ -62,6 +62,12 @@ export interface Product {
     | "Magic Eden"
     | "Blur"
     | "Otro";
+  // Campos para productos compuestos
+  type?: "simple" | "compound"; // Por defecto es "simple"
+  components?: {
+    productId: string;
+    quantity: number;
+  }[];
 }
 
 export interface Supplier {
@@ -161,8 +167,10 @@ export interface Debt {
 export interface Service {
   id: string;
   name: string;
-  isVariablePrice: boolean;
-  price?: number;
+  priceType: "fixed" | "variable"; // fixed o variable
+  price?: number; // Para precio fijo
+  minMargin?: number; // Margen mínimo en %
+  standardMargin?: number; // Margen estándar en %
   description?: string;
   createdAt: string;
 }
@@ -171,7 +179,14 @@ export interface ServiceIncome {
   id: string;
   date: string;
   serviceId: string;
+  // `amount` representa el ingreso NETO que recibe el dueño (después de descuentos/participaciones)
   amount: number;
+  // Monto bruto cobrado al cliente (antes de participar ganancias o gastos)
+  gross?: number;
+  // Margen seleccionado en % para calcular la ganancia del dueño
+  selectedMargin?: number;
+  // Porcentaje que se debe registrar como gasto (ej. para un inversor)
+  investorPercent?: number;
   description?: string;
   tags?: string[];
   clientId?: string;
@@ -444,6 +459,16 @@ export const formatCurrency = (
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })}`;
+};
+
+export const formatDate = (dateStr: string): string => {
+  if (!dateStr) return "-";
+  // Handle potential ISO strings (e.g. 2023-10-05T00:00:00.000Z) by taking the first part
+  const cleanDate = dateStr.split("T")[0];
+  const parts = cleanDate.split("-");
+  if (parts.length !== 3) return dateStr;
+  const [year, month, day] = parts;
+  return `${day}/${month}/${year}`;
 };
 
 export const calculateOptimalPrice = (

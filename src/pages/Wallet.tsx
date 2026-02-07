@@ -28,7 +28,21 @@ import {
   ExternalLink,
   Calendar,
   Award,
+  Repeat2,
+  Edit2,
+  Trash2,
 } from "lucide-react";
+import {
+  getPersonalWallets,
+  createPersonalWallet,
+  performTransfer,
+  getTransferHistory,
+  updateWalletName,
+  deletePersonalWallet,
+  updateWalletBalance,
+  type PersonalWallet,
+  type PersonalWalletTransfer,
+} from "@/lib/personalWallets";
 import {
   Dialog,
   DialogContent,
@@ -159,6 +173,16 @@ export default function Wallet() {
   const [goalName, setGoalName] = useState("");
   const [goalPercentage, setGoalPercentage] = useState("25");
   const [goalDay, setGoalDay] = useState("1");
+  const [personalWallets, setPersonalWallets] = useState<PersonalWallet[]>([]);
+  const [transferHistory, setTransferHistory] = useState<
+    PersonalWalletTransfer[]
+  >([]);
+  const [newWalletName, setNewWalletName] = useState("");
+  const [transferFrom, setTransferFrom] = useState("");
+  const [transferTo, setTransferTo] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
+  const [editingWalletName, setEditingWalletName] = useState("");
   const isPersonalMode = !currentProject;
   const toNumber = (value: string | number | undefined | null) => {
     const n = typeof value === "number" ? value : Number(value || 0);
@@ -462,6 +486,40 @@ export default function Wallet() {
         } catch {
           setTransfers([]);
         }
+        // Load personal wallets from Supabase
+        try {
+          const wallets = await getPersonalWallets(supabaseAuth.user.id);
+          if (wallets.length === 0) {
+            // Initialize main wallet if none exist
+            const main = await createPersonalWallet(
+              supabaseAuth.user.id,
+              "Principal",
+              Number(totalBalance || 0),
+            );
+            if (main) {
+              setPersonalWallets([main]);
+            }
+          } else {
+            // Sync Principal wallet balance with totalBalance
+            const principal = wallets.find((w) => w.name === "Principal");
+            if (principal && principal.balance !== Number(totalBalance || 0)) {
+              await updateWalletBalance(
+                principal.id,
+                Number(totalBalance || 0),
+              );
+            }
+            setPersonalWallets(wallets);
+          }
+        } catch (err) {
+          console.error("Error cargando wallets personales", err);
+        }
+        // Load transfer history
+        try {
+          const history = await getTransferHistory(supabaseAuth.user.id);
+          setTransferHistory(history);
+        } catch (err) {
+          console.error("Error cargando historial de transferencias", err);
+        }
       } else {
         // Load project Hedera wallet (HBAR) + project balances
         setWallet(null);
@@ -490,7 +548,182 @@ export default function Wallet() {
     isPersonalMode,
     projectDetails,
     projectTotalBalance,
+    totalBalance,
   ]);
+
+  const persistPersonalWallets = (wallets: PersonalWallet[]) => {
+    try {
+      const key = `personal_wallets_${supabaseAuth.user?.id}`;
+      localStorage.setItem(key, JSON.stringify(wallets));
+    } catch (err) {
+      console.error("Error guardando wallets personales", err);
+    }
+  };
+
+  const handleCreatePersonalWallet = async () => {
+    if (!newWalletName || !supabaseAuth.user?.id) {
+      toast({ title: "Nombre requerido", variant: "destructive" });
+      return;
+    }
+    try {
+      setLoading(true);
+      const w = await createPersonalWallet(
+        supabaseAuth.user.id,
+        newWalletName,
+        0,
+      );
+      if (w) {
+        const wallets = await getPersonalWallets(supabaseAuth.user.id);
+        setPersonalWallets(wallets);
+        setNewWalletName("");
+        toast({
+          title: "Wallet creada",
+          description: `Wallet ${w.name} creada`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "No se pudo crear la wallet",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Error creando wallet",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTransferBetweenPersonal = async () => {
+    if (!supabaseAuth.user?.id) return;
+    const from = personalWallets.find((p) => p.id === transferFrom);
+    const to = personalWallets.find((p) => p.id === transferTo);
+    const amount = Number(transferAmount || 0);
+
+    if (!from || !to) {
+      toast({ title: "Selecciona wallets válidas", variant: "destructive" });
+      return;
+    }
+    if (amount <= 0) {
+      toast({ title: "Monto inválido", variant: "destructive" });
+      return;
+    }
+    if (from.balance < amount) {
+      toast({ title: "Saldo insuficiente", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const success = await performTransfer(
+        supabaseAuth.user.id,
+        from,
+        to,
+        amount,
+      );
+      if (success) {
+        // Reload wallets and history
+        const wallets = await getPersonalWallets(supabaseAuth.user.id);
+        const history = await getTransferHistory(supabaseAuth.user.id);
+        setPersonalWallets(wallets);
+        setTransferHistory(history);
+        setTransferAmount("");
+        setTransferFrom("");
+        setTransferTo("");
+        toast({ title: "Transferencia registrada" });
+      } else {
+        toast({
+          title: "Error",
+          description: "No se pudo realizar la transferencia",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Error en la transferencia",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditWalletName = async () => {
+    if (
+      !editingWalletId ||
+      !editingWalletName.trim() ||
+      !supabaseAuth.user?.id
+    ) {
+      toast({ title: "Nombre inválido", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const success = await updateWalletName(
+        editingWalletId,
+        editingWalletName,
+      );
+      if (success) {
+        const wallets = await getPersonalWallets(supabaseAuth.user.id);
+        setPersonalWallets(wallets);
+        setEditingWalletId(null);
+        setEditingWalletName("");
+        toast({ title: "Wallet actualizada" });
+      } else {
+        toast({
+          title: "Error",
+          description: "No se pudo actualizar",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({ title: "Error", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteWallet = async (walletId: string) => {
+    if (!supabaseAuth.user?.id) return;
+    const wallet = personalWallets.find((w) => w.id === walletId);
+    if (!wallet) return;
+
+    // Prevent deleting Principal wallet
+    if (wallet.name === "Principal") {
+      toast({
+        title: "No puedes eliminar",
+        description: "No se puede eliminar la wallet Principal",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const success = await deletePersonalWallet(walletId);
+      if (success) {
+        const wallets = await getPersonalWallets(supabaseAuth.user.id);
+        setPersonalWallets(wallets);
+        toast({ title: "Wallet eliminada" });
+      } else {
+        toast({
+          title: "Error",
+          description: "No se pudo eliminar",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({ title: "Error", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const copyAddress = async () => {
     const addressToCopy = isPersonalMode ? wallet?.address : hederaAccountId;
@@ -1537,89 +1770,58 @@ export default function Wallet() {
   return (
     <div className="space-y-6 pb-28">
       <div className="bg-card border border-border rounded-2xl p-6 shadow-soft">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-primary/10 rounded-xl">
-            <WalletIcon className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold">Wallet</h2>
-            <p className="text-sm text-muted-foreground">
-              Saldo y movimientos en USD
-            </p>
-          </div>
-        </div>
-
         <div className="space-y-6">
-          <div className="text-center py-6">
-            <div className="text-4xl sm:text-5xl font-bold tracking-tight">
-              {loading
-                ? "..."
-                : formatUsd(
-                    isPersonalMode ? totalBalance : projectTotalBalance,
-                  )}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              Saldo total{" "}
-              {isPersonalMode ? "combinando todos tus saldos" : "del proyecto"}
-            </div>
-          </div>
+          {!isPersonalMode && (
+            <div className="text-center py-6">
+              <div className="text-4xl sm:text-5xl font-bold tracking-tight">
+                {loading
+                  ? "..."
+                  : formatUsd(
+                      isPersonalMode ? totalBalance : projectTotalBalance,
+                    )}
+              </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="border border-border rounded-xl p-3">
-              <div className="text-xs text-muted-foreground mb-1">
-                Saldo transferible
-              </div>
-              <div className="text-lg font-semibold">
-                {formatUsd(
-                  isPersonalMode
-                    ? transferableBalance
-                    : projectTransferableBalance,
-                )}
+              <div className="text-xs text-muted-foreground mt-1">
+                Saldo total del proyecto
               </div>
             </div>
-            <div className="border border-border rounded-xl p-3">
-              <div className="text-xs text-muted-foreground mb-1">
-                Saldo no transferible
-              </div>
-              <div className="text-lg font-semibold">
-                {formatUsd(
-                  isPersonalMode
-                    ? remainingNonTransferable
-                    : projectNonTransferableBalance,
-                )}
-              </div>
-            </div>
-            <div className="border border-border rounded-xl p-3">
-              <div className="text-xs text-muted-foreground mb-1">
-                Saldo simbólico
-              </div>
-              <div className="text-lg font-semibold">
-                {formatUsd(
-                  isPersonalMode ? symbolicBalance : projectSymbolicBalance,
-                )}
-              </div>
-            </div>
-          </div>
+          )}
 
-          <div className="flex items-center justify-center gap-3">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button size="lg" variant="secondary">
-                  <Download className="w-4 h-4 mr-2" />
-                  Recibir
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Recibir saldo</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3">
-                  {isPersonalMode ? (
-                    wallet ? (
+          {!isPersonalMode ? (
+            <div className="flex items-center justify-center gap-3">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button size="lg" variant="secondary">
+                    <Download className="w-4 h-4 mr-2" />
+                    Recibir
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Recibir saldo</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    {isPersonalMode ? (
+                      wallet ? (
+                        <>
+                          <Label>Tu dirección</Label>
+                          <div className="flex items-center gap-2">
+                            <Input readOnly value={wallet.address} />
+                            <Button variant="secondary" onClick={copyAddress}>
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          No se encontró tu wallet
+                        </p>
+                      )
+                    ) : hederaAccountId ? (
                       <>
-                        <Label>Tu dirección</Label>
+                        <Label>Dirección del proyecto (Hedera)</Label>
                         <div className="flex items-center gap-2">
-                          <Input readOnly value={wallet.address} />
+                          <Input readOnly value={hederaAccountId} />
                           <Button variant="secondary" onClick={copyAddress}>
                             <Copy className="w-4 h-4" />
                           </Button>
@@ -1627,81 +1829,293 @@ export default function Wallet() {
                       </>
                     ) : (
                       <p className="text-sm text-muted-foreground">
-                        No se encontró tu wallet
+                        No se encontró la wallet del proyecto
                       </p>
-                    )
-                  ) : hederaAccountId ? (
-                    <>
-                      <Label>Dirección del proyecto (Hedera)</Label>
-                      <div className="flex items-center gap-2">
-                        <Input readOnly value={hederaAccountId} />
-                        <Button variant="secondary" onClick={copyAddress}>
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No se encontró la wallet del proyecto
-                    </p>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button size="lg">
-                  <Send className="w-4 h-4 mr-2" />
-                  Enviar saldo
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Enviar saldo</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3">
-                  <div>
-                    <Label>
-                      Dirección destino{" "}
-                      {isPersonalMode ? "(Ethereum/Plume)" : "(Hedera)"}
-                    </Label>
-                    <Input
-                      placeholder={isPersonalMode ? "0x..." : "0.0.xxxxx"}
-                      value={toAddress}
-                      onChange={(e) => setToAddress(e.target.value)}
-                    />
+                    )}
                   </div>
-                  <div>
-                    <Label>Monto {isPersonalMode ? "(PUSD)" : "(HBAR)"}</Label>
-                    <Input
-                      placeholder="10"
-                      value={amountUsd}
-                      onChange={(e) => setAmountUsd(e.target.value)}
-                    />
-                  </div>
-                  <Button
-                    disabled={loading}
-                    onClick={handleSend}
-                    className="w-full"
-                  >
+                </DialogContent>
+              </Dialog>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button size="lg">
                     <Send className="w-4 h-4 mr-2" />
-                    Enviar
+                    Enviar saldo
                   </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Enviar saldo</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>
+                        Dirección destino{" "}
+                        {isPersonalMode ? "(Ethereum/Plume)" : "(Hedera)"}
+                      </Label>
+                      <Input
+                        placeholder={isPersonalMode ? "0x..." : "0.0.xxxxx"}
+                        value={toAddress}
+                        onChange={(e) => setToAddress(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label>
+                        Monto {isPersonalMode ? "(PUSD)" : "(HBAR)"}
+                      </Label>
+                      <Input
+                        placeholder="10"
+                        value={amountUsd}
+                        onChange={(e) => setAmountUsd(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      disabled={loading}
+                      onClick={handleSend}
+                      className="w-full"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Enviar
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="py-2">
+                <div className="flex gap-4 px-2 overflow-x-auto snap-x snap-mandatory touch-pan-x">
+                  {personalWallets.map((p) => {
+                    const created = p.createdAt
+                      ? new Date(p.createdAt)
+                      : new Date();
+                    const exp = new Date(created);
+                    exp.setFullYear(exp.getFullYear() + 3);
+                    const expStr = `${String(exp.getMonth() + 1).padStart(2, "0")}/${String(
+                      exp.getFullYear(),
+                    ).slice(-2)}`;
+                    const cardNumber =
+                      (p.id || "")
+                        .replace(/-/g, "")
+                        .slice(0, 16)
+                        .match(/.{1,4}/g)
+                        ?.join(" ") || p.id.slice(0, 16);
+
+                    return (
+                      <div key={p.id} className="min-w-[350px]  snap-start">
+                        <div
+                          className={`relative rounded-2xl p-4 h-56 shadow-lg overflow-hidden flex flex-col justify-between ${
+                            p.name === "Principal"
+                              ? "bg-gradient-to-r from-primary to-primary/80 text-white"
+                              : "bg-gradient-to-r from-primary  text-foreground border border-border"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="w-10 h-8 bg-white/30 rounded-md" />
+                            <div className="text-xs opacity-80">{p.name}</div>
+                          </div>
+
+                          <div className="mt-1">
+                            <div className="text-sm opacity-80">Balance</div>
+                            <div className="text-2xl font-semibold">
+                              {formatUsd(p.balance)}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs opacity-80">
+                            <div>
+                              <div className="font-mono tracking-widest text-sm">
+                                {cardNumber}
+                              </div>
+                              <div className="flex gap-4 mt-1">
+                                <div>EXP {expStr}</div>
+                                <div>ID {p.id.slice(0, 8)}</div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col items-end gap-2">
+                              <div className="flex gap-1">
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setEditingWalletId(p.id);
+                                        setEditingWalletName(p.name);
+                                      }}
+                                      disabled={p.name === "Principal"}
+                                      title={
+                                        p.name === "Principal"
+                                          ? "No se puede editar"
+                                          : "Editar"
+                                      }
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>
+                                        Editar nombre de wallet
+                                      </DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-3">
+                                      <Label>Nuevo nombre</Label>
+                                      <Input
+                                        value={editingWalletName}
+                                        onChange={(e) =>
+                                          setEditingWalletName(e.target.value)
+                                        }
+                                        placeholder="Nombre de la wallet"
+                                      />
+                                      <Button
+                                        className="w-full"
+                                        onClick={handleEditWalletName}
+                                        disabled={loading}
+                                      >
+                                        Guardar
+                                      </Button>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteWallet(p.id)}
+                                  disabled={p.name === "Principal" || loading}
+                                  title={
+                                    p.name === "Principal"
+                                      ? "No se puede eliminar"
+                                      : "Eliminar"
+                                  }
+                                >
+                                  <Trash2 className="w-4 h-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="border border-border rounded-xl p-4">
+                  <h4 className="font-semibold text-sm mb-2">
+                    Crear nueva wallet
+                  </h4>
+                  <div className="space-y-2">
+                    <Label>Nombre</Label>
+                    <Input
+                      value={newWalletName}
+                      onChange={(e) => setNewWalletName(e.target.value)}
+                      placeholder="Reinversion"
+                    />
+                    <Button
+                      className="w-full"
+                      onClick={handleCreatePersonalWallet}
+                    >
+                      Crear wallet
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="border border-border rounded-xl p-4">
+                  <h4 className="font-semibold text-sm mb-2">
+                    Transferir entre wallets
+                  </h4>
+                  <div className="space-y-2">
+                    <div>
+                      <Label>Desde</Label>
+                      <select
+                        className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                        value={transferFrom}
+                        onChange={(e) => setTransferFrom(e.target.value)}
+                      >
+                        <option value="">Selecciona</option>
+                        {personalWallets.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} · {formatUsd(p.balance)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Hacia</Label>
+                      <select
+                        className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                        value={transferTo}
+                        onChange={(e) => setTransferTo(e.target.value)}
+                      >
+                        <option value="">Selecciona</option>
+                        {personalWallets.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} · {formatUsd(p.balance)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Monto (USD)</Label>
+                      <Input
+                        value={transferAmount}
+                        onChange={(e) => setTransferAmount(e.target.value)}
+                        placeholder="10"
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={handleTransferBetweenPersonal}
+                    >
+                      Transferir
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="border border-border rounded-xl p-4">
             <h3 className="font-semibold mb-3">Historial</h3>
             {loading ? (
               <p className="text-sm text-muted-foreground">Cargando...</p>
-            ) : transfers.length === 0 ? (
+            ) : transfers.length === 0 && transferHistory.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No hay transacciones
               </p>
             ) : (
               <div className="space-y-2">
+                {/* Mostrar transferencias internas primero (más recientes) */}
+                {isPersonalMode && transferHistory.length > 0 && (
+                  <>
+                    {transferHistory.slice(0, 10).map((t) => (
+                      <div
+                        key={`internal-${t.id}`}
+                        className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 p-3"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Repeat2 className="w-4 h-4 text-primary" />
+                          <div>
+                            <div className="text-sm font-medium">
+                              Transferencia interna: {t.fromWalletName} →{" "}
+                              {t.toWalletName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatUsd(t.amount)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(t.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+                {/* Mostrar transacciones on-chain */}
                 {transfers.map((t) => (
                   <div
                     key={t.hash}
@@ -1728,7 +2142,7 @@ export default function Wallet() {
             )}
           </div>
 
-          {isPersonalMode && (
+          {/* {isPersonalMode && (
             <div className="border border-border rounded-xl p-4 space-y-4">
               <h3 className="font-semibold">
                 Objetivos de reinversión mensual
@@ -1832,7 +2246,7 @@ export default function Wallet() {
                   </div>
                 )}
             </div>
-          )}
+          )} */}
         </div>
       </div>
     </div>

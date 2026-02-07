@@ -23,6 +23,7 @@ import {
   Tag,
   CreditCard,
   Pencil,
+  AlertTriangle,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { AutoSyncIndicator } from "@/components/ui/AutoSyncIndicator";
@@ -114,6 +115,7 @@ export const AppLayout: React.FC = () => {
     currentProject,
     currentProjectMember,
     setCurrentProject,
+    supabaseSync,
   } = useApp();
   const location = useLocation();
   const isPremium = data.settings.isPremium || true;
@@ -363,6 +365,18 @@ export const AppLayout: React.FC = () => {
             />
           )}
         </header>
+
+        {/* Sync Conflict Banner - Optional since we have the modal now, but good to keep as backup */}
+        {supabaseSync?.syncConflict && (
+          <div className="bg-destructive text-destructive-foreground px-4 py-2 flex items-center justify-between shadow-md animate-in slide-in-from-top-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              <span className="text-sm font-medium">
+                Conflicto de sincronización detectado: Revisa el modal de acción
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Page content */}
         <main

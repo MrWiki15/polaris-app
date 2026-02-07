@@ -2,6 +2,16 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useApp } from "@/contexts/AppContext";
+import {
   ShoppingCart,
   Receipt,
   Package,
@@ -164,7 +174,13 @@ const PREMIUM_FEATURES = [
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { supabaseAuth } = useApp();
   const [currentFeature, setCurrentFeature] = useState(0);
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleNext = () => {
     if (currentFeature < FEATURES.length - 1) {
@@ -179,8 +195,32 @@ export default function Onboarding() {
   };
 
   const handleSkip = () => {
-    localStorage.setItem("negocio360_onboarding_completed", "true");
-    navigate("/");
+    setAuthMode("login");
+    setShowAuth(true);
+  };
+
+  const handleStart = () => {
+    setAuthMode("register");
+    setShowAuth(true);
+  };
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const result =
+        authMode === "login"
+          ? await supabaseAuth.login(email, password)
+          : await supabaseAuth.register(email, password);
+
+      if (result.success) {
+        localStorage.setItem("negocio360_onboarding_completed", "true");
+        // Navigation will be handled by PublicRoute redirection
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const feature = FEATURES[currentFeature];
@@ -188,6 +228,94 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+      <Dialog open={showAuth} onOpenChange={setShowAuth}>
+        <DialogContent className="sm:max-w-[425px] bg-slate-900 text-white border-slate-800">
+          <DialogHeader>
+            <DialogTitle>
+              {authMode === "login" ? "Iniciar Sesión" : "Crear Cuenta"}
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {authMode === "login"
+                ? "Ingresa a tu cuenta para continuar"
+                : "Crea una cuenta para comenzar a usar Polaris"}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAuth} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="tu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="bg-slate-800 border-slate-700"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="bg-slate-800 border-slate-700"
+                required
+              />
+            </div>
+
+            {supabaseAuth.error && (
+              <p className="text-sm text-red-500">{supabaseAuth.error}</p>
+            )}
+
+            {supabaseAuth.verificationPending && (
+              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-400">
+                Verifica tu email para continuar
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-500"
+              disabled={isLoading}
+            >
+              {isLoading
+                ? "Cargando..."
+                : authMode === "login"
+                ? "Entrar"
+                : "Registrarse"}
+            </Button>
+
+            <div className="text-center text-sm text-slate-400">
+              {authMode === "login" ? (
+                <>
+                  ¿No tienes cuenta?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode("register")}
+                    className="text-blue-400 hover:underline"
+                  >
+                    Regístrate
+                  </button>
+                </>
+              ) : (
+                <>
+                  ¿Ya tienes cuenta?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode("login")}
+                    className="text-blue-400 hover:underline"
+                  >
+                    Inicia sesión
+                  </button>
+                </>
+              )}
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Animated background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>

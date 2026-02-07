@@ -32,6 +32,8 @@ interface ProductFormProps {
     isNft?: boolean;
     nftAddress?: string;
     nftMarketplace?: string;
+    type?: "simple" | "compound";
+    components?: { productId: string; quantity: number }[];
   };
 }
 
@@ -66,10 +68,16 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     isNft: editingProduct?.isNft || false,
     nftAddress: editingProduct?.nftAddress || "",
     nftMarketplace: editingProduct?.nftMarketplace || "",
+    type: (editingProduct?.type || "simple") as "simple" | "compound",
+    components: editingProduct?.components || [],
   });
   // Add state for scanner
   const [showScanner, setShowScanner] = useState(false);
   const [newPrice, setNewPrice] = useState({ name: "", price: "" });
+  const [newComponent, setNewComponent] = useState({
+    productId: "",
+    quantity: "",
+  });
 
   const handleAddPrice = () => {
     if (!newPrice.name || !newPrice.price) return;
@@ -94,6 +102,28 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     }));
   };
 
+  const handleAddComponent = () => {
+    if (!newComponent.productId || !newComponent.quantity) return;
+    setFormData((prev) => ({
+      ...prev,
+      components: [
+        ...prev.components,
+        {
+          productId: newComponent.productId,
+          quantity: parseInt(newComponent.quantity),
+        },
+      ],
+    }));
+    setNewComponent({ productId: "", quantity: "" });
+  };
+
+  const handleRemoveComponent = (productId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      components: prev.components.filter((c) => c.productId !== productId),
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -114,6 +144,9 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         formData.isNft && formData.nftMarketplace
           ? formData.nftMarketplace
           : undefined,
+      type: formData.type,
+      components:
+        formData.type === "compound" ? formData.components : undefined,
     };
 
     if (editingProduct) {
@@ -207,6 +240,136 @@ export const ProductForm: React.FC<ProductFormProps> = ({
               required
             />
           </div>
+
+          <div className="space-y-2">
+            <Label>Tipo de producto</Label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    type: "simple",
+                    components: [],
+                  }))
+                }
+                className={cn(
+                  "flex-1 px-4 py-2 rounded-lg font-medium transition-all",
+                  formData.type === "simple"
+                    ? "bg-primary text-primary-foreground shadow-material"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80",
+                )}
+              >
+                Simple
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setFormData((prev) => ({ ...prev, type: "compound" }))
+                }
+                className={cn(
+                  "flex-1 px-4 py-2 rounded-lg font-medium transition-all",
+                  formData.type === "compound"
+                    ? "bg-primary text-primary-foreground shadow-material"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80",
+                )}
+              >
+                Compuesto
+              </button>
+            </div>
+          </div>
+
+          {formData.type === "compound" && (
+            <div className="space-y-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+              <Label className="text-sm font-medium">Componentes</Label>
+              <p className="text-xs text-muted-foreground">
+                Selecciona los productos simples que forman este producto
+                compuesto
+              </p>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <select
+                    value={newComponent.productId}
+                    onChange={(e) =>
+                      setNewComponent((prev) => ({
+                        ...prev,
+                        productId: e.target.value,
+                      }))
+                    }
+                    className="flex-1 px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
+                  >
+                    <option value="">Selecciona un producto simple</option>
+                    {data.products
+                      .filter(
+                        (p) =>
+                          p.type !== "compound" && p.id !== editingProduct?.id,
+                      )
+                      .map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name}
+                        </option>
+                      ))}
+                  </select>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="Cantidad"
+                    value={newComponent.quantity}
+                    onChange={(e) =>
+                      setNewComponent((prev) => ({
+                        ...prev,
+                        quantity: e.target.value,
+                      }))
+                    }
+                    className="w-20"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    onClick={handleAddComponent}
+                    disabled={!newComponent.productId || !newComponent.quantity}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                {formData.components.length > 0 && (
+                  <div className="space-y-2">
+                    {formData.components.map((component) => {
+                      const prod = data.products.find(
+                        (p) => p.id === component.productId,
+                      );
+                      return (
+                        <div
+                          key={component.productId}
+                          className="flex items-center justify-between p-2 bg-background rounded-lg border border-border"
+                        >
+                          <div className="flex-1">
+                            <span className="text-sm font-medium">
+                              {prod?.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              x{component.quantity}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRemoveComponent(component.productId)
+                            }
+                            className="text-destructive hover:bg-destructive/10 p-1 rounded transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

@@ -152,6 +152,25 @@ interface AppContextType {
   // Refresh data
   refreshData: () => void;
   // Auth
+  supabaseSync: {
+    isSyncing: boolean;
+    isOnline: boolean;
+    lastSyncTime: string | null;
+    checkSyncStatus: () => Promise<{
+      hasLocalChanges: boolean;
+      hasRemoteChanges: boolean;
+      localTime: number;
+      remoteTime: number;
+    } | null>;
+    restoreFromCloud: () => Promise<AppData | null>;
+    syncConflict: {
+      cloudStats: { products: number; sales: number; clients: number };
+      localStats: { products: number; sales: number; clients: number };
+    } | null;
+    resolveConflict: () => void;
+    saveToSupabase: (data: AppData, force?: boolean) => Promise<void>;
+    isInitialCheckDone: boolean;
+  };
   supabaseAuth: ReturnType<typeof useSupabaseAuth>;
 }
 
@@ -190,10 +209,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const supabaseAuth = useSupabaseAuth();
   const isPremium = data.settings.isPremium || true;
   //const isPremium = true;
-  const { isSyncing, isOnline, lastSyncTime, saveToSupabase } = useSupabaseSync(
-    supabaseAuth.user?.id,
-    isPremium,
-  );
+  const supabaseSync = useSupabaseSync(supabaseAuth.user?.id, isPremium);
+  const { isSyncing, isOnline, lastSyncTime, saveToSupabase } = supabaseSync;
 
   const loadProjectData = useCallback(async (projectId: number) => {
     try {
@@ -243,9 +260,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       !isProjectMode &&
       isPremium &&
       isOnline &&
-      supabaseAuth.isAuthenticated
+      supabaseAuth.isAuthenticated &&
+      supabaseSync.isInitialCheckDone
     ) {
       const timer = setTimeout(() => {
+        // We do NOT force save here; we let the internal check handle conflicts
         saveToSupabase(data);
       }, 1000);
 
@@ -258,6 +277,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     supabaseAuth.isAuthenticated,
     saveToSupabase,
     isProjectMode,
+    supabaseSync.isInitialCheckDone,
   ]);
 
   // Automatically save project data to Supabase when in project mode
@@ -319,15 +339,40 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
     // If sale has a productId, update inventory
     if (sale.productId && sale.quantity) {
-      setData((prev) => ({
-        ...prev,
-        sales: [newSale, ...prev.sales],
-        products: prev.products.map((p) =>
+      setData((prev) => {
+        const product = prev.products.find((p) => p.id === sale.productId);
+        let updatedProducts = [...prev.products];
+
+        // Update the main product
+        updatedProducts = updatedProducts.map((p) =>
           p.id === sale.productId
             ? { ...p, quantity: Math.max(0, p.quantity - (sale.quantity || 0)) }
             : p,
-        ),
-      }));
+        );
+
+        // If it's a compound product, also reduce its components
+        if (product && product.type === "compound" && product.components) {
+          updatedProducts = updatedProducts.map((p) => {
+            const component = product.components?.find(
+              (c) => c.productId === p.id,
+            );
+            if (component) {
+              const totalToReduce = component.quantity * (sale.quantity || 0);
+              return {
+                ...p,
+                quantity: Math.max(0, p.quantity - totalToReduce),
+              };
+            }
+            return p;
+          });
+        }
+
+        return {
+          ...prev,
+          sales: [newSale, ...prev.sales],
+          products: updatedProducts,
+        };
+      });
     } else {
       setData((prev) => ({ ...prev, sales: [newSale, ...prev.sales] }));
     }
@@ -912,6 +957,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           isSyncing,
           isOnline,
           lastSyncTime,
+        },
+        supabaseSync: {
+          isSyncing,
+          isOnline,
+          lastSyncTime,
+          checkSyncStatus: supabaseSync.checkSyncStatus,
+          restoreFromCloud: supabaseSync.restoreFromCloud,
+          saveToSupabase: supabaseSync.saveToSupabase,
+          syncConflict: supabaseSync.syncConflict,
+          resolveConflict: supabaseSync.resolveConflict,
+          isInitialCheckDone: supabaseSync.isInitialCheckDone,
         },
         currentProject,
         currentProjectMember,

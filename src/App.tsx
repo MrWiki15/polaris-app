@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AppProvider } from "@/contexts/AppContext";
+import { AppProvider, useApp } from "@/contexts/AppContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import Ventas from "@/pages/Ventas";
@@ -27,29 +27,17 @@ import Teams from "./pages/Teams";
 import History from "./pages/History";
 import Wallet from "./pages/Wallet";
 import Onboarding from "./pages/Onboarding";
+import Ingreso from "./pages/Ingreso";
+import Gasto from "./pages/Gasto";
+import Item from "./pages/Item";
 import { useState, useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-// Component to check if user is new
-const OnboardingRoute = () => {
-  const [isNew, setIsNew] = useState(false);
-  const [loading, setLoading] = useState(true);
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+  const { supabaseAuth } = useApp();
 
-  useEffect(() => {
-    const hasData = localStorage.getItem("negocio360_data");
-    const hasCompleted = localStorage.getItem(
-      "negocio360_onboarding_completed",
-    );
-
-    // Si no tiene data y no ha completado el onboarding, es nuevo
-    if (!hasData && !hasCompleted) {
-      setIsNew(true);
-    }
-    setLoading(false);
-  }, []);
-
-  if (loading) {
+  if (supabaseAuth.loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-900">
         <div className="text-white">Cargando...</div>
@@ -57,23 +45,63 @@ const OnboardingRoute = () => {
     );
   }
 
-  return isNew ? <Onboarding /> : <Navigate to="/" replace />;
+  if (supabaseAuth.user) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
 };
+
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { supabaseAuth } = useApp();
+
+  if (supabaseAuth.loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-900">
+        <div className="text-white">Cargando...</div>
+      </div>
+    );
+  }
+
+  if (!supabaseAuth.user) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+import { SyncConflictModal } from "@/components/ui/SyncConflictModal";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AppProvider>
       <TooltipProvider>
         <Toaster />
-
+        <SyncConflictModal />
         <BrowserRouter>
           <Routes>
-            <Route path="/onboarding" element={<OnboardingRoute />} />
-            <Route element={<AppLayout />}>
+            <Route
+              path="/onboarding"
+              element={
+                <PublicRoute>
+                  <Onboarding />
+                </PublicRoute>
+              }
+            />
+            <Route
+              element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }
+            >
               <Route path="/" element={<Dashboard />} />
               <Route path="/ingresos" element={<Ventas />} />
+              <Route path="/ingresos/:id" element={<Ingreso />} />
               <Route path="/gastos" element={<Gastos />} />
+              <Route path="/gastos/:id" element={<Gasto />} />
               <Route path="/inventario" element={<Inventario />} />
+              <Route path="/inventario/:id" element={<Item />} />
               <Route path="/servicios" element={<Servicios />} />
               <Route path="/analisis" element={<Analisis />} />
               <Route path="/proyecciones" element={<Proyecciones />} />
