@@ -236,9 +236,10 @@ export const Item: React.FC = () => {
             </div>
             <div className="space-y-2">
               {componentProducts.map((component) => (
-                <div
+                <button
                   key={component.productId}
-                  className="p-3 bg-background rounded-lg border border-blue-200 dark:border-blue-800"
+                  onClick={() => navigate(`/item/${component.productId}`)}
+                  className="w-full text-left p-3 bg-background rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -272,7 +273,7 @@ export const Item: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>

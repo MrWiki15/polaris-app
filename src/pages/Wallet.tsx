@@ -551,6 +551,35 @@ export default function Wallet() {
     totalBalance,
   ]);
 
+  // Sync Principal wallet balance when totalBalance changes (new sales, etc.)
+  useEffect(() => {
+    const syncPrincipalBalance = async () => {
+      if (
+        !isPersonalMode ||
+        !supabaseAuth.user?.id ||
+        personalWallets.length === 0
+      )
+        return;
+
+      const principal = personalWallets.find((w) => w.name === "Principal");
+      if (principal && principal.balance !== Number(totalBalance || 0)) {
+        try {
+          setLoading(true);
+          await updateWalletBalance(principal.id, Number(totalBalance || 0));
+          // Reload wallets to reflect updated balance
+          const updated = await getPersonalWallets(supabaseAuth.user.id);
+          setPersonalWallets(updated);
+        } catch (err) {
+          console.error("Error syncing principal wallet balance:", err);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    syncPrincipalBalance();
+  }, [totalBalance, isPersonalMode, supabaseAuth.user?.id, personalWallets]);
+
   const persistPersonalWallets = (wallets: PersonalWallet[]) => {
     try {
       const key = `personal_wallets_${supabaseAuth.user?.id}`;
@@ -1883,123 +1912,137 @@ export default function Wallet() {
           ) : (
             <div className="space-y-4">
               <div className="py-2">
-                <div className="flex gap-4 px-2 overflow-x-auto snap-x snap-mandatory touch-pan-x">
-                  {personalWallets.map((p) => {
-                    const created = p.createdAt
-                      ? new Date(p.createdAt)
-                      : new Date();
-                    const exp = new Date(created);
-                    exp.setFullYear(exp.getFullYear() + 3);
-                    const expStr = `${String(exp.getMonth() + 1).padStart(2, "0")}/${String(
-                      exp.getFullYear(),
-                    ).slice(-2)}`;
-                    const cardNumber =
-                      (p.id || "")
-                        .replace(/-/g, "")
-                        .slice(0, 16)
-                        .match(/.{1,4}/g)
-                        ?.join(" ") || p.id.slice(0, 16);
+                {loading && (
+                  <div className="flex items-center justify-center py-8 px-2">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin">
+                        <WalletIcon className="w-8 h-8 text-primary" />
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        Cargando wallets...
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {!loading && (
+                  <div className="flex gap-4 px-2 overflow-x-auto snap-x snap-mandatory touch-pan-x">
+                    {personalWallets.map((p) => {
+                      const created = p.createdAt
+                        ? new Date(p.createdAt)
+                        : new Date();
+                      const exp = new Date(created);
+                      exp.setFullYear(exp.getFullYear() + 3);
+                      const expStr = `${String(exp.getMonth() + 1).padStart(2, "0")}/${String(
+                        exp.getFullYear(),
+                      ).slice(-2)}`;
+                      const cardNumber =
+                        (p.id || "")
+                          .replace(/-/g, "")
+                          .slice(0, 16)
+                          .match(/.{1,4}/g)
+                          ?.join(" ") || p.id.slice(0, 16);
 
-                    return (
-                      <div key={p.id} className="min-w-[350px]  snap-start">
-                        <div
-                          className={`relative rounded-2xl p-4 h-56 shadow-lg overflow-hidden flex flex-col justify-between ${
-                            p.name === "Principal"
-                              ? "bg-gradient-to-r from-primary to-primary/80 text-white"
-                              : "bg-gradient-to-r from-primary  text-foreground border border-border"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="w-10 h-8 bg-white/30 rounded-md" />
-                            <div className="text-xs opacity-80">{p.name}</div>
-                          </div>
-
-                          <div className="mt-1">
-                            <div className="text-sm opacity-80">Balance</div>
-                            <div className="text-2xl font-semibold">
-                              {formatUsd(p.balance)}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between text-xs opacity-80">
-                            <div>
-                              <div className="font-mono tracking-widest text-sm">
-                                {cardNumber}
-                              </div>
-                              <div className="flex gap-4 mt-1">
-                                <div>EXP {expStr}</div>
-                                <div>ID {p.id.slice(0, 8)}</div>
-                              </div>
+                      return (
+                        <div key={p.id} className="min-w-[350px]  snap-start">
+                          <div
+                            className={`relative rounded-2xl p-4 h-56 shadow-lg overflow-hidden flex flex-col justify-between ${
+                              p.name === "Principal"
+                                ? "bg-gradient-to-r from-primary to-primary/80 text-white"
+                                : "bg-gradient-to-r from-primary  text-foreground border border-border"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="w-10 h-8 bg-white/30 rounded-md" />
+                              <div className="text-xs opacity-80">{p.name}</div>
                             </div>
 
-                            <div className="flex flex-col items-end gap-2">
-                              <div className="flex gap-1">
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => {
-                                        setEditingWalletId(p.id);
-                                        setEditingWalletName(p.name);
-                                      }}
-                                      disabled={p.name === "Principal"}
-                                      title={
-                                        p.name === "Principal"
-                                          ? "No se puede editar"
-                                          : "Editar"
-                                      }
-                                    >
-                                      <Edit2 className="w-4 h-4" />
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle>
-                                        Editar nombre de wallet
-                                      </DialogTitle>
-                                    </DialogHeader>
-                                    <div className="space-y-3">
-                                      <Label>Nuevo nombre</Label>
-                                      <Input
-                                        value={editingWalletName}
-                                        onChange={(e) =>
-                                          setEditingWalletName(e.target.value)
-                                        }
-                                        placeholder="Nombre de la wallet"
-                                      />
+                            <div className="mt-1">
+                              <div className="text-sm opacity-80">Balance</div>
+                              <div className="text-2xl font-semibold">
+                                {formatUsd(p.balance)}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs opacity-80">
+                              <div>
+                                <div className="font-mono tracking-widest text-sm">
+                                  {cardNumber}
+                                </div>
+                                <div className="flex gap-4 mt-1">
+                                  <div>EXP {expStr}</div>
+                                  <div>ID {p.id.slice(0, 8)}</div>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col items-end gap-2">
+                                <div className="flex gap-1">
+                                  <Dialog>
+                                    <DialogTrigger asChild>
                                       <Button
-                                        className="w-full"
-                                        onClick={handleEditWalletName}
-                                        disabled={loading}
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => {
+                                          setEditingWalletId(p.id);
+                                          setEditingWalletName(p.name);
+                                        }}
+                                        disabled={p.name === "Principal"}
+                                        title={
+                                          p.name === "Principal"
+                                            ? "No se puede editar"
+                                            : "Editar"
+                                        }
                                       >
-                                        Guardar
+                                        <Edit2 className="w-4 h-4" />
                                       </Button>
-                                    </div>
-                                  </DialogContent>
-                                </Dialog>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>
+                                          Editar nombre de wallet
+                                        </DialogTitle>
+                                      </DialogHeader>
+                                      <div className="space-y-3">
+                                        <Label>Nuevo nombre</Label>
+                                        <Input
+                                          value={editingWalletName}
+                                          onChange={(e) =>
+                                            setEditingWalletName(e.target.value)
+                                          }
+                                          placeholder="Nombre de la wallet"
+                                        />
+                                        <Button
+                                          className="w-full"
+                                          onClick={handleEditWalletName}
+                                          disabled={loading}
+                                        >
+                                          Guardar
+                                        </Button>
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
 
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleDeleteWallet(p.id)}
-                                  disabled={p.name === "Principal" || loading}
-                                  title={
-                                    p.name === "Principal"
-                                      ? "No se puede eliminar"
-                                      : "Eliminar"
-                                  }
-                                >
-                                  <Trash2 className="w-4 h-4 text-destructive" />
-                                </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDeleteWallet(p.id)}
+                                    disabled={p.name === "Principal" || loading}
+                                    title={
+                                      p.name === "Principal"
+                                        ? "No se puede eliminar"
+                                        : "Eliminar"
+                                    }
+                                  >
+                                    <Trash2 className="w-4 h-4 text-destructive" />
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
