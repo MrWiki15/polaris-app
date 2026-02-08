@@ -924,32 +924,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   // Service incomes operations
-  const addService = (service: Omit<Service, "id" | "createdAt">) => {
-    const newService: Service = {
-      ...service,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-    };
-    setData((prev) => ({ ...prev, services: [newService, ...prev.services] }));
-  };
-
-  const updateService = (id: string, serviceUpdate: Partial<Service>) => {
-    setData((prev) => ({
-      ...prev,
-      services: prev.services.map((s) =>
-        s.id === id ? { ...s, ...serviceUpdate } : s,
-      ),
-    }));
-  };
-
-  const deleteService = (id: string) => {
-    setData((prev) => ({
-      ...prev,
-      services: prev.services.filter((s) => s.id !== id),
-    }));
-  };
-
-  // Service incomes operations
   const addServiceIncome = (income: Omit<ServiceIncome, "id">) => {
     const newIncome: ServiceIncome = { ...income, id: generateId() };
 

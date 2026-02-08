@@ -1530,18 +1530,18 @@ export default function Wallet() {
                 <div className="text-sm font-medium">
                   Saldos por departamento
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
                   {allWallets.map((w) => {
                     const deptBalance = calculateDepartmentBudget(w.name);
                     return (
                       <div
                         key={w.name}
-                        className="border border-border rounded-xl p-3"
+                        className="border border-border rounded-xl p-2 sm:p-3"
                       >
-                        <div className="text-xs text-muted-foreground mb-1">
+                        <div className="text-xs text-muted-foreground mb-1 text-xxs sm:text-xs">
                           {getDepartamentLabel(w.name)}
                         </div>
-                        <div className="text-lg font-semibold">
+                        <div className="text-base sm:text-lg font-semibold">
                           {formatUsd(deptBalance)}
                         </div>
                       </div>
@@ -1901,12 +1901,12 @@ export default function Wallet() {
   }
 
   return (
-    <div className="space-y-6 pb-28">
-      <div className="bg-card border border-border rounded-2xl p-6 shadow-soft">
-        <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-6 pb-28">
+      <div className="bg-card border border-border rounded-2xl p-3 sm:p-6 shadow-soft">
+        <div className="space-y-3 sm:space-y-6">
           {!isPersonalMode && (
-            <div className="text-center py-6">
-              <div className="text-4xl sm:text-5xl font-bold tracking-tight">
+            <div className="text-center py-3 sm:py-6">
+              <div className="text-2xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
                 {loading
                   ? "..."
                   : formatUsd(
@@ -1914,18 +1914,22 @@ export default function Wallet() {
                     )}
               </div>
 
-              <div className="text-xs text-muted-foreground mt-1">
+              <div className="text-xs sm:text-sm text-muted-foreground mt-1">
                 Saldo total del proyecto
               </div>
             </div>
           )}
 
           {!isPersonalMode ? (
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex items-center justify-center gap-2 sm:gap-3">
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button size="lg" variant="secondary">
-                    <Download className="w-4 h-4 mr-2" />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="text-xs sm:text-sm"
+                  >
+                    <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                     Recibir
                   </Button>
                 </DialogTrigger>
@@ -1970,8 +1974,8 @@ export default function Wallet() {
               </Dialog>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button size="lg">
-                    <Send className="w-4 h-4 mr-2" />
+                  <Button size="sm" className="text-xs sm:text-sm">
+                    <Send className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                     Enviar saldo
                   </Button>
                 </DialogTrigger>
@@ -2014,10 +2018,10 @@ export default function Wallet() {
               </Dialog>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2 sm:space-y-4">
               <div className="py-2">
                 {loading && (
-                  <div className="flex items-center justify-center py-8 px-2">
+                  <div className="flex items-center justify-center py-4 sm:py-8 px-2">
                     <div className="flex flex-col items-center gap-2">
                       <div className="animate-spin">
                         <WalletIcon className="w-8 h-8 text-primary" />
@@ -2029,7 +2033,7 @@ export default function Wallet() {
                   </div>
                 )}
                 {!loading && (
-                  <div className="flex gap-4 px-2 overflow-x-auto snap-x snap-mandatory touch-pan-x">
+                  <div className="flex gap-2 sm:gap-4 px-2 overflow-x-auto snap-x snap-mandatory touch-pan-x">
                     {personalWallets.map((p) => {
                       const created = p.createdAt
                         ? new Date(p.createdAt)
@@ -2047,9 +2051,12 @@ export default function Wallet() {
                           ?.join(" ") || p.id.slice(0, 16);
 
                       return (
-                        <div key={p.id} className="min-w-[350px]  snap-start">
+                        <div
+                          key={p.id}
+                          className="min-w-[280px] sm:min-w-[350px] snap-start"
+                        >
                           <div
-                            className={`relative rounded-2xl p-4 h-56 shadow-lg overflow-hidden flex flex-col justify-between ${
+                            className={`relative rounded-2xl p-3 sm:p-4 h-40 sm:h-56 shadow-lg overflow-hidden flex flex-col justify-between ${
                               p.name === "Principal"
                                 ? "bg-gradient-to-r from-primary to-primary/80 text-white"
                                 : "bg-gradient-to-r from-primary  text-foreground border border-border"
@@ -2058,26 +2065,32 @@ export default function Wallet() {
                             <div className="flex items-start justify-between">
                               <img
                                 src={"/public/SVG/P001.svg"}
-                                className="h-6"
+                                className="h-4 sm:h-6"
                               />
-                              <div className="text-xs opacity-80">{p.name}</div>
+                              <div className="text-xxs sm:text-xs opacity-80">
+                                {p.name}
+                              </div>
                             </div>
 
                             <div className="mt-1">
-                              <div className="text-sm opacity-80">Balance</div>
-                              <div className="text-2xl font-semibold">
+                              <div className="text-xs sm:text-sm opacity-80">
+                                Balance
+                              </div>
+                              <div className="text-lg sm:text-2xl font-semibold">
                                 {formatUsd(p.balance)}
                               </div>
                             </div>
 
-                            <div className="flex items-center justify-between text-xs opacity-80">
+                            <div className="flex items-center justify-between text-xs opacity-80 text-xxs sm:text-xs">
                               <div>
-                                <div className="font-mono tracking-widest text-sm">
+                                <div className="font-mono tracking-widest text-xs sm:text-sm">
                                   {cardNumber}
                                 </div>
-                                <div className="flex gap-4 mt-1">
-                                  <div>EXP {expStr}</div>
-                                  <div>ID {p.id.slice(0, 8)}</div>
+                                <div className="flex gap-2 sm:gap-4 mt-1">
+                                  <div className="text-xs">EXP {expStr}</div>
+                                  <div className="text-xs">
+                                    ID {p.id.slice(0, 8)}
+                                  </div>
                                 </div>
                               </div>
 
@@ -2099,7 +2112,7 @@ export default function Wallet() {
                                             : "Editar"
                                         }
                                       >
-                                        <Edit2 className="w-4 h-4" />
+                                        <Edit2 className="w-3 h-3 sm:w-4 sm:h-4" />
                                       </Button>
                                     </DialogTrigger>
                                     <DialogContent>
@@ -2139,7 +2152,7 @@ export default function Wallet() {
                                         : "Eliminar"
                                     }
                                   >
-                                    <Trash2 className="w-4 h-4 text-destructive" />
+                                    <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-destructive" />
                                   </Button>
                                 </div>
                               </div>
@@ -2152,9 +2165,9 @@ export default function Wallet() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="border border-border rounded-xl p-4">
-                  <h4 className="font-semibold text-sm mb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="border border-border rounded-xl p-3 sm:p-4">
+                  <h4 className="font-semibold text-xs sm:text-sm mb-2">
                     Crear nueva wallet
                   </h4>
                   <div className="space-y-2">
@@ -2173,8 +2186,8 @@ export default function Wallet() {
                   </div>
                 </div>
 
-                <div className="border border-border rounded-xl p-4">
-                  <h4 className="font-semibold text-sm mb-2">
+                <div className="border border-border rounded-xl p-3 sm:p-4">
+                  <h4 className="font-semibold text-xs sm:text-sm mb-2">
                     Transferir entre wallets
                   </h4>
                   <div className="space-y-2">
@@ -2228,8 +2241,10 @@ export default function Wallet() {
             </div>
           )}
 
-          <div className="border border-border rounded-xl p-4">
-            <h3 className="font-semibold mb-3">Historial</h3>
+          <div className="border border-border rounded-xl p-3 sm:p-4">
+            <h3 className="font-semibold mb-2 sm:mb-3 text-sm sm:text-base">
+              Historial
+            </h3>
             {loading ? (
               <p className="text-sm text-muted-foreground">Cargando...</p>
             ) : transfers.length === 0 && transferHistory.length === 0 ? (
@@ -2237,20 +2252,20 @@ export default function Wallet() {
                 No hay transacciones
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1 sm:space-y-2">
                 {/* Mostrar transferencias internas primero (más recientes) */}
                 {isPersonalMode && transferHistory.length > 0 && (
                   <>
                     {transferHistory.slice(0, 10).map((t) => (
                       <div
                         key={`internal-${t.id}`}
-                        className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 p-3"
+                        className="flex items-start justify-between rounded-lg border border-primary/20 bg-primary/5 p-2 sm:p-3 gap-2"
                       >
-                        <div className="flex items-center gap-2">
-                          <Repeat2 className="w-4 h-4 text-primary" />
-                          <div>
-                            <div className="text-sm font-medium">
-                              Transferencia interna: {t.fromWalletName} →{" "}
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Repeat2 className="w-3 h-3 sm:w-4 sm:h-4 text-primary mt-0.5 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-xs sm:text-sm font-medium truncate">
+                              Transferencia: {t.fromWalletName} →{" "}
                               {t.toWalletName}
                             </div>
                             <div className="text-xs text-muted-foreground">
@@ -2269,21 +2284,21 @@ export default function Wallet() {
                 {transfers.map((t) => (
                   <div
                     key={t.hash}
-                    className="flex items-center justify-between rounded-lg border border-border p-3"
+                    className="flex items-start justify-between rounded-lg border border-border p-2 sm:p-3 gap-2"
                   >
-                    <div>
-                      <div className="text-sm font-medium">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs sm:text-sm font-medium">
                         {t.direction === "sent" ? "Enviado" : "Recibido"}{" "}
                         {Number(t.amount).toLocaleString("en-US", {
                           style: "currency",
                           currency: "USD",
                         })}
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-muted-foreground truncate">
                         {t.direction === "sent" ? `a ${t.to}` : `de ${t.from}`}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground whitespace-nowrap">
                       {new Date(t.timestamp).toLocaleString()}
                     </div>
                   </div>
@@ -2293,11 +2308,11 @@ export default function Wallet() {
           </div>
 
           {isPersonalMode && (
-            <div className="border border-border rounded-xl p-4 space-y-4">
-              <h3 className="font-semibold">
+            <div className="border border-border rounded-xl p-3 sm:p-4 space-y-3 sm:space-y-4">
+              <h3 className="font-semibold text-sm sm:text-base">
                 Objetivos de reinversión mensual
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 <div>
                   <Label>Nombre del objetivo</Label>
                   <Input
