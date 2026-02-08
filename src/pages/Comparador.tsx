@@ -47,16 +47,9 @@ const computeMetrics = (type: string, id: string, data: any) => {
     const service = data.services.find((s: any) => s.id === id);
     name = service?.name || id;
     const related = serviceIncomes.filter((si: any) => si.serviceId === id);
-    revenue = related.reduce(
-      (s: number, r: any) => s + (r.gross ?? r.amount ?? 0),
-      0,
-    );
-    // treat investorPercent as expense if present
-    const investorExpenses = related.reduce(
-      (s: number, r: any) =>
-        s + ((r.gross || r.amount || 0) * (r.investorPercent || 0)) / 100,
-      0,
-    );
+    revenue = related.reduce((s: number, r: any) => s + (r.amount || 0), 0);
+    const percent = service?.associatedExpense?.percent || 0;
+    const investorExpenses = (revenue * percent) / 100;
     expense = investorExpenses;
     explain.push(
       `Ingresos por servicio: ${formatCurrency(revenue, data.settings.currencySymbol)}`,
@@ -186,32 +179,67 @@ const Comparador: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Comparador</h2>
-          <p className="text-sm text-muted-foreground">Comparación rápida entre elementos seleccionados</p>
+          <p className="text-sm text-muted-foreground">
+            Comparación rápida entre elementos seleccionados
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="px-3 py-1 rounded-lg bg-muted text-sm" onClick={() => nav(-1)}>Volver</button>
+          <button
+            className="px-3 py-1 rounded-lg bg-muted text-sm"
+            onClick={() => nav(-1)}
+          >
+            Volver
+          </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className={cn("p-6 rounded-2xl border shadow-sm", betterByProfit === "left" ? "border-success/40 bg-success/5" : "bg-card")}>
+        <div
+          className={cn(
+            "p-6 rounded-2xl border shadow-sm",
+            betterByProfit === "left"
+              ? "border-success/40 bg-success/5"
+              : "bg-card",
+          )}
+        >
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-lg">{leftMetrics.name}</h3>
-            {betterByProfit === "left" && <span className="text-xs bg-success/10 text-success px-2 py-1 rounded">Mejor</span>}
+            {betterByProfit === "left" && (
+              <span className="text-xs bg-success/10 text-success px-2 py-1 rounded">
+                Mejor
+              </span>
+            )}
           </div>
           <div className="flex items-end gap-6">
             <div>
               <div className="text-xs text-muted-foreground">Ingresos</div>
-              <div className="text-xl font-semibold">{formatCurrency(leftMetrics.revenue, data.settings.currencySymbol)}</div>
+              <div className="text-xl font-semibold">
+                {formatCurrency(
+                  leftMetrics.revenue,
+                  data.settings.currencySymbol,
+                )}
+              </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Gastos</div>
-              <div className="text-xl font-semibold text-destructive">{formatCurrency(leftMetrics.expense, data.settings.currencySymbol)}</div>
+              <div className="text-xl font-semibold text-destructive">
+                {formatCurrency(
+                  leftMetrics.expense,
+                  data.settings.currencySymbol,
+                )}
+              </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Beneficio</div>
-              <div className="text-2xl font-bold">{formatCurrency(leftMetrics.profit, data.settings.currencySymbol)}</div>
-              <div className="text-xs text-muted-foreground">Margen {leftMetrics.margin.toFixed(1)}%</div>
+              <div className="text-2xl font-bold">
+                {formatCurrency(
+                  leftMetrics.profit,
+                  data.settings.currencySymbol,
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Margen {leftMetrics.margin.toFixed(1)}%
+              </div>
             </div>
           </div>
 
@@ -222,24 +250,52 @@ const Comparador: React.FC = () => {
           </div>
         </div>
 
-        <div className={cn("p-6 rounded-2xl border shadow-sm", betterByProfit === "right" ? "border-success/40 bg-success/5" : "bg-card")}>
+        <div
+          className={cn(
+            "p-6 rounded-2xl border shadow-sm",
+            betterByProfit === "right"
+              ? "border-success/40 bg-success/5"
+              : "bg-card",
+          )}
+        >
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-lg">{rightMetrics.name}</h3>
-            {betterByProfit === "right" && <span className="text-xs bg-success/10 text-success px-2 py-1 rounded">Mejor</span>}
+            {betterByProfit === "right" && (
+              <span className="text-xs bg-success/10 text-success px-2 py-1 rounded">
+                Mejor
+              </span>
+            )}
           </div>
           <div className="flex items-end gap-6">
             <div>
               <div className="text-xs text-muted-foreground">Ingresos</div>
-              <div className="text-xl font-semibold">{formatCurrency(rightMetrics.revenue, data.settings.currencySymbol)}</div>
+              <div className="text-xl font-semibold">
+                {formatCurrency(
+                  rightMetrics.revenue,
+                  data.settings.currencySymbol,
+                )}
+              </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Gastos</div>
-              <div className="text-xl font-semibold text-destructive">{formatCurrency(rightMetrics.expense, data.settings.currencySymbol)}</div>
+              <div className="text-xl font-semibold text-destructive">
+                {formatCurrency(
+                  rightMetrics.expense,
+                  data.settings.currencySymbol,
+                )}
+              </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Beneficio</div>
-              <div className="text-2xl font-bold">{formatCurrency(rightMetrics.profit, data.settings.currencySymbol)}</div>
-              <div className="text-xs text-muted-foreground">Margen {rightMetrics.margin.toFixed(1)}%</div>
+              <div className="text-2xl font-bold">
+                {formatCurrency(
+                  rightMetrics.profit,
+                  data.settings.currencySymbol,
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Margen {rightMetrics.margin.toFixed(1)}%
+              </div>
             </div>
           </div>
 
@@ -255,15 +311,28 @@ const Comparador: React.FC = () => {
         <p className="font-medium">Resultado</p>
         <div className="mt-2 flex items-center gap-4">
           <div className="flex-1">
-            <div className="text-sm text-muted-foreground">Diferencia de beneficio</div>
-            <div className="text-lg font-semibold">{formatCurrency(diff, data.settings.currencySymbol)} • {percent.toFixed(1)}%</div>
+            <div className="text-sm text-muted-foreground">
+              Diferencia de beneficio
+            </div>
+            <div className="text-lg font-semibold">
+              {formatCurrency(diff, data.settings.currencySymbol)} •{" "}
+              {percent.toFixed(1)}%
+            </div>
             <div className="w-full bg-muted h-2 rounded-full mt-2 overflow-hidden">
-              <div style={{ width: `${Math.min(100, percent)}%` }} className="h-2 bg-primary" />
+              <div
+                style={{ width: `${Math.min(100, percent)}%` }}
+                className="h-2 bg-primary"
+              />
             </div>
           </div>
           <div className="w-48 text-sm text-muted-foreground">
-            <div>{betterByProfit === "left" ? leftMetrics.name : rightMetrics.name} tiene un beneficio {percent.toFixed(1)}% mayor.</div>
-            <div className="mt-1">Explicación basada en ingresos y gastos registrados.</div>
+            <div>
+              {betterByProfit === "left" ? leftMetrics.name : rightMetrics.name}{" "}
+              tiene un beneficio {percent.toFixed(1)}% mayor.
+            </div>
+            <div className="mt-1">
+              Explicación basada en ingresos y gastos registrados.
+            </div>
           </div>
         </div>
       </div>

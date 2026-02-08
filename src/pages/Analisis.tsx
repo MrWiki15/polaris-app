@@ -81,7 +81,7 @@ export const Analisis: React.FC = () => {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
       const monthKey = `${date.getFullYear()}-${String(
-        date.getMonth() + 1
+        date.getMonth() + 1,
       ).padStart(2, "0")}`;
       const monthName = date.toLocaleDateString("es-ES", {
         month: "short",
@@ -172,7 +172,7 @@ export const Analisis: React.FC = () => {
     });
 
     const topClient = Object.values(clientMap).sort(
-      (a, b) => b.revenue - a.revenue
+      (a, b) => b.revenue - a.revenue,
     )[0];
     return topClient || null;
   }, [sales, clients, isPremium]);
@@ -244,7 +244,7 @@ export const Analisis: React.FC = () => {
       }))
       .sort(
         (a, b) =>
-          parseFloat(b.margin as string) - parseFloat(a.margin as string)
+          parseFloat(b.margin as string) - parseFloat(a.margin as string),
       );
 
     return suppliersWithMargin[0] || null;
@@ -278,7 +278,7 @@ export const Analisis: React.FC = () => {
         icon: <TrendingUp className="w-5 h-5" />,
         title: "Margen saludable",
         text: `Tu margen de beneficio del ${profitMargin.toFixed(
-          0
+          0,
         )}% está por encima del promedio`,
         type: "success",
       });
@@ -293,7 +293,7 @@ export const Analisis: React.FC = () => {
 
     // Low stock products affecting sales
     const lowStockCount = products.filter(
-      (p) => p.quantity <= (p.minStock || 10)
+      (p) => p.quantity <= (p.minStock || 10),
     ).length;
     if (lowStockCount > 0) {
       tips.push({
@@ -318,7 +318,7 @@ export const Analisis: React.FC = () => {
           icon: <TrendingUp className="w-5 h-5" />,
           title: "Crecimiento positivo",
           text: `Las ventas crecieron ${growth.toFixed(
-            0
+            0,
           )}% respecto al mes anterior`,
           type: "success",
         });
@@ -327,7 +327,7 @@ export const Analisis: React.FC = () => {
           icon: <TrendingDown className="w-5 h-5" />,
           title: "Ventas decreciendo",
           text: `Las ventas bajaron ${Math.abs(growth).toFixed(
-            0
+            0,
           )}% respecto al mes anterior`,
           type: "warning",
         });
@@ -371,7 +371,7 @@ export const Analisis: React.FC = () => {
       profit,
       profitMargin,
       settings.currencySymbol,
-    ]
+    ],
   );
 
   // Comparator state
@@ -405,12 +405,10 @@ export const Analisis: React.FC = () => {
   };
 
   const [leftType, setLeftType] = useState<string>("product");
-  const [leftId, setLeftId] = useState<string | undefined>(
-    products[0]?.id
-  );
+  const [leftId, setLeftId] = useState<string | undefined>(products[0]?.id);
   const [rightType, setRightType] = useState<string>("service");
   const [rightId, setRightId] = useState<string | undefined>(
-    data.services[0]?.id
+    data.services[0]?.id,
   );
 
   const handleCompare = () => {
@@ -442,101 +440,8 @@ export const Analisis: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Key Metrics */}
       {/* Quick Comparator */}
-      <div className="bg-card rounded-2xl p-4 shadow-soft border border-border">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold">Comparador Rápido</div>
-            <div className="text-xs text-muted-foreground mt-1">Compara rápidamente dos elementos y ve cuál es más rentable</div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 items-center w-full md:w-auto mt-3 md:mt-0">
-            <div className="col-span-1">
-              <label className="block text-xs text-muted-foreground mb-1">Tipo (izquierda)</label>
-              <select
-                aria-label="Tipo izquierdo"
-                value={leftType}
-                onChange={(e) => {
-                  const t = e.target.value;
-                  setLeftType(t);
-                  const items = getItemsForType(t);
-                  setLeftId(items[0]?.id);
-                }}
-                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
-              >
-                {entityTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col-span-1">
-              <label className="block text-xs text-muted-foreground mb-1">Elemento (izquierda)</label>
-              <select
-                aria-label="Elemento izquierdo"
-                value={leftId}
-                onChange={(e) => setLeftId(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
-              >
-                {getItemsForType(leftType).map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col-span-1">
-              <label className="block text-xs text-muted-foreground mb-1">Tipo (derecha)</label>
-              <select
-                aria-label="Tipo derecho"
-                value={rightType}
-                onChange={(e) => {
-                  const t = e.target.value;
-                  setRightType(t);
-                  const items = getItemsForType(t);
-                  setRightId(items[0]?.id);
-                }}
-                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
-              >
-                {entityTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col-span-1">
-              <label className="block text-xs text-muted-foreground mb-1">Elemento (derecha)</label>
-              <select
-                aria-label="Elemento derecho"
-                value={rightId}
-                onChange={(e) => setRightId(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
-              >
-                {getItemsForType(rightType).map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-3 md:mt-0">
-            <button
-              onClick={handleCompare}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium shadow-sm hover:shadow-md"
-            >
-              Comparar
-            </button>
-          </div>
-        </div>
-      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Total Ingresos"
@@ -584,7 +489,7 @@ export const Analisis: React.FC = () => {
                   "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
                   analysisPeriod === "6m"
                     ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80",
                 )}
               >
                 6 meses
@@ -597,7 +502,7 @@ export const Analisis: React.FC = () => {
                       "px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
                       analysisPeriod === "12m"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80",
                     )}
                   >
                     <Crown className="w-3 h-3" />
@@ -609,7 +514,7 @@ export const Analisis: React.FC = () => {
                       "px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
                       analysisPeriod === "24m"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80",
                     )}
                   >
                     <Crown className="w-3 h-3" />
@@ -814,7 +719,7 @@ export const Analisis: React.FC = () => {
                       <p className="font-semibold text-sm">
                         {formatCurrency(
                           client.revenue,
-                          settings.currencySymbol
+                          settings.currencySymbol,
                         )}
                       </p>
                     </div>
@@ -849,7 +754,7 @@ export const Analisis: React.FC = () => {
                   <p className="font-semibold text-lg text-primary">
                     {formatCurrency(
                       topRevenueClient.revenue,
-                      settings.currencySymbol
+                      settings.currencySymbol,
                     )}
                   </p>
                 </div>
@@ -925,7 +830,7 @@ export const Analisis: React.FC = () => {
                   <p className="font-semibold text-sm text-primary">
                     {formatCurrency(
                       topSupplierByMargin.revenue,
-                      settings.currencySymbol
+                      settings.currencySymbol,
                     )}
                   </p>
                 </div>
@@ -976,6 +881,111 @@ export const Analisis: React.FC = () => {
         </div>
       </div>
 
+      {/* Comparador rapido */}
+      <div className="bg-card rounded-2xl p-4 shadow-soft border border-border">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Comparador Rápido</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Compara rápidamente dos elementos y ve cuál es más rentable
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 items-center w-full md:w-auto mt-3 md:mt-0">
+            <div className="col-span-1">
+              <label className="block text-xs text-muted-foreground mb-1">
+                Tipo (izquierda)
+              </label>
+              <select
+                aria-label="Tipo izquierdo"
+                value={leftType}
+                onChange={(e) => {
+                  const t = e.target.value;
+                  setLeftType(t);
+                  const items = getItemsForType(t);
+                  setLeftId(items[0]?.id);
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
+              >
+                {entityTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs text-muted-foreground mb-1">
+                Elemento (izquierda)
+              </label>
+              <select
+                aria-label="Elemento izquierdo"
+                value={leftId}
+                onChange={(e) => setLeftId(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
+              >
+                {getItemsForType(leftType).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs text-muted-foreground mb-1">
+                Tipo (derecha)
+              </label>
+              <select
+                aria-label="Tipo derecho"
+                value={rightType}
+                onChange={(e) => {
+                  const t = e.target.value;
+                  setRightType(t);
+                  const items = getItemsForType(t);
+                  setRightId(items[0]?.id);
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
+              >
+                {entityTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs text-muted-foreground mb-1">
+                Elemento (derecha)
+              </label>
+              <select
+                aria-label="Elemento derecho"
+                value={rightId}
+                onChange={(e) => setRightId(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
+              >
+                {getItemsForType(rightType).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-3 md:mt-0">
+            <button
+              onClick={handleCompare}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium shadow-sm hover:shadow-md"
+            >
+              Comparar
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Insights */}
       {insights.length > 0 && (
         <div className="space-y-4">
@@ -990,7 +1000,7 @@ export const Analisis: React.FC = () => {
                     "bg-success/5 border-success/20",
                   insight.type === "warning" &&
                     "bg-warning/5 border-warning/20",
-                  insight.type === "info" && "bg-info/5 border-info/20"
+                  insight.type === "info" && "bg-info/5 border-info/20",
                 )}
               >
                 <div
@@ -998,7 +1008,7 @@ export const Analisis: React.FC = () => {
                     "flex items-center gap-2 mb-2",
                     insight.type === "success" && "text-success",
                     insight.type === "warning" && "text-warning",
-                    insight.type === "info" && "text-info"
+                    insight.type === "info" && "text-info",
                   )}
                 >
                   {insight.icon}

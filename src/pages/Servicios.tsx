@@ -28,7 +28,7 @@ export const Servicios: React.FC = () => {
     currentProject,
     currentProjectMember,
   } = useApp();
-  const { services, serviceIncomes, settings } = data;
+  const { services, serviceIncomes, settings, products } = data;
   const isPremium = settings.isPremium || false;
   const supabaseAuth = useSupabaseAuth();
 
@@ -61,11 +61,7 @@ export const Servicios: React.FC = () => {
     if (editingService) {
       updateService(editingService.id, serviceData);
     } else {
-      addService({
-        ...serviceData,
-        id: "",
-        createdAt: new Date().toISOString(),
-      });
+      addService(serviceData);
     }
     setEditingService(null);
     setIsFormOpen(false);
@@ -107,8 +103,8 @@ export const Servicios: React.FC = () => {
           </div>
         </div>
       )}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <MetricCard
             title="Ingresos por servicios (últimos 30 días)"
             value={formatCurrency(
@@ -133,19 +129,20 @@ export const Servicios: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-card rounded-2xl p-5 border border-border shadow-soft">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Catálogo de servicios</h3>
+      <div className="bg-card rounded-2xl p-4 sm:p-5 border border-border shadow-soft">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <h3 className="font-semibold text-base sm:text-lg">
+            Catálogo de servicios
+          </h3>
           <Button
             onClick={handleOpenNewServiceForm}
-            className="gap-2"
+            className="gap-2 w-full sm:w-auto"
             size="sm"
           >
             <Plus className="w-4 h-4" />
             Nuevo servicio
           </Button>
         </div>
-
         {services.length === 0 ? (
           <p className="text-sm text-muted-foreground py-6 text-center">
             No has agregado servicios aún. Crea uno para empezar.
@@ -155,13 +152,15 @@ export const Servicios: React.FC = () => {
             {services.map((service) => (
               <div
                 key={service.id}
-                className="p-4 rounded-xl border border-border hover:border-primary/50 transition-all"
+                className="p-3 sm:p-4 rounded-xl border border-border hover:border-primary/50 transition-all"
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h4 className="font-medium">{service.name}</h4>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-0 mb-2">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm sm:text-base">
+                      {service.name}
+                    </h4>
                     {service.description && (
-                      <p className="text-sm text-muted-foreground mt-1">
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                         {service.description}
                       </p>
                     )}
@@ -171,6 +170,7 @@ export const Servicios: React.FC = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => handleEditService(service)}
+                      className="w-9 h-9 p-0"
                     >
                       <Edit2 className="w-4 h-4" />
                     </Button>
@@ -178,13 +178,14 @@ export const Servicios: React.FC = () => {
                       variant="destructive"
                       size="sm"
                       onClick={() => handleDeleteService(service.id)}
+                      className="w-9 h-9 p-0"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 mt-3">
+                <div className="flex flex-wrap gap-2 mt-3">
                   {service.priceType === "fixed" ? (
                     <div className="flex items-center gap-1 text-sm bg-primary/10 px-3 py-1 rounded-lg">
                       <DollarSign className="w-4 h-4 text-primary" />
@@ -196,16 +197,20 @@ export const Servicios: React.FC = () => {
                       </span>
                     </div>
                   ) : (
-                    <>
-                      <div className="flex items-center gap-1 text-sm bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-lg text-blue-700 dark:text-blue-300">
-                        <Percent className="w-4 h-4" />
-                        <span>Mín: {service.minMargin}%</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-sm bg-green-100 dark:bg-green-900/30 px-3 py-1 rounded-lg text-green-700 dark:text-green-300">
-                        <Percent className="w-4 h-4" />
-                        <span>Est: {service.standardMargin}%</span>
-                      </div>
-                    </>
+                    <div className="flex items-center gap-1 text-sm bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-lg text-blue-700 dark:text-blue-300">
+                      <DollarSign className="w-4 h-4" />
+                      <span>Precio Variable</span>
+                    </div>
+                  )}
+                  {service.items && service.items.length > 0 && (
+                    <div className="flex items-center gap-1 text-sm bg-amber-100 dark:bg-amber-900/30 px-3 py-1 rounded-lg text-amber-700 dark:text-amber-300">
+                      <span>{service.items.length} item(s) vinculado(s)</span>
+                    </div>
+                  )}
+                  {service.associatedExpense && (
+                    <div className="flex items-center gap-1 text-sm bg-red-100 dark:bg-red-900/30 px-3 py-1 rounded-lg text-red-700 dark:text-red-300">
+                      <span>{service.associatedExpense.percent}% gasto</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -216,6 +221,7 @@ export const Servicios: React.FC = () => {
 
       <ServiceForm
         service={editingService || undefined}
+        products={products}
         onSubmit={handleSaveService}
         onCancel={() => {
           setEditingService(null);
@@ -228,13 +234,13 @@ export const Servicios: React.FC = () => {
         data={useMemo<ExportData>(
           () => ({
             title: "Catálogo de Servicios",
-            headers: ["Nombre", "Tipo", "Precio/Margen", "Descripción"],
+            headers: ["Nombre", "Tipo", "Precio", "Descripción"],
             rows: services.map((service) => [
               service.name,
               service.priceType === "fixed" ? "Precio Fijo" : "Precio Variable",
               service.priceType === "fixed"
                 ? formatCurrency(service.price || 0, settings.currencySymbol)
-                : `Min: ${service.minMargin}%, Est: ${service.standardMargin}%`,
+                : "Variable",
               service.description || "-",
             ]),
             summary: [

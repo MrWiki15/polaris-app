@@ -216,7 +216,7 @@ export const Gastos: React.FC = () => {
         </div>
       )}
       {/* Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <MetricCard
           title="Gastos esta semana"
           value={formatCurrency(weekTotal, settings.currencySymbol)}
@@ -242,9 +242,9 @@ export const Gastos: React.FC = () => {
 
       {/* Chart */}
       {categoryData.length > 0 && (
-        <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
-          <h3 className="font-semibold mb-4">Gastos por Categoría</h3>
-          <div className="h-64">
+        <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
+          <h3 className="font-semibold mb-3 sm:mb-4 text-sm sm:text-base">Gastos por Categoría</h3>
+          <div className="h-56 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsPie>
                 <Pie
@@ -284,8 +284,8 @@ export const Gastos: React.FC = () => {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className="flex gap-2 overflow-x-auto pb-2 flex-1">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between overflow-hidden">
+        <div className="w-full sm:flex-1 flex gap-2 overflow-x-auto pb-2">
           {[
             { key: "today", label: "Hoy" },
             { key: "week", label: "Semana" },
@@ -296,7 +296,7 @@ export const Gastos: React.FC = () => {
               key={f.key}
               onClick={() => setFilter(f.key as FilterPeriod)}
               className={cn(
-                "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                "px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all",
                 filter === f.key
                   ? "bg-destructive text-destructive-foreground shadow-material"
                   : "bg-muted text-muted-foreground hover:bg-muted/80",
@@ -308,9 +308,9 @@ export const Gastos: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {isProjectSelected && (
-          <div className="space-y-1">
+          <div className="space-y-1 sm:col-span-2 lg:col-span-1">
             <Label>Departamento</Label>
             <Input
               placeholder="Ej. Dirección, Ventas..."
@@ -319,7 +319,7 @@ export const Gastos: React.FC = () => {
             />
           </div>
         )}
-        <div className="space-y-1">
+        <div className="space-y-1 sm:col-span-2 lg:col-span-1">
           <Label>Fecha desde</Label>
           <Input
             type="date"
@@ -327,7 +327,7 @@ export const Gastos: React.FC = () => {
             onChange={(e) => setStartDate(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1 sm:col-span-2 lg:col-span-1">
           <Label>Fecha hasta</Label>
           <Input
             type="date"
@@ -335,7 +335,7 @@ export const Gastos: React.FC = () => {
             onChange={(e) => setEndDate(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1 sm:col-span-2 lg:col-span-1">
           <Label>Rango de monto</Label>
           <div className="flex gap-2">
             <Input

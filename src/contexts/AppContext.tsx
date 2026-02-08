@@ -143,6 +143,7 @@ interface AppContextType {
   deleteServiceIncome: (id: string) => void;
   // Custom Tags
   addCustomTag: (tag: string) => void;
+  updateCustomTag: (oldTag: string, newTag: string) => void;
   deleteCustomTag: (tag: string) => void;
   // Settings
   updateSettings: (settings: Partial<AppData["settings"]>) => void;
@@ -799,6 +800,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
+  const updateCustomTag = (oldTag: string, newTag: string) => {
+    if (!data.customTags.includes(newTag)) {
+      setData((prev) => ({
+        ...prev,
+        customTags: prev.customTags.map((t) => (t === oldTag ? newTag : t)),
+      }));
+    }
+  };
+
   const deleteCustomTag = (tag: string) => {
     setData((prev) => ({
       ...prev,
@@ -914,12 +924,110 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   // Service incomes operations
-  const addServiceIncome = (income: Omit<ServiceIncome, "id">) => {
-    const newIncome: ServiceIncome = { ...income, id: generateId() };
+  const addService = (service: Omit<Service, "id" | "createdAt">) => {
+    const newService: Service = {
+      ...service,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((prev) => ({ ...prev, services: [newService, ...prev.services] }));
+  };
+
+  const updateService = (id: string, serviceUpdate: Partial<Service>) => {
     setData((prev) => ({
       ...prev,
-      serviceIncomes: [newIncome, ...prev.serviceIncomes],
+      services: prev.services.map((s) =>
+        s.id === id ? { ...s, ...serviceUpdate } : s,
+      ),
     }));
+  };
+
+  const deleteService = (id: string) => {
+    setData((prev) => ({
+      ...prev,
+      services: prev.services.filter((s) => s.id !== id),
+    }));
+  };
+
+  // Service incomes operations
+  const addServiceIncome = (income: Omit<ServiceIncome, "id">) => {
+    const newIncome: ServiceIncome = { ...income, id: generateId() };
+
+    setData((prev) => {
+      let updatedData = {
+        ...prev,
+        serviceIncomes: [newIncome, ...prev.serviceIncomes],
+      };
+
+      // Find the service to get linked items
+      const service = prev.services.find((s) => s.id === income.serviceId);
+      if (service?.items && service.items.length > 0) {
+        // Build a map of total reductions per product id, handling compound products recursively
+        const reductions = new Map<string, number>();
+        const qtyMultiplier = income.quantity || 1;
+
+        const accumulateReduction = (productId: string, qty: number) => {
+          const prod = prev.products.find((p) => p.id === productId);
+          if (!prod) return;
+
+          if (
+            prod.type === "compound" &&
+            prod.components &&
+            prod.components.length > 0
+          ) {
+            prod.components.forEach((comp) => {
+              accumulateReduction(comp.productId, comp.quantity * qty);
+            });
+          } else {
+            const prevVal = reductions.get(productId) || 0;
+            reductions.set(productId, prevVal + qty);
+          }
+        };
+
+        service.items.forEach((it) => {
+          accumulateReduction(it.productId, it.quantity * qtyMultiplier);
+        });
+
+        const updatedProducts = updatedData.products.map((p) => {
+          const toReduce = reductions.get(p.id) || 0;
+          if (!toReduce) return p;
+          return { ...p, quantity: Math.max(0, p.quantity - toReduce) };
+        });
+
+        updatedData = { ...updatedData, products: updatedProducts };
+      }
+
+      // If service has associated expense, create it
+      if (service?.associatedExpense) {
+        const expenseAmount =
+          (income.amount * service.associatedExpense.percent) / 100;
+        const newExpense: Expense = {
+          id: generateId(),
+          date: income.date,
+          amount: expenseAmount,
+          category: service.associatedExpense.category,
+          description: `Gasto asociado a servicio: ${service.name}`,
+        };
+        updatedData = {
+          ...updatedData,
+          expenses: [newExpense, ...updatedData.expenses],
+        };
+      }
+
+      // Also record a Sale so that cashflow and balances include this income
+      const newSale: Sale = {
+        id: generateId(),
+        date: income.date,
+        amount: income.amount,
+        category: "Servicio",
+        description: (prev.services.find((s) => s.id === income.serviceId)
+          ?.name || "Servicio") as string,
+      };
+
+      updatedData = { ...updatedData, sales: [newSale, ...updatedData.sales] };
+
+      return updatedData;
+    });
   };
 
   const updateServiceIncome = (
@@ -1018,6 +1126,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         updateServiceIncome,
         deleteServiceIncome,
         addCustomTag,
+        updateCustomTag,
         deleteCustomTag,
         updateSettings,
         theme,

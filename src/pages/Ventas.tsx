@@ -282,7 +282,7 @@ export const Ventas: React.FC = () => {
       return new Date(cleanDate + "T12:00:00") >= monthAgo;
     });
 
-    const gross = incomes.reduce((sum, si) => sum + (si.gross ?? si.amount), 0);
+    const gross = incomes.reduce((sum, si) => sum + (si.amount || 0), 0);
     const net = incomes.reduce((sum, si) => sum + (si.amount || 0), 0);
     return { serviceGross30: gross, serviceNet30: net };
   }, [serviceIncomes]);
@@ -408,16 +408,6 @@ export const Ventas: React.FC = () => {
     income: Omit<import("@/lib/storage").ServiceIncome, "id">,
   ) => {
     addServiceIncome(income);
-    // Si se indicó porcentaje para inversor, crear un gasto automático
-    if (income.investorPercent && income.gross) {
-      const expenseAmount = (income.gross * income.investorPercent) / 100;
-      addExpense({
-        date: income.date,
-        amount: expenseAmount,
-        category: `Gasto - ${services.find((s) => s.id === income.serviceId)?.name || "Servicio"}`,
-        description: `Gaso por servicio (${income.investorPercent}%)`,
-      });
-    }
     setShowServiceIncomeForm(false);
   };
 
@@ -510,7 +500,7 @@ export const Ventas: React.FC = () => {
       )}
 
       {/* Metrics */}
-      <div className=" grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <MetricCard
           title="Ingresos por productos (últimos 7 días)"
           value={formatCurrency(weekProductsGross, settings.currencySymbol)}
@@ -535,11 +525,11 @@ export const Ventas: React.FC = () => {
       </div>
 
       {/* Chart */}
-      <div className="bg-card rounded-2xl p-5 shadow-soft border border-border">
-        <h3 className="font-semibold mb-4">
+      <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
+        <h3 className="font-semibold mb-3 sm:mb-4 text-sm sm:text-base">
           Tendencia de Ingresos (Productos + Servicios)
         </h3>
-        <div className="h-48">
+        <div className="h-56 sm:h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <CartesianGrid
@@ -576,8 +566,8 @@ export const Ventas: React.FC = () => {
       </div>
 
       {/* Filters and Export */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className="flex gap-2 overflow-x-auto pb-2 flex-1">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between overflow-hidden">
+        <div className="w-full sm:flex-1 flex gap-2 overflow-x-auto pb-2">
           {[
             { key: "today", label: "Hoy" },
             { key: "week", label: "Semana" },
@@ -588,7 +578,7 @@ export const Ventas: React.FC = () => {
               key={f.key}
               onClick={() => setFilter(f.key as FilterPeriod)}
               className={cn(
-                "px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                "px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all",
                 filter === f.key
                   ? "bg-primary text-primary-foreground shadow-material"
                   : "bg-muted text-muted-foreground hover:bg-muted/80",
@@ -623,16 +613,16 @@ export const Ventas: React.FC = () => {
       )}
 
       {inProjectVentasMode && (
-        <div className="mt-4 bg-card border border-border rounded-2xl p-4 space-y-3">
+        <div className="mt-4 bg-card border border-border rounded-2xl p-4 sm:p-5 space-y-3 sm:space-y-4">
           <h3 className="font-semibold text-base">
             Nuevo ingreso para {currentProject?.name}
           </h3>
           <form
             onSubmit={handleProjectSaleSubmit}
-            className="grid gap-3 sm:grid-cols-4"
+            className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
           >
-            <div className="space-y-1">
-              <Label>Fecha</Label>
+            <div className="space-y-1 sm:col-span-1">
+              <Label className="text-xs sm:text-sm">Fecha</Label>
               <Input
                 type="date"
                 value={projectSaleForm.date}
@@ -642,11 +632,12 @@ export const Ventas: React.FC = () => {
                     date: e.target.value,
                   }))
                 }
+                className="text-xs sm:text-sm py-1 sm:py-2"
                 required
               />
             </div>
-            <div className="space-y-1">
-              <Label>Monto</Label>
+            <div className="space-y-1 sm:col-span-1">
+              <Label className="text-xs sm:text-sm">Monto</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -657,11 +648,12 @@ export const Ventas: React.FC = () => {
                     amount: e.target.value,
                   }))
                 }
+                className="text-xs sm:text-sm py-1 sm:py-2"
                 required
               />
             </div>
-            <div className="space-y-1">
-              <Label>Categoría</Label>
+            <div className="space-y-1 sm:col-span-1">
+              <Label className="text-xs sm:text-sm">Categoría</Label>
               <Input
                 value={projectSaleForm.category}
                 onChange={(e) =>
@@ -670,10 +662,11 @@ export const Ventas: React.FC = () => {
                     category: e.target.value,
                   }))
                 }
+                className="text-xs sm:text-sm py-1 sm:py-2"
               />
             </div>
             <div className="space-y-1 sm:col-span-1">
-              <Label>Descripción</Label>
+              <Label className="text-xs sm:text-sm">Descripción</Label>
               <Input
                 value={projectSaleForm.description}
                 onChange={(e) =>
@@ -682,14 +675,17 @@ export const Ventas: React.FC = () => {
                     description: e.target.value,
                   }))
                 }
+                className="text-xs sm:text-sm py-1 sm:py-2"
               />
             </div>
-            <div className="sm:col-span-4 flex justify-end">
+            <div className="sm:col-span-2 lg:col-span-1 flex justify-start sm:justify-end">
               <Button
                 type="submit"
                 disabled={
                   projectSalesMutation.isPending || !projectSaleForm.amount
                 }
+                className="w-full sm:w-auto"
+                size="sm"
               >
                 Registrar ingreso
               </Button>

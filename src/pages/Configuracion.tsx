@@ -17,6 +17,9 @@ import {
   Presentation,
   CropIcon,
   Plus,
+  Tag,
+  Edit2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +44,9 @@ export const Configuracion: React.FC = () => {
   const {
     data,
     updateSettings,
+    addCustomTag,
+    updateCustomTag,
+    deleteCustomTag,
     theme,
     toggleTheme,
     refreshData,
@@ -49,6 +55,9 @@ export const Configuracion: React.FC = () => {
   } = useApp();
   const { settings } = data;
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [newTag, setNewTag] = useState("");
+  const [editingTag, setEditingTag] = useState<string | null>(null);
+  const [editedTagValue, setEditedTagValue] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -305,6 +314,69 @@ export const Configuracion: React.FC = () => {
     toast({
       title: "Moneda actualizada",
       description: `Ahora usas ${currency.name} (${currency.symbol})`,
+    });
+  };
+
+  const handleAddTag = () => {
+    const trimmedTag = newTag.trim();
+    if (!trimmedTag) {
+      toast({
+        title: "Error",
+        description: "La etiqueta no puede estar vacía",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (data.customTags.includes(trimmedTag)) {
+      toast({
+        title: "Error",
+        description: "Esta etiqueta ya existe",
+        variant: "destructive",
+      });
+      return;
+    }
+    addCustomTag(trimmedTag);
+    setNewTag("");
+    toast({
+      title: "Etiqueta creada",
+      description: `Se agregó la etiqueta "${trimmedTag}"`,
+    });
+  };
+
+  const handleUpdateTag = (oldTag: string) => {
+    const trimmedTag = editedTagValue.trim();
+    if (!trimmedTag) {
+      toast({
+        title: "Error",
+        description: "La etiqueta no puede estar vacía",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (trimmedTag !== oldTag && data.customTags.includes(trimmedTag)) {
+      toast({
+        title: "Error",
+        description: "Esta etiqueta ya existe",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (trimmedTag !== oldTag) {
+      updateCustomTag(oldTag, trimmedTag);
+      toast({
+        title: "Etiqueta actualizada",
+        description: `Cambio: "${oldTag}" -> "${trimmedTag}"`,
+      });
+    }
+    setEditingTag(null);
+    setEditedTagValue("");
+  };
+
+  const handleDeleteTag = (tag: string) => {
+    deleteCustomTag(tag);
+    toast({
+      title: "Etiqueta eliminada",
+      description: `Se eliminó la etiqueta "${tag}"`,
     });
   };
 
@@ -717,6 +789,108 @@ export const Configuracion: React.FC = () => {
         <p className="text-xs text-muted-foreground mt-2">
           Más idiomas próximamente
         </p>
+      </section>
+
+      {/* Tags */}
+      <section className="bg-card rounded-2xl p-5 shadow-soft border border-border">
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <Tag className="w-5 h-5" />
+          Etiquetas Personalizadas
+        </h3>
+
+        {/* Add New Tag Form */}
+        <div className="mb-6 flex gap-2">
+          <input
+            type="text"
+            placeholder="Nueva etiqueta..."
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+            className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <Button
+            onClick={handleAddTag}
+            variant="default"
+            size="sm"
+            className="whitespace-nowrap"
+          >
+            Crear
+          </Button>
+        </div>
+
+        {/* Tags List */}
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {data.customTags.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No hay etiquetas personalizadas aún
+            </p>
+          ) : (
+            data.customTags.map((tag) => (
+              <div
+                key={tag}
+                className="flex items-center justify-between bg-background rounded-lg p-3 border border-border hover:border-primary/40 transition-colors"
+              >
+                {editingTag === tag ? (
+                  // Edit Mode
+                  <div className="flex flex-1 gap-2 items-center">
+                    <input
+                      type="text"
+                      placeholder="Editar etiqueta..."
+                      value={editedTagValue}
+                      onChange={(e) => setEditedTagValue(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') handleUpdateTag(tag);
+                        if (e.key === 'Escape') setEditingTag(null);
+                      }}
+                      autoFocus
+                      className="flex-1 px-2 py-1 rounded border border-primary/50 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <button
+                      onClick={() => handleUpdateTag(tag)}
+                      className="flex items-center justify-center w-8 h-8 rounded hover:bg-primary/10 text-primary transition-colors"
+                      title="Guardar"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingTag(null)}
+                      className="flex items-center justify-center w-8 h-8 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                      title="Cancelar"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  // View Mode
+                  <>
+                    <span className="inline-block px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                      {tag}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingTag(tag);
+                          setEditedTagValue(tag);
+                        }}
+                        className="flex items-center justify-center w-8 h-8 rounded hover:bg-primary/10 text-primary transition-colors"
+                        title="Editar"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTag(tag)}
+                        className="flex items-center justify-center w-8 h-8 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </section>
 
       {/* Backup & Restore */}

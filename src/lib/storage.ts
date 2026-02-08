@@ -168,11 +168,19 @@ export interface Debt {
 export interface Service {
   id: string;
   name: string;
-  priceType: "fixed" | "variable"; // fixed o variable
+  priceType: "fixed" | "variable";
   price?: number; // Para precio fijo
-  minMargin?: number; // Margen mínimo en %
-  standardMargin?: number; // Margen estándar en %
   description?: string;
+  // Items del inventario vinculados al servicio
+  items?: {
+    productId: string;
+    quantity: number; // Cantidad utilizada por servicio
+  }[];
+  // Gasto asociado al servicio (ej. para un inversor)
+  associatedExpense?: {
+    category: string;
+    percent: number; // % del ingreso bruto
+  };
   createdAt: string;
 }
 
@@ -180,14 +188,8 @@ export interface ServiceIncome {
   id: string;
   date: string;
   serviceId: string;
-  // `amount` representa el ingreso NETO que recibe el dueño (después de descuentos/participaciones)
-  amount: number;
-  // Monto bruto cobrado al cliente (antes de participar ganancias o gastos)
-  gross?: number;
-  // Margen seleccionado en % para calcular la ganancia del dueño
-  selectedMargin?: number;
-  // Porcentaje que se debe registrar como gasto (ej. para un inversor)
-  investorPercent?: number;
+  amount: number; // Monto ingresado
+  quantity?: number; // Cantidad de servicios realizados
   description?: string;
   tags?: string[];
   clientId?: string;

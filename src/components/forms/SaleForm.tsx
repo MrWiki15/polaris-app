@@ -27,14 +27,8 @@ interface SaleFormProps {
 }
 
 export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
-  const {
-    addSale,
-    updateSale,
-    addServiceIncome,
-    updateServiceIncome,
-    addExpense,
-    data,
-  } = useApp();
+  const { addSale, updateSale, addServiceIncome, updateServiceIncome, data } =
+    useApp();
   const { products, settings, services, clients } = data;
   const isPremium = settings.isPremium || false;
 
@@ -84,12 +78,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
   const [newCategory, setNewcategory] = useState("");
   const [selectedPriceVariant, setSelectedPriceVariant] =
     useState<string>("default");
-  const [serviceSelectedMargin, setServiceSelectedMargin] = useState<
-    number | "" | "custom"
-  >("");
-  const [serviceInvestorPercent, setServiceInvestorPercent] = useState<
-    number | ""
-  >("");
   const [selectedService, setSelectedService] = useState<Service | undefined>();
 
   const handleScan = (code: string) => {
@@ -151,36 +139,17 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
         return;
       }
 
-      // Validar que si seleccionó margen personalizado, tiene un número
-      if (serviceSelectedMargin === "custom") {
-        alert("Si elegiste margen personalizado, debes ingresar un valor en %");
-        return;
-      }
-
-      const gross =
+      const amount =
         svc.priceType === "variable"
           ? parseFloat(formData.amount)
           : svc.price || 0;
-      const marginPercent =
-        typeof serviceSelectedMargin === "number"
-          ? serviceSelectedMargin
-          : svc.priceType === "variable"
-            ? undefined
-            : 100;
-      const ownerNet =
-        marginPercent !== undefined ? (gross * marginPercent) / 100 : gross;
-      const investorPct =
-        serviceInvestorPercent !== ""
-          ? Number(serviceInvestorPercent)
-          : undefined;
+      const quantity = parseInt(formData.quantity) || 1;
 
       const serviceData: Omit<ServiceIncome, "id"> = {
         date: cleanDate,
-        amount: ownerNet,
-        gross,
+        amount,
         serviceId: formData.serviceId,
-        selectedMargin: marginPercent,
-        investorPercent: investorPct,
+        quantity,
         description: formData.description || undefined,
         tags: formData.tags.length > 0 ? formData.tags : undefined,
         clientId: formData.clientId || undefined,
@@ -190,15 +159,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
         updateServiceIncome(editingSale.id, serviceData);
       } else {
         addServiceIncome(serviceData);
-        if (investorPct && investorPct > 0) {
-          const expenseAmount = (gross * investorPct) / 100;
-          addExpense({
-            date: cleanDate,
-            amount: expenseAmount,
-            category: `Gasto - ${svc.name}`,
-            description: `Gasto (${investorPct}%) por ${svc.name}`,
-          });
-        }
       }
     } else if (saleType === "inventory") {
       // Validar productos compuestos
@@ -601,139 +561,26 @@ export const SaleForm: React.FC<SaleFormProps> = ({ onClose, editingSale }) => {
               )}
 
               {selectedService && (
-                <div className="space-y-3">
-                  <Label>Margen a aplicar</Label>
-                  <div className="space-y-2">
-                    {selectedService.minMargin !== undefined && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setServiceSelectedMargin(selectedService.minMargin!)
-                        }
-                        className={cn(
-                          "w-full p-3 rounded-lg border-2 transition-all text-left",
-                          serviceSelectedMargin === selectedService.minMargin
-                            ? "border-primary bg-primary/10"
-                            : "border-border hover:border-primary/50",
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium">Margen Mínimo</div>
-                            <div className="text-xs text-muted-foreground">
-                              Ganancia mínima posible
-                            </div>
-                          </div>
-                          <div className="text-lg font-bold">
-                            {selectedService.minMargin}%
-                          </div>
+                <>
+                  {selectedService.items &&
+                    selectedService.items.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Items vinculados</Label>
+                        <div className="text-sm text-muted-foreground">
+                          {selectedService.items.map((it) => {
+                            const prod = products.find(
+                              (p) => p.id === it.productId,
+                            );
+                            return (
+                              <div key={it.productId}>
+                                {prod?.name || it.productId} x{it.quantity}
+                              </div>
+                            );
+                          })}
                         </div>
-                      </button>
+                      </div>
                     )}
-
-                    {selectedService.standardMargin !== undefined && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setServiceSelectedMargin(
-                            selectedService.standardMargin!,
-                          )
-                        }
-                        className={cn(
-                          "w-full p-3 rounded-lg border-2 transition-all text-left",
-                          serviceSelectedMargin ===
-                            selectedService.standardMargin
-                            ? "border-primary bg-primary/10"
-                            : "border-border hover:border-primary/50",
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium">Margen Estándar</div>
-                            <div className="text-xs text-muted-foreground">
-                              Ganancia recomendada
-                            </div>
-                          </div>
-                          <div className="text-lg font-bold">
-                            {selectedService.standardMargin}%
-                          </div>
-                        </div>
-                      </button>
-                    )}
-
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => setServiceSelectedMargin("custom")}
-                        className={cn(
-                          "w-full p-3 rounded-lg border-2 transition-all text-left",
-                          serviceSelectedMargin === "custom"
-                            ? "border-primary bg-primary/10"
-                            : "border-border hover:border-primary/50",
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium">
-                              Margen Personalizado
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Ingresa otro margen
-                            </div>
-                          </div>
-                          <div className="text-lg font-bold">Otro</div>
-                        </div>
-                      </button>
-                      {serviceSelectedMargin === "custom" && (
-                        <Input
-                          type="number"
-                          placeholder="Ingresa el margen en %"
-                          value={
-                            typeof serviceSelectedMargin === "number"
-                              ? serviceSelectedMargin
-                              : ""
-                          }
-                          onChange={(e) =>
-                            setServiceSelectedMargin(
-                              e.target.value
-                                ? parseFloat(e.target.value)
-                                : "custom",
-                            )
-                          }
-                          step="0.01"
-                          min="0"
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="investor-percent">
-                      Gasto del servicio (opcional %)
-                    </Label>
-                    <Input
-                      id="investor-percent"
-                      type="number"
-                      placeholder="Ej: 5"
-                      value={
-                        serviceInvestorPercent === ""
-                          ? ""
-                          : String(serviceInvestorPercent)
-                      }
-                      onChange={(e) =>
-                        setServiceInvestorPercent(
-                          e.target.value ? parseFloat(e.target.value) : "",
-                        )
-                      }
-                      step="0.01"
-                      min="0"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Si indicas un % aquí se registrará como gasto automático
-                      al guardar el ingreso.
-                    </p>
-                  </div>
-                </div>
+                </>
               )}
 
               <div className="space-y-2">

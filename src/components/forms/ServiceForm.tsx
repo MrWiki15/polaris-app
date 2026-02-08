@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Service } from "@/lib/storage";
+import { Service, Product } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,9 +17,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Trash2 } from "lucide-react";
 
 interface ServiceFormProps {
   service?: Service;
+  products?: Product[];
   onSubmit: (service: Omit<Service, "id" | "createdAt">) => void;
   onCancel: () => void;
   isOpen: boolean;
@@ -27,6 +29,7 @@ interface ServiceFormProps {
 
 export const ServiceForm: React.FC<ServiceFormProps> = ({
   service,
+  products = [],
   onSubmit,
   onCancel,
   isOpen,
@@ -34,20 +37,30 @@ export const ServiceForm: React.FC<ServiceFormProps> = ({
   const [name, setName] = useState("");
   const [priceType, setPriceType] = useState<"fixed" | "variable">("fixed");
   const [price, setPrice] = useState("");
-  const [minMargin, setMinMargin] = useState("");
-  const [standardMargin, setStandardMargin] = useState("");
   const [description, setDescription] = useState("");
+  const [items, setItems] = useState<{ productId: string; quantity: number }[]>(
+    [],
+  );
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedQuantity, setSelectedQuantity] = useState("");
+  const [hasExpense, setHasExpense] = useState(false);
+  const [expenseCategory, setExpenseCategory] = useState("");
+  const [expensePercent, setExpensePercent] = useState("");
 
   useEffect(() => {
     if (service) {
       setName(service.name);
       setPriceType(service.priceType);
       setPrice(service.price ? service.price.toString() : "");
-      setMinMargin(service.minMargin ? service.minMargin.toString() : "");
-      setStandardMargin(
-        service.standardMargin ? service.standardMargin.toString() : "",
-      );
       setDescription(service.description || "");
+      setItems(service.items || []);
+      setHasExpense(!!service.associatedExpense);
+      setExpenseCategory(service.associatedExpense?.category || "");
+      setExpensePercent(
+        service.associatedExpense?.percent
+          ? service.associatedExpense.percent.toString()
+          : "",
+      );
     } else {
       resetForm();
     }
@@ -57,9 +70,48 @@ export const ServiceForm: React.FC<ServiceFormProps> = ({
     setName("");
     setPriceType("fixed");
     setPrice("");
-    setMinMargin("");
-    setStandardMargin("");
     setDescription("");
+    setItems([]);
+    setSelectedProductId("");
+    setSelectedQuantity("");
+    setHasExpense(false);
+    setExpenseCategory("");
+    setExpensePercent("");
+  };
+
+  const handleAddItem = () => {
+    if (!selectedProductId || !selectedQuantity) {
+      alert("Selecciona un producto y cantidad");
+      return;
+    }
+
+    const quantity = parseFloat(selectedQuantity);
+    if (quantity <= 0) {
+      alert("La cantidad debe ser mayor a 0");
+      return;
+    }
+
+    const existingItem = items.find(
+      (item) => item.productId === selectedProductId,
+    );
+    if (existingItem) {
+      setItems(
+        items.map((item) =>
+          item.productId === selectedProductId
+            ? { ...item, quantity: item.quantity + quantity }
+            : item,
+        ),
+      );
+    } else {
+      setItems([...items, { productId: selectedProductId, quantity }]);
+    }
+
+    setSelectedProductId("");
+    setSelectedQuantity("");
+  };
+
+  const handleRemoveItem = (productId: string) => {
+    setItems(items.filter((item) => item.productId !== productId));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -75,29 +127,34 @@ export const ServiceForm: React.FC<ServiceFormProps> = ({
       return;
     }
 
-    if (priceType === "variable" && (!minMargin || !standardMargin)) {
-      alert(
-        "Margen mínimo y estándar son requeridos para servicios con precio variable",
-      );
-      return;
-    }
-
-    onSubmit({
+    const serviceData: Omit<Service, "id" | "createdAt"> = {
       name: name.trim(),
       priceType,
       price: priceType === "fixed" ? parseFloat(price) : undefined,
-      minMargin: priceType === "variable" ? parseFloat(minMargin) : undefined,
-      standardMargin:
-        priceType === "variable" ? parseFloat(standardMargin) : undefined,
       description: description.trim() || undefined,
-    });
+      items: items.length > 0 ? items : undefined,
+    };
 
+    if (hasExpense && expenseCategory && expensePercent) {
+      serviceData.associatedExpense = {
+        category: expenseCategory.trim(),
+        percent: parseFloat(expensePercent),
+      };
+    }
+
+    onSubmit(serviceData);
     resetForm();
+  };
+
+  const getProductName = (productId: string) => {
+    return (
+      products.find((p) => p.id === productId)?.name || "Producto desconocido"
+    );
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onCancel}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[525px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {service ? "Editar Servicio" : "Nuevo Servicio"}
@@ -147,42 +204,6 @@ export const ServiceForm: React.FC<ServiceFormProps> = ({
             </div>
           )}
 
-          {priceType === "variable" && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="min-margin">Margen Mínimo (%) *</Label>
-                <Input
-                  id="min-margin"
-                  type="number"
-                  placeholder="Ej: 20"
-                  value={minMargin}
-                  onChange={(e) => setMinMargin(e.target.value)}
-                  step="0.01"
-                  min="0"
-                />
-                <p className="text-xs text-gray-500">
-                  Ganancia mínima que puedes tener en este servicio
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="standard-margin">Margen Estándar (%) *</Label>
-                <Input
-                  id="standard-margin"
-                  type="number"
-                  placeholder="Ej: 35"
-                  value={standardMargin}
-                  onChange={(e) => setStandardMargin(e.target.value)}
-                  step="0.01"
-                  min="0"
-                />
-                <p className="text-xs text-gray-500">
-                  Ganancia estándar/recomendada para este servicio
-                </p>
-              </div>
-            </>
-          )}
-
           <div className="space-y-2">
             <Label htmlFor="service-description">Descripción</Label>
             <Input
@@ -191,6 +212,113 @@ export const ServiceForm: React.FC<ServiceFormProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+
+          {/* Items del Inventario */}
+          <div className="space-y-2 pt-4 border-t">
+            <Label>Items del Inventario Vinculados</Label>
+            <div className="flex gap-2">
+              <Select
+                value={selectedProductId}
+                onValueChange={setSelectedProductId}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Selecciona producto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.name} (Disponible: {product.quantity})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                placeholder="Cantidad"
+                value={selectedQuantity}
+                onChange={(e) => setSelectedQuantity(e.target.value)}
+                step="0.01"
+                min="0"
+                className="w-24"
+              />
+              <Button
+                type="button"
+                onClick={handleAddItem}
+                variant="outline"
+                size="sm"
+              >
+                Añadir
+              </Button>
+            </div>
+
+            {items.length > 0 && (
+              <div className="space-y-2 mt-3">
+                {items.map((item) => (
+                  <div
+                    key={item.productId}
+                    className="flex items-center justify-between bg-muted p-2 rounded"
+                  >
+                    <span className="text-sm">
+                      {getProductName(item.productId)} - {item.quantity}{" "}
+                      unidades
+                    </span>
+                    <Button
+                      type="button"
+                      onClick={() => handleRemoveItem(item.productId)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Gasto Asociado */}
+          <div className="space-y-2 pt-4 border-t">
+            <Label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                title="Añadir gasto asociado al servicio"
+                checked={hasExpense}
+                onChange={(e) => setHasExpense(e.target.checked)}
+                className="w-4 h-4"
+              />
+              Gasto Asociado
+            </Label>
+
+            {hasExpense && (
+              <div className="space-y-2">
+                <div>
+                  <Label htmlFor="expense-category">Categoría de Gasto</Label>
+                  <Input
+                    id="expense-category"
+                    placeholder="Ej: Comisión, Inversor"
+                    value={expenseCategory}
+                    onChange={(e) => setExpenseCategory(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="expense-percent">
+                    Porcentaje del Ingreso (%)
+                  </Label>
+                  <Input
+                    id="expense-percent"
+                    type="number"
+                    placeholder="Ej: 20"
+                    value={expensePercent}
+                    onChange={(e) => setExpensePercent(e.target.value)}
+                    step="0.01"
+                    min="0"
+                    max="100"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
