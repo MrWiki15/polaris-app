@@ -1,20 +1,21 @@
-import React, { useState, useMemo } from 'react';
-import { useApp } from '@/contexts/AppContext';
-import { MetricCard } from '@/components/ui/MetricCard';
-import { formatCurrency } from '@/lib/storage';
-import { TrendingUp, Calculator, Target, Zap } from 'lucide-react';
-import { Slider } from '@/components/ui/slider';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import React, { useState, useMemo } from "react";
+import { useApp } from "@/contexts/AppContext";
+import { MetricCard } from "@/components/ui/MetricCard";
+import { formatCurrency } from "@/lib/storage";
+import { TrendingUp, Calculator, Target, Zap, Brain } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
-  Legend
-} from 'recharts';
-import { DEPARTMENT_PERMISSIONS } from '@/components/layout/AppLayout';
+  Legend,
+} from "recharts";
+import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
+import { AISalesForecast } from "@/components/ui/AISalesForecast";
 
 export const Proyecciones: React.FC = () => {
   const { data, currentProject, currentProjectMember } = useApp();
@@ -22,23 +23,28 @@ export const Proyecciones: React.FC = () => {
 
   const isProjectSelected = !!currentProject;
   const department = currentProjectMember?.departament;
-  const permissions = department ? DEPARTMENT_PERMISSIONS[department] : undefined;
+  const permissions = department
+    ? DEPARTMENT_PERMISSIONS[department]
+    : undefined;
   const isAuthorizedForPage =
     !isProjectSelected ||
     !department ||
     !permissions ||
-    permissions.includes('all') ||
-    permissions.includes('/proyecciones');
+    permissions.includes("all") ||
+    permissions.includes("/proyecciones");
 
   // Calculate current averages
   const monthAgo = new Date();
   monthAgo.setMonth(monthAgo.getMonth() - 1);
-  
-  const monthlySales = sales.filter(s => new Date(s.date) >= monthAgo);
-  const monthlyExpenses = expenses.filter(e => new Date(e.date) >= monthAgo);
-  
+
+  const monthlySales = sales.filter((s) => new Date(s.date) >= monthAgo);
+  const monthlyExpenses = expenses.filter((e) => new Date(e.date) >= monthAgo);
+
   const avgMonthlySales = monthlySales.reduce((sum, s) => sum + s.amount, 0);
-  const avgMonthlyExpenses = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const avgMonthlyExpenses = monthlyExpenses.reduce(
+    (sum, e) => sum + e.amount,
+    0,
+  );
 
   // Simulation controls
   const [salesIncrease, setSalesIncrease] = useState(10);
@@ -49,34 +55,41 @@ export const Proyecciones: React.FC = () => {
   const projectedExpenses = avgMonthlyExpenses * (1 - expenseReduction / 100);
   const projectedProfit = projectedSales - projectedExpenses;
   const currentProfit = avgMonthlySales - avgMonthlyExpenses;
-  const profitChange = currentProfit > 0 
-    ? ((projectedProfit - currentProfit) / currentProfit * 100)
-    : projectedProfit > 0 ? 100 : 0;
+  const profitChange =
+    currentProfit > 0
+      ? ((projectedProfit - currentProfit) / currentProfit) * 100
+      : projectedProfit > 0
+        ? 100
+        : 0;
 
   // Generate projection data for chart
   const projectionData = useMemo(() => {
     const data = [];
-    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
-    
+    const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun"];
+
     for (let i = 0; i < 6; i++) {
       // Current scenario (with slight random variation)
       const currentSales = avgMonthlySales * (1 + (Math.random() - 0.5) * 0.1);
-      const currentExpense = avgMonthlyExpenses * (1 + (Math.random() - 0.5) * 0.1);
-      
+      const currentExpense =
+        avgMonthlyExpenses * (1 + (Math.random() - 0.5) * 0.1);
+
       // Projected scenario (gradual improvement)
       const progressFactor = (i + 1) / 6;
-      const projSales = avgMonthlySales + (projectedSales - avgMonthlySales) * progressFactor;
-      const projExpense = avgMonthlyExpenses - (avgMonthlyExpenses - projectedExpenses) * progressFactor;
-      
+      const projSales =
+        avgMonthlySales + (projectedSales - avgMonthlySales) * progressFactor;
+      const projExpense =
+        avgMonthlyExpenses -
+        (avgMonthlyExpenses - projectedExpenses) * progressFactor;
+
       data.push({
         name: monthNames[i],
-        'Ventas actuales': Math.round(currentSales),
-        'Ventas proyectadas': Math.round(projSales),
-        'Gastos actuales': Math.round(currentExpense),
-        'Gastos proyectados': Math.round(projExpense),
+        "Ventas actuales": Math.round(currentSales),
+        "Ventas proyectadas": Math.round(projSales),
+        "Gastos actuales": Math.round(currentExpense),
+        "Gastos proyectados": Math.round(projExpense),
       });
     }
-    
+
     return data;
   }, [avgMonthlySales, avgMonthlyExpenses, projectedSales, projectedExpenses]);
 
@@ -87,7 +100,8 @@ export const Proyecciones: React.FC = () => {
           <div className="bg-card border border-border rounded-2xl p-6 max-w-sm text-center">
             <h2 className="text-lg font-semibold mb-2">Acceso restringido</h2>
             <p className="text-sm text-muted-foreground">
-              Solo el personal autorizado puede acceder a esta sección en el proyecto seleccionado.
+              Solo el personal autorizado puede acceder a esta sección en el
+              proyecto seleccionado.
             </p>
           </div>
         </div>
@@ -121,7 +135,9 @@ export const Proyecciones: React.FC = () => {
               <TrendingUp className="w-5 h-5 text-success" />
               <span className="font-medium">Aumentar Ventas</span>
             </div>
-            <span className="text-2xl font-bold text-success">+{salesIncrease}%</span>
+            <span className="text-2xl font-bold text-success">
+              +{salesIncrease}%
+            </span>
           </div>
           <Slider
             value={[salesIncrease]}
@@ -143,7 +159,9 @@ export const Proyecciones: React.FC = () => {
               <Target className="w-5 h-5 text-warning" />
               <span className="font-medium">Reducir Gastos</span>
             </div>
-            <span className="text-2xl font-bold text-warning">-{expenseReduction}%</span>
+            <span className="text-2xl font-bold text-warning">
+              -{expenseReduction}%
+            </span>
           </div>
           <Slider
             value={[expenseReduction]}
@@ -184,9 +202,9 @@ export const Proyecciones: React.FC = () => {
         />
         <MetricCard
           title="Mejora del beneficio"
-          value={`${profitChange > 0 ? '+' : ''}${profitChange.toFixed(0)}%`}
+          value={`${profitChange > 0 ? "+" : ""}${profitChange.toFixed(0)}%`}
           icon={<Calculator className="w-5 h-5" />}
-          variant={profitChange > 0 ? 'success' : 'destructive'}
+          variant={profitChange > 0 ? "success" : "destructive"}
         />
       </div>
 
@@ -197,63 +215,134 @@ export const Proyecciones: React.FC = () => {
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={projectionData}>
               <defs>
-                <linearGradient id="colorVentasProj" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0}/>
+                <linearGradient
+                  id="colorVentasProj"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="5%"
+                    stopColor="hsl(var(--chart-2))"
+                    stopOpacity={0.3}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="hsl(var(--chart-2))"
+                    stopOpacity={0}
+                  />
                 </linearGradient>
-                <linearGradient id="colorGastosProj" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--chart-3))" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="hsl(var(--chart-3))" stopOpacity={0}/>
+                <linearGradient
+                  id="colorGastosProj"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="5%"
+                    stopColor="hsl(var(--chart-3))"
+                    stopOpacity={0.3}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="hsl(var(--chart-3))"
+                    stopOpacity={0}
+                  />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(var(--border))"
+              />
+              <XAxis
+                dataKey="name"
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={12}
+              />
               <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'hsl(var(--card))', 
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '12px',
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "12px",
                 }}
-                formatter={(value: number) => formatCurrency(value, settings.currencySymbol)}
+                formatter={(value: number) =>
+                  formatCurrency(value, settings.currencySymbol)
+                }
               />
               <Legend />
-              <Area 
-                type="monotone" 
-                dataKey="Ventas actuales" 
-                stroke="hsl(var(--muted-foreground))" 
+              <Area
+                type="monotone"
+                dataKey="Ventas actuales"
+                stroke="hsl(var(--muted-foreground))"
                 strokeDasharray="5 5"
-                fill="transparent" 
+                fill="transparent"
                 strokeWidth={2}
               />
-              <Area 
-                type="monotone" 
-                dataKey="Ventas proyectadas" 
-                stroke="hsl(var(--chart-2))" 
-                fillOpacity={1} 
-                fill="url(#colorVentasProj)" 
+              <Area
+                type="monotone"
+                dataKey="Ventas proyectadas"
+                stroke="hsl(var(--chart-2))"
+                fillOpacity={1}
+                fill="url(#colorVentasProj)"
                 strokeWidth={2}
               />
-              <Area 
-                type="monotone" 
-                dataKey="Gastos actuales" 
-                stroke="hsl(var(--muted-foreground))" 
+              <Area
+                type="monotone"
+                dataKey="Gastos actuales"
+                stroke="hsl(var(--muted-foreground))"
                 strokeDasharray="5 5"
-                fill="transparent" 
+                fill="transparent"
                 strokeWidth={2}
               />
-              <Area 
-                type="monotone" 
-                dataKey="Gastos proyectados" 
-                stroke="hsl(var(--chart-3))" 
-                fillOpacity={1} 
-                fill="url(#colorGastosProj)" 
+              <Area
+                type="monotone"
+                dataKey="Gastos proyectados"
+                stroke="hsl(var(--chart-3))"
+                fillOpacity={1}
+                fill="url(#colorGastosProj)"
                 strokeWidth={2}
               />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* AI-Powered Sales Forecast */}
+      {sales.length >= 7 && (
+        <div className="relative">
+          <div className="absolute -top-3 -left-3 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+            <Brain className="w-3 h-3 text-white" />
+          </div>
+          <AISalesForecast
+            sales={sales.map((s) => ({
+              date: s.date,
+              amount: s.amount,
+            }))}
+            daysAhead={30}
+          />
+        </div>
+      )}
+
+      {sales.length < 7 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
+          <div className="flex items-start gap-3">
+            <Brain className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-blue-900 mb-1">
+                Pronóstico IA Disponible Pronto
+              </h3>
+              <p className="text-sm text-blue-700">
+                Necesitamos al menos 7 días de datos de ventas para activar la
+                predicción inteligente. Tienes {sales.length} día
+                {sales.length !== 1 ? "s" : ""} register.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tips */}
       <div className="bg-info/5 border border-info/20 rounded-2xl p-5">
@@ -264,15 +353,23 @@ export const Proyecciones: React.FC = () => {
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start gap-2">
             <span className="text-info">•</span>
-            <span>Para aumentar ventas: ofrece promociones, diversifica productos, mejora la atención al cliente</span>
+            <span>
+              Para aumentar ventas: ofrece promociones, diversifica productos,
+              mejora la atención al cliente
+            </span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-info">•</span>
-            <span>Para reducir gastos: negocia con proveedores, optimiza inventario, reduce desperdicios</span>
+            <span>
+              Para reducir gastos: negocia con proveedores, optimiza inventario,
+              reduce desperdicios
+            </span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-info">•</span>
-            <span>Revisa tu inventario regularmente para evitar productos estancados</span>
+            <span>
+              Revisa tu inventario regularmente para evitar productos estancados
+            </span>
           </li>
         </ul>
       </div>
