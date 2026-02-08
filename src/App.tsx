@@ -9,6 +9,7 @@ import Ventas from "@/pages/Ventas";
 import Gastos from "@/pages/Gastos";
 import Inventario from "@/pages/Inventario";
 import Analisis from "@/pages/Analisis";
+import Comparador from "@/pages/Comparador";
 import Proyecciones from "@/pages/Proyecciones";
 import Herramientas from "@/pages/Herramientas";
 import Configuracion from "@/pages/Configuracion";
@@ -104,6 +105,7 @@ const App = () => (
               <Route path="/inventario/:id" element={<Item />} />
               <Route path="/servicios" element={<Servicios />} />
               <Route path="/analisis" element={<Analisis />} />
+              <Route path="/compar/:pair" element={<Comparador />} />
               <Route path="/proyecciones" element={<Proyecciones />} />
               <Route path="/herramientas" element={<Herramientas />} />
               <Route path="/herramientas/facturador" element={<Facturador />} />

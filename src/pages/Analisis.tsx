@@ -32,6 +32,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
+import { useNavigate } from "react-router-dom";
 
 const COLORS = [
   "hsl(var(--chart-1))",
@@ -373,6 +374,54 @@ export const Analisis: React.FC = () => {
     ]
   );
 
+  // Comparator state
+  const navigate = useNavigate();
+  const entityTypes = [
+    "product",
+    "service",
+    "supplier",
+    "client",
+    "worker",
+    "tag",
+  ];
+
+  const getItemsForType = (type: string) => {
+    switch (type) {
+      case "product":
+        return products.map((p) => ({ id: p.id, name: p.name }));
+      case "service":
+        return data.services.map((s) => ({ id: s.id, name: s.name }));
+      case "supplier":
+        return data.suppliers.map((s) => ({ id: s.id, name: s.name }));
+      case "client":
+        return clients.map((c) => ({ id: c.id, name: c.name }));
+      case "worker":
+        return data.workers.map((w) => ({ id: w.id, name: w.name }));
+      case "tag":
+        return (data.customTags || []).map((t) => ({ id: t, name: t }));
+      default:
+        return [];
+    }
+  };
+
+  const [leftType, setLeftType] = useState<string>("product");
+  const [leftId, setLeftId] = useState<string | undefined>(
+    products[0]?.id
+  );
+  const [rightType, setRightType] = useState<string>("service");
+  const [rightId, setRightId] = useState<string | undefined>(
+    data.services[0]?.id
+  );
+
+  const handleCompare = () => {
+    if (!leftId || !rightId) {
+      toast({ title: "Seleccione ambos elementos para comparar" });
+      return;
+    }
+    const pair = `${leftType}:${leftId}_vs_${rightType}:${rightId}`;
+    navigate(`/compar/${encodeURIComponent(pair)}`);
+  };
+
   return (
     <div className="space-y-6 pb-20">
       {isProjectSelected && !isAuthorizedForPage && (
@@ -394,6 +443,100 @@ export const Analisis: React.FC = () => {
         </div>
       )}
       {/* Key Metrics */}
+      {/* Quick Comparator */}
+      <div className="bg-card rounded-2xl p-4 shadow-soft border border-border">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Comparador Rápido</div>
+            <div className="text-xs text-muted-foreground mt-1">Compara rápidamente dos elementos y ve cuál es más rentable</div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 items-center w-full md:w-auto mt-3 md:mt-0">
+            <div className="col-span-1">
+              <label className="block text-xs text-muted-foreground mb-1">Tipo (izquierda)</label>
+              <select
+                aria-label="Tipo izquierdo"
+                value={leftType}
+                onChange={(e) => {
+                  const t = e.target.value;
+                  setLeftType(t);
+                  const items = getItemsForType(t);
+                  setLeftId(items[0]?.id);
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
+              >
+                {entityTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs text-muted-foreground mb-1">Elemento (izquierda)</label>
+              <select
+                aria-label="Elemento izquierdo"
+                value={leftId}
+                onChange={(e) => setLeftId(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
+              >
+                {getItemsForType(leftType).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs text-muted-foreground mb-1">Tipo (derecha)</label>
+              <select
+                aria-label="Tipo derecho"
+                value={rightType}
+                onChange={(e) => {
+                  const t = e.target.value;
+                  setRightType(t);
+                  const items = getItemsForType(t);
+                  setRightId(items[0]?.id);
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
+              >
+                {entityTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs text-muted-foreground mb-1">Elemento (derecha)</label>
+              <select
+                aria-label="Elemento derecho"
+                value={rightId}
+                onChange={(e) => setRightId(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-muted text-sm border border-border focus:outline-none"
+              >
+                {getItemsForType(rightType).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-3 md:mt-0">
+            <button
+              onClick={handleCompare}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium shadow-sm hover:shadow-md"
+            >
+              Comparar
+            </button>
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Total Ingresos"
