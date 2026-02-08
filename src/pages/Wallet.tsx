@@ -173,6 +173,7 @@ export default function Wallet() {
   const [goalName, setGoalName] = useState("");
   const [goalPercentage, setGoalPercentage] = useState("25");
   const [goalDay, setGoalDay] = useState("1");
+  const [goalWallet, setGoalWallet] = useState<string>("");
   const [personalWallets, setPersonalWallets] = useState<PersonalWallet[]>([]);
   const [transferHistory, setTransferHistory] = useState<
     PersonalWalletTransfer[]
@@ -191,22 +192,43 @@ export default function Wallet() {
   const transferableBalance = useMemo(() => {
     return toNumber(balance);
   }, [balance]);
-  const nonTransferableBalance = useMemo(() => {
+
+  // Total ingresos brutos de ventas (no ganancia, sino monto total)
+  const salesRevenue = useMemo(() => {
     const sales = data.sales || [];
-    const products = data.products || [];
     return sales.reduce((total, sale) => {
-      const quantity = sale.quantity || 1;
-      let costTotal = 0;
-      if (sale.productId) {
-        const product = products.find((p) => p.id === sale.productId);
-        if (product) {
-          costTotal = product.cost * quantity;
-        }
-      }
-      const profit = sale.amount - costTotal;
-      return total + profit;
+      return total + (sale.amount || 0);
     }, 0);
-  }, [data.sales, data.products]);
+  }, [data.sales]);
+
+  // Total de gastos registrados
+  const totalExpenses = useMemo(() => {
+    const expenses = data.expenses || [];
+    return expenses.reduce((total, expense) => {
+      return total + (expense.amount || 0);
+    }, 0);
+  }, [data.expenses]);
+
+  // Total transferencias OUT desde la wallet principal a otras wallets
+  const transfersOut = useMemo(() => {
+    const principal = personalWallets.find((w) => w.name === "Principal");
+    if (!principal) return 0;
+    return transferHistory.reduce((total, transfer) => {
+      if (transfer.fromWalletId === principal.id) {
+        return total + transfer.amount;
+      }
+      return total;
+    }, 0);
+  }, [personalWallets, transferHistory]);
+
+  // Balance de la wallet principal en modo personal
+  // = PUSD balance + ingresos de ventas - gastos - transferencias OUT
+  const nonTransferableBalance = useMemo(() => {
+    if (!isPersonalMode) return 0;
+    return salesRevenue - totalExpenses - transfersOut;
+  }, [salesRevenue, totalExpenses, transfersOut, isPersonalMode]);
+
+  // Ganancia potencial del inventario disponible (para referencia)
   const symbolicBalance = useMemo(() => {
     const products = data.products || [];
     return products.reduce((total, p) => {
@@ -216,9 +238,12 @@ export default function Wallet() {
     }, 0);
   }, [data.products]);
 
+  // Balance total de la wallet principal = PUSD + ingresos netos - gastos - transferencias OUT
+  // NO incluye el valor representativo del inventario
   const totalBalance = useMemo(() => {
-    return transferableBalance + nonTransferableBalance + symbolicBalance;
-  }, [transferableBalance, nonTransferableBalance, symbolicBalance]);
+    if (!isPersonalMode) return 0;
+    return transferableBalance + nonTransferableBalance;
+  }, [transferableBalance, nonTransferableBalance, isPersonalMode]);
   const formatUsd = (value: number) => {
     return value.toLocaleString("en-US", {
       style: "currency",
@@ -233,10 +258,12 @@ export default function Wallet() {
     return executions.reduce((sum, item) => sum + (item.amount || 0), 0);
   }, [data.reinvestmentExecutions]);
 
+  // Ganancia neta disponible para reinvertir (después de gastos/transferencias)
   const remainingNonTransferable = useMemo(() => {
-    const base = nonTransferableBalance;
-    return Math.max(0, base - totalReinvested);
-  }, [nonTransferableBalance, totalReinvested]);
+    if (!isPersonalMode) return 0;
+    // Solo la ganancia del inventario puede ser reinvertida
+    return Math.max(0, symbolicBalance - totalReinvested);
+  }, [symbolicBalance, totalReinvested, isPersonalMode]);
 
   const reinvestmentGoals = useMemo(() => {
     return data.reinvestmentGoals || [];
@@ -429,19 +456,32 @@ export default function Wallet() {
       });
       return;
     }
+    if (!goalWallet) {
+      toast({
+        title: "Wallet requerida",
+        description: "Selecciona una wallet para reinvertir",
+        variant: "destructive",
+      });
+      return;
+    }
     addReinvestmentGoal({
       name: goalName,
       percentage,
       dayOfMonth: day,
       isActive: true,
+      walletId: goalWallet,
     });
     setGoalName("");
     setGoalPercentage("25");
+    setGoalWallet("");
   };
 
-  const handleExecuteReinvestment = (goalId: string, percentage: number) => {
-    const base = remainingNonTransferable;
-    const amount = (base * percentage) / 100;
+  const handleExecuteReinvestment = async (
+    goal: (typeof reinvestmentGoals)[0],
+  ) => {
+    if (!supabaseAuth.user?.id) return;
+
+    const amount = (remainingNonTransferable * goal.percentage) / 100;
     if (amount <= 0) {
       toast({
         title: "Sin ganancias disponibles",
@@ -449,15 +489,79 @@ export default function Wallet() {
       });
       return;
     }
-    addReinvestmentExecution({
-      goalId,
-      date: new Date().toISOString(),
-      amount,
-    });
-    toast({
-      title: "Reinversión registrada",
-      description: `Se registró una reinversión de ${formatUsd(amount)}`,
-    });
+
+    // Obtener la wallet principal (origen)
+    const principal = personalWallets.find((w) => w.name === "Principal");
+    if (!principal || principal.balance < amount) {
+      toast({
+        title: "Saldo insuficiente",
+        description:
+          "La wallet Principal no tiene suficiente saldo para reinvertir",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Si no hay walletId, usar la wallet principal como destino
+    let targetWalletId = goal.walletId;
+    if (!targetWalletId) {
+      targetWalletId = principal.id;
+    }
+
+    if (!targetWalletId) {
+      toast({
+        title: "Error",
+        description: "No hay wallet disponible para la reinversión",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Restar de la wallet principal
+      const newPrincipalBalance = principal.balance - amount;
+      await updateWalletBalance(principal.id, newPrincipalBalance);
+
+      // Sumar a la wallet destino (si es diferente de principal)
+      if (targetWalletId !== principal.id) {
+        const targetWallet = personalWallets.find(
+          (w) => w.id === targetWalletId,
+        );
+        if (targetWallet) {
+          const newTargetBalance = targetWallet.balance + amount;
+          await updateWalletBalance(targetWalletId, newTargetBalance);
+        }
+      }
+
+      addReinvestmentExecution({
+        goalId: goal.id,
+        date: new Date().toISOString(),
+        amount,
+      });
+
+      // Recargar wallets
+      const updated = await getPersonalWallets(supabaseAuth.user.id);
+      setPersonalWallets(updated);
+
+      const targetWallet = personalWallets.find((w) => w.id === targetWalletId);
+      toast({
+        title: "Reinversión registrada",
+        description: `Se transfirió ${formatUsd(amount)} de Principal a ${
+          targetWallet?.name || "la wallet"
+        }`,
+      });
+    } catch (err) {
+      console.error("Error en reinversión:", err);
+      toast({
+        title: "Error",
+        description: "No se pudo registrar la reinversión",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -1952,7 +2056,10 @@ export default function Wallet() {
                             }`}
                           >
                             <div className="flex items-start justify-between">
-                              <div className="w-10 h-8 bg-white/30 rounded-md" />
+                              <img
+                                src={"/public/SVG/P001.svg"}
+                                className="h-6"
+                              />
                               <div className="text-xs opacity-80">{p.name}</div>
                             </div>
 
@@ -2185,7 +2292,7 @@ export default function Wallet() {
             )}
           </div>
 
-          {/* {isPersonalMode && (
+          {isPersonalMode && (
             <div className="border border-border rounded-xl p-4 space-y-4">
               <h3 className="font-semibold">
                 Objetivos de reinversión mensual
@@ -2198,6 +2305,22 @@ export default function Wallet() {
                     onChange={(e) => setGoalName(e.target.value)}
                     placeholder="Reinvertir en inventario"
                   />
+                </div>
+                <div>
+                  <Label>Wallet destino para reinvertir</Label>
+                  <select
+                    value={goalWallet}
+                    onChange={(e) => setGoalWallet(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                    aria-label="Seleccionar wallet destino para reinversión"
+                  >
+                    <option value="">Selecciona una wallet</option>
+                    {personalWallets.map((wallet) => (
+                      <option key={wallet.id} value={wallet.id}>
+                        {wallet.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
@@ -2229,6 +2352,10 @@ export default function Wallet() {
                   {reinvestmentGoals.map((goal) => {
                     const suggestedAmount =
                       (remainingNonTransferable * goal.percentage) / 100;
+                    const targetWallet = personalWallets.find(
+                      (w) => w.id === goal.walletId,
+                    );
+                    const walletLabel = targetWallet?.name || "Principal";
                     return (
                       <div
                         key={goal.id}
@@ -2237,17 +2364,16 @@ export default function Wallet() {
                         <div>
                           <div className="text-sm font-medium">{goal.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            Cada mes día {goal.dayOfMonth} · {goal.percentage}%
-                            de tus ganancias · Aproximado:{" "}
+                            Cada mes, el día {goal.dayOfMonth} se enviara{" "}
+                            {goal.percentage}% de tus ganancias para →{" "}
+                            {walletLabel} · Aproximado:{" "}
                             {formatUsd(suggestedAmount)}
                           </div>
                         </div>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() =>
-                            handleExecuteReinvestment(goal.id, goal.percentage)
-                          }
+                          onClick={() => handleExecuteReinvestment(goal)}
                         >
                           Realizar reinversión
                         </Button>
@@ -2289,7 +2415,7 @@ export default function Wallet() {
                   </div>
                 )}
             </div>
-          )} */}
+          )}
         </div>
       </div>
     </div>

@@ -143,6 +143,7 @@ export interface ReinvestmentGoal {
   percentage: number;
   dayOfMonth: number;
   isActive: boolean;
+  walletId?: string; // ID de la wallet desde la cual se descontará
   createdAt: string;
 }
 

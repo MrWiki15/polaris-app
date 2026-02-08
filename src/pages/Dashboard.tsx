@@ -93,38 +93,38 @@ export const Dashboard: React.FC = () => {
   // Calculate metrics
   const todaySales = useMemo(
     () => getTodaysSales(dashboardSales),
-    [dashboardSales]
+    [dashboardSales],
   );
   const todayExpenses = useMemo(
     () => getTodaysExpenses(dashboardExpenses),
-    [dashboardExpenses]
+    [dashboardExpenses],
   );
   const yesterdaySales = useMemo(
     () => getYesterdaysSales(dashboardSales),
-    [dashboardSales]
+    [dashboardSales],
   );
   const weekSales = useMemo(
     () => getWeekSales(dashboardSales),
-    [dashboardSales]
+    [dashboardSales],
   );
   const lowStockProducts = useMemo(
     () => getLowStockProducts(dashboardProducts),
-    [dashboardProducts]
+    [dashboardProducts],
   );
   const inventoryValue = useMemo(
     () => getInventoryValue(dashboardProducts),
-    [dashboardProducts]
+    [dashboardProducts],
   );
 
   const todaySalesTotal = todaySales.reduce((sum, s) => sum + s.amount, 0);
   const todayExpensesTotal = todayExpenses.reduce(
     (sum, e) => sum + e.amount,
-    0
+    0,
   );
   const todayBalance = todaySalesTotal - todayExpensesTotal;
   const yesterdaySalesTotal = yesterdaySales.reduce(
     (sum, s) => sum + s.amount,
-    0
+    0,
   );
 
   // Calculate trend
@@ -144,10 +144,10 @@ export const Dashboard: React.FC = () => {
       chartPeriod === "7d"
         ? "day"
         : chartPeriod === "30d"
-        ? "day"
-        : chartPeriod === "90d"
-        ? "week"
-        : "month";
+          ? "day"
+          : chartPeriod === "90d"
+            ? "week"
+            : "month";
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysToShow);
@@ -278,7 +278,7 @@ export const Dashboard: React.FC = () => {
         icon: <TrendingUp className="w-5 h-5" />,
         text: `Día positivo: ganancia de ${formatCurrency(
           todayBalance,
-          settings.currencySymbol
+          settings.currencySymbol,
         )}`,
         type: "success",
       });
@@ -349,11 +349,11 @@ export const Dashboard: React.FC = () => {
       inventoryValue,
       lowStockProducts.length,
       settings.currencySymbol,
-    ]
+    ],
   );
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 lg:space-y-8 pb-20 max-w-7xl lg:max-w-full">
       {!!currentProject && (
         <div className="mb-4 rounded-xl border border-border p-3 bg-muted/40 text-sm">
           <div className="font-medium">
@@ -363,14 +363,14 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold tracking-tight">
+      <div className="flex flex-col gap-1 sm:gap-2">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">
           Hola, {settings.businessName || "Emprendedor"} 👋
         </h1>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-5">
         <MetricCard
           title="Ventas de hoy"
           value={formatCurrency(todaySalesTotal, settings.currencySymbol)}
@@ -388,7 +388,7 @@ export const Dashboard: React.FC = () => {
           title="Balance del día"
           value={formatCurrency(
             Math.abs(todayBalance),
-            settings.currencySymbol
+            settings.currencySymbol,
           )}
           subtitle={todayBalance >= 0 ? "Ganancia" : "Pérdida"}
           icon={
@@ -413,60 +413,62 @@ export const Dashboard: React.FC = () => {
       <CashFlowAlerts />
 
       {/* Charts & Recurring Payments */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         {/* Weekly Overview */}
-        <div className="lg:col-span-2 bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-            <h3 className="font-semibold">Resumen de Período</h3>
-            <div className="flex gap-2 flex-wrap">
+        <div className="lg:col-span-2 bg-card rounded-2xl p-3 sm:p-4 md:p-6 lg:p-7 shadow-soft border border-border">
+          <div className="flex flex-col gap-3 mb-5">
+            <h3 className="font-semibold text-sm sm:text-base lg:text-lg">
+              Resumen de Período
+            </h3>
+            <div className="flex gap-1 flex-wrap">
               <button
                 onClick={() => setChartPeriod("7d")}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                  "px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 rounded text-xs sm:text-sm md:text-base font-medium transition-all whitespace-nowrap",
                   chartPeriod === "7d"
                     ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80",
                 )}
               >
-                7 días
+                7d
               </button>
               {isPremium ? (
                 <>
                   <button
                     onClick={() => setChartPeriod("30d")}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
+                      "px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 rounded text-xs sm:text-sm md:text-base font-medium transition-all flex items-center gap-0.5 sm:gap-1 whitespace-nowrap",
                       chartPeriod === "30d"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80",
                     )}
                   >
-                    <Crown className="w-3 h-3" />
-                    30 días
+                    <Crown className="w-3 h-3 hidden sm:inline" />
+                    30d
                   </button>
                   <button
                     onClick={() => setChartPeriod("90d")}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
+                      "px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 rounded text-xs sm:text-sm md:text-base font-medium transition-all flex items-center gap-0.5 sm:gap-1 whitespace-nowrap",
                       chartPeriod === "90d"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80",
                     )}
                   >
-                    <Crown className="w-3 h-3" />
-                    90 días
+                    <Crown className="w-3 h-3 hidden sm:inline" />
+                    90d
                   </button>
                   <button
                     onClick={() => setChartPeriod("365d")}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
+                      "px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 rounded text-xs sm:text-sm md:text-base font-medium transition-all flex items-center gap-0.5 sm:gap-1 whitespace-nowrap",
                       chartPeriod === "365d"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80",
                     )}
                   >
-                    <Crown className="w-3 h-3" />
-                    365 días
+                    <Crown className="w-3 h-3 hidden sm:inline" />
+                    365d
                   </button>
                 </>
               ) : (
@@ -479,11 +481,11 @@ export const Dashboard: React.FC = () => {
                           "Los períodos extendidos están disponibles solo para usuarios premium",
                       });
                     }}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed"
+                    className="px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 rounded text-xs sm:text-sm md:text-base font-medium transition-all flex items-center gap-0.5 sm:gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed whitespace-nowrap"
                     disabled
                   >
-                    <Lock className="w-3 h-3" />
-                    30 días
+                    <Lock className="w-3 h-3 hidden sm:inline" />
+                    30d
                   </button>
                   <button
                     onClick={() => {
@@ -493,11 +495,11 @@ export const Dashboard: React.FC = () => {
                           "Los períodos extendidos están disponibles solo para usuarios premium",
                       });
                     }}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed"
+                    className="px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 rounded text-xs sm:text-sm md:text-base font-medium transition-all flex items-center gap-0.5 sm:gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed whitespace-nowrap"
                     disabled
                   >
-                    <Lock className="w-3 h-3" />
-                    90 días
+                    <Lock className="w-3 h-3 hidden sm:inline" />
+                    90d
                   </button>
                   <button
                     onClick={() => {
@@ -507,17 +509,17 @@ export const Dashboard: React.FC = () => {
                           "Los períodos extendidos están disponibles solo para usuarios premium",
                       });
                     }}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed"
+                    className="px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 rounded text-xs sm:text-sm md:text-base font-medium transition-all flex items-center gap-0.5 sm:gap-1 bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed whitespace-nowrap"
                     disabled
                   >
-                    <Lock className="w-3 h-3" />
-                    365 días
+                    <Lock className="w-3 h-3 hidden sm:inline" />
+                    365d
                   </button>
                 </>
               )}
             </div>
           </div>
-          <div className="h-56 sm:h-64">
+          <div className="h-48 sm:h-56 md:h-64 lg:h-80">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
                 <defs>
@@ -589,9 +591,11 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Balance Chart */}
-        <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
-          <h3 className="font-semibold mb-4">Balance del Período</h3>
-          <div className="h-56 sm:h-64">
+        <div className="bg-card rounded-2xl p-3 sm:p-4 md:p-6 lg:p-7 shadow-soft border border-border">
+          <h3 className="font-semibold mb-3 sm:mb-4 text-sm sm:text-base lg:text-lg">
+            Balance del Período
+          </h3>
+          <div className="h-48 sm:h-56 md:h-64 lg:h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid
@@ -635,7 +639,7 @@ export const Dashboard: React.FC = () => {
         {/* Balance History */}
         <BalanceHistory />
 
-        <Separator className="mt-6" />
+        <Separator className="mt-6 lg:mt-8" />
 
         <GoalsState />
 
@@ -645,9 +649,11 @@ export const Dashboard: React.FC = () => {
 
       {/* Insights & Alerts */}
       {insights.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="font-semibold">Alertas e Insights</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-3 lg:space-y-4">
+          <h3 className="font-semibold text-sm sm:text-base lg:text-lg">
+            Alertas e Insights
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
             {insights.map((insight, index) => (
               <div
                 key={index}
@@ -658,7 +664,7 @@ export const Dashboard: React.FC = () => {
                   insight.type === "warning" &&
                     "bg-warning/5 border-warning/20 text-warning",
                   insight.type === "info" &&
-                    "bg-info/5 border-info/20 text-info"
+                    "bg-info/5 border-info/20 text-info",
                 )}
               >
                 {insight.icon}
@@ -671,12 +677,12 @@ export const Dashboard: React.FC = () => {
 
       {/* Low Stock Alert */}
       {lowStockProducts.length > 0 && (
-        <div className="bg-warning/5 border border-warning/20 rounded-2xl p-4 sm:p-5">
-          <h3 className="font-semibold text-warning mb-3 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5" />
+        <div className="bg-warning/5 border border-warning/20 rounded-2xl p-3 sm:p-4 md:p-6 lg:p-7">
+          <h3 className="font-semibold text-warning mb-4 flex items-center gap-2 text-sm sm:text-base lg:text-lg">
+            <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
             Productos con Stock Bajo
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
             {lowStockProducts.slice(0, 6).map((product) => (
               <div
                 key={product.id}
@@ -688,7 +694,7 @@ export const Dashboard: React.FC = () => {
                     "px-2 py-1 rounded-lg text-xs font-bold",
                     product.quantity === 0
                       ? "bg-destructive/10 text-destructive"
-                      : "bg-warning/10 text-warning"
+                      : "bg-warning/10 text-warning",
                   )}
                 >
                   {product.quantity} uds
