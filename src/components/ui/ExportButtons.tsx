@@ -42,6 +42,7 @@ export const ExportButtons: React.FC<ExportButtonsProps> = ({
         description: "El archivo PDF se ha descargado correctamente",
       });
     } catch (error) {
+      console.log(error);
       toast({
         title: "Error al exportar",
         description: "No se pudo generar el archivo PDF",
@@ -68,6 +69,7 @@ export const ExportButtons: React.FC<ExportButtonsProps> = ({
         description: "El archivo Excel se ha descargado correctamente",
       });
     } catch (error) {
+      console.log(error);
       toast({
         title: "Error al exportar",
         description: "No se pudo generar el archivo Excel",

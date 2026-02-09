@@ -441,6 +441,7 @@ export const mintNftForCollection = async (projectId: number) => {
     decryptedSupplyKey = await decrypt(collection.supplyKey, passphrase);
     decryptedMetadataKey = await decrypt(collection.metadataKey, passphrase);
   } catch (error) {
+    console.log(error);
     throw new Error("Error al desencriptar las claves de la colección NFT");
   }
 

@@ -29,6 +29,7 @@ export const CategorySuggestionsModal: React.FC<
       const categories = await suggestCategories(appData);
       setSuggestions(categories);
     } catch (err: any) {
+      console.log(err);
       setError(err.message || "Error al obtener sugerencias");
     } finally {
       setLoading(false);

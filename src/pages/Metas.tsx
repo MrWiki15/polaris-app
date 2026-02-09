@@ -177,6 +177,7 @@ export const Metas: React.FC = () => {
         description: `Se generaron ${validGoals.length} metas realistas.`,
       });
     } catch (error) {
+      console.log(error);
       toast({
         title: "No se pudo generar con Polo",
         description: "Intentalo de nuevo con un brief mas claro.",

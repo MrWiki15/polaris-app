@@ -229,6 +229,7 @@ ${variations.closing}
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
+      console.log(err);
       toast({
         title: "Error",
         description: "No se pudo copiar el texto",
@@ -278,6 +279,7 @@ ${variations.closing}
         description: "Polo creo un post adaptado a tu red social.",
       });
     } catch (error) {
+      console.log(error);
       toast({
         title: "Error",
         description: "No se pudo generar el contenido con Polo.",

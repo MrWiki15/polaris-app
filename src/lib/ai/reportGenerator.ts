@@ -149,6 +149,7 @@ Devuelve SOLO JSON con este formato:
   try {
     return JSON.parse(unfenced) as ExecutiveReport;
   } catch (parseError) {
+    console.log(parseError);
     const jsonMatch = unfenced.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("Could not parse executive report JSON");

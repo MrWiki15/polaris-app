@@ -46,6 +46,7 @@ export function useChatbot() {
               remoteSummary = `Copia en nube: productos=${remote.products?.length || 0}, ventas=${remote.sales?.length || 0}, clientes=${remote.clients?.length || 0}, updated_at=${data.updated_at}`;
             }
           } catch (err) {
+            console.log(err);
             // ignore remote errors
             remoteSummary = "(no se pudo cargar copia en la nube)";
           }
@@ -117,6 +118,7 @@ export function useChatbot() {
         setLoading(false);
         return reply;
       } catch (err) {
+        console.log(err);
         setLoading(false);
         const errMsg: Message = {
           id: Date.now().toString() + "-err",

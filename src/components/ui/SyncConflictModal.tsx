@@ -25,6 +25,7 @@ export const SyncConflictModal: React.FC = () => {
         });
       }
     } catch (error) {
+      console.log(error);
       toast({
         title: "Error",
         description: "No se pudo restaurar desde la nube.",

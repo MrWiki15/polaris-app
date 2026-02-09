@@ -2,7 +2,7 @@ Polaris (polarisHub)
 
 Resumen
 
-- Polaris es la aplicación web administrativa (ERP) completa del ecosistema. Está construida con React + TypeScript sobre Vite y TailwindCSS. Provee vistas de gestión (ventas, inventario, facturación, análisis, CRM, configuración, etc.) y se integra con Supabase para persistencia y con una REST API completa para operaciones programáticas.
+- Polaris es la aplicación web administrativa (ERP) con inteligencia artificial mas completa del ecosistema. Está construida con React + TypeScript sobre Vite y TailwindCSS. Provee vistas de gestión (ventas, inventario, facturación, análisis, CRM, configuración, etc.) y se integra con Supabase para persistencia y con una REST API completa para operaciones programáticas.
 
 ## 🛠️ Tecnologías Principales
 

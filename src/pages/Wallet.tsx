@@ -721,6 +721,7 @@ export default function Wallet() {
         });
       }
     } catch (err) {
+      console.log(err);
       toast({
         title: "Error",
         description: "Error creando wallet",
@@ -776,6 +777,7 @@ export default function Wallet() {
         });
       }
     } catch (err) {
+      console.log(err);
       toast({
         title: "Error",
         description: "Error en la transferencia",
@@ -816,6 +818,7 @@ export default function Wallet() {
         });
       }
     } catch (err) {
+      console.log(err);
       toast({ title: "Error", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -852,6 +855,7 @@ export default function Wallet() {
         });
       }
     } catch (err) {
+      console.log(err);
       toast({ title: "Error", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -919,6 +923,7 @@ export default function Wallet() {
         setTransfers(t);
       }
     } catch (err) {
+      console.log(err);
       toast({
         title: "Error al enviar",
         description: "Revisa la dirección, monto y saldo",
@@ -1410,6 +1415,7 @@ export default function Wallet() {
                                   queryKey: ["projects", currentProject.id],
                                 });
                               } catch (err: any) {
+                                console.log(err);
                                 toast({
                                   title: "Error",
                                   description: err?.message || String(err),

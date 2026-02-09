@@ -46,6 +46,7 @@ export const Reportes: React.FC = () => {
         const base64 = btoa(unescape(encodeURIComponent(text)));
         setLogoDataUrl(`data:image/svg+xml;base64,${base64}`);
       } catch (error) {
+        console.log(error);
         setLogoDataUrl("");
       }
     };
@@ -173,6 +174,7 @@ export const Reportes: React.FC = () => {
       try {
         doc.addImage(logoDataUrl, "SVG", marginX, 6, 16, 16);
       } catch (error) {
+        console.log(error);
         // Ignore invalid logo
       }
     }
@@ -289,6 +291,7 @@ export const Reportes: React.FC = () => {
         description: "El PDF ejecutivo se descargo correctamente.",
       });
     } catch (error) {
+      console.log(error);
       toast({
         title: "No se pudo generar",
         description: "Intenta de nuevo en unos segundos.",

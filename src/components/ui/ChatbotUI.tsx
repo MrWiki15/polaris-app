@@ -51,6 +51,7 @@ export const ChatbotUI: React.FC = () => {
           });
         }
       } catch (err) {
+        console.log(err);
         // Module not available; keep null to use fallback rendering
         if (mounted) setMDRenderer(null);
       }

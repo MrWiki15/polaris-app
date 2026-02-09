@@ -253,6 +253,7 @@ export const Agenda: React.FC = () => {
         description: `Se agendaron ${plannedEvents.length} bloques basados en tu objetivo.`,
       });
     } catch (error) {
+      console.log(error);
       toast({
         title: "No se pudo agendar con Polo",
         description: "Intentalo de nuevo con un objetivo mas especifico.",

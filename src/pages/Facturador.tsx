@@ -168,6 +168,7 @@ export const Facturador: React.FC = () => {
         description: "Polo generó una propuesta editable para tu factura.",
       });
     } catch (err) {
+      console.log(err);
       toast({
         title: "Error",
         description: "No se pudo generar la plantilla con Polo.",
@@ -261,6 +262,7 @@ export const Facturador: React.FC = () => {
           24,
         );
       } catch (err) {
+        console.log(err);
         // Ignore invalid image
       }
     }

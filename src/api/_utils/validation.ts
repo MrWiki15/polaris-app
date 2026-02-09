@@ -13,6 +13,7 @@ export function validateBody<T>(
   try {
     return schema.parse(body);
   } catch (error) {
+    console.log(error);
     if (error instanceof z.ZodError) {
       sendValidationError(res, error.errors);
     } else {

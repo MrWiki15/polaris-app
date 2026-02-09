@@ -45,6 +45,7 @@ export function verifyAccessToken(token: string): TokenPayload {
     const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
     return decoded;
   } catch (error) {
+    console.log(error);
     throw new Error("Token inválido o expirado");
   }
 }
@@ -66,6 +67,7 @@ export function verifyRefreshToken(token: string): TokenPayload {
       email: decoded.email,
     };
   } catch (error) {
+    console.log(error);
     throw new Error("Refresh token inválido o expirado");
   }
 }

@@ -28,6 +28,7 @@ export async function authenticate(
 
     await next();
   } catch (error: any) {
+    console.log(error);
     return sendError(res, error.message || "No autorizado", 401);
   }
 }

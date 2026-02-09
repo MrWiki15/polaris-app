@@ -124,6 +124,7 @@ export const Configuracion: React.FC = () => {
         });
       }
     } catch (err) {
+      console.log(err);
       toast({
         title: "Error",
         description: "Ocurrió un error al obtener datos de la nube",
@@ -169,6 +170,7 @@ export const Configuracion: React.FC = () => {
 
       setForceUploadComparison({ cloudStats, localStats });
     } catch (err) {
+      console.log(err);
       // If error (e.g. network), we still might want to allow force upload but let's show stats as unknown or 0?
       // Better to just show current local stats and 0 for cloud if we can't reach it?
       // Or maybe error out.
