@@ -52,17 +52,21 @@ Notas de configuración
 - Si usas Supabase, revisa `src/database` para los scripts y guías de conexión. Añade variables de entorno (URL y KEY) en `.env` según `src/lib/supabase.ts`.
 - El proyecto incluye muchas dependencias opcionales (web3, pwa, pinata, etc.) que dependen de features específicos.
 
-polarisAppWrapper (wrapper móvil)
+## 📄 Licencia
 
-- Hay una app wrapper en `polarisAppWrapper/` usando Expo / React Native + NativeWind / Gluestack UI. Sirve como frontend móvil para algunos endpoints y comparte ideas de diseño y lógica con el panel.
+Este proyecto está bajo la **GNU General Public License v3.0** ([LICENSE](LICENSE))
 
-Contribuciones y próximos pasos
+En resumen, puedes:
 
-- Este README reemplaza la lista antigua de features a implementar. Para añadir tareas concretas, use el `README`, issues o el `PLAN_PREMIUM.md`.
-- Si quieres, puedo:
-  - Añadir secciones de configuración de `.env` más detalladas.
-  - Extraer un mapa de rutas reales desde `src/pages` y generar un índice con enlaces.
+- ✅ Usar el código libremente
+- ✅ Modificar el código
+- ✅ Distribuir versiones modificadas
 
-Contacto
+**Pero debes:**
 
-- Repositorio local: este README describe el estado actual del workspace (polarisHub + polarisAppWrapper).
+- 🔗 Mantener la misma licencia GPLv3
+- 📝 Documentar qué modificaste
+- 📢 Dar crédito a los autores originales
+- 📤 Compartir el código fuente con usuarios
+
+Para más detalles: https://www.gnu.org/licenses/gpl-3.0.en.html.

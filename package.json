@@ -1,6 +1,7 @@
 {
   "name": "Polaris",
-  "private": true,
+  "private": false,
+  "license": "GPL-3.0-or-later",
   "version": "1.0.3",
   "type": "module",
   "scripts": {
