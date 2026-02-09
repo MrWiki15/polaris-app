@@ -10,19 +10,24 @@ import {
   Star,
   Users,
   RefreshCw,
+  Sparkles,
+  Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency, getWeekSales, getMonthSales } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
+import { generateSocialPost, SocialPostPlan } from "@/lib/ai/postGenerator";
 
 type PostType =
   | "ventas"
   | "producto"
   | "promocion"
   | "logro"
-  | "agradecimiento";
+  | "agradecimiento"
+  | "rifa";
 
 export const PostsRedes: React.FC = () => {
   const { data, currentProject, currentProjectMember } = useApp();
@@ -44,6 +49,10 @@ export const PostsRedes: React.FC = () => {
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [regenerateKey, setRegenerateKey] = useState(0);
+  const [socialNetwork, setSocialNetwork] = useState("Instagram");
+  const [aiBrief, setAiBrief] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<SocialPostPlan | null>(null);
 
   const weekSales = useMemo(() => getWeekSales(sales), [sales]);
   const monthSales = useMemo(() => getMonthSales(sales), [sales]);
@@ -105,8 +114,8 @@ ${
   selectedProduct.quantity > 10
     ? `✅ ¡En stock!`
     : selectedProduct.quantity > 0
-    ? `⚠️ ¡Últimas ${selectedProduct.quantity} unidades!`
-    : "❌ Agotado"
+      ? `⚠️ ¡Últimas ${selectedProduct.quantity} unidades!`
+      : "❌ Agotado"
 }
 
 ${variations.greeting} ${variations.closing}
@@ -130,7 +139,7 @@ ${variations.greeting} En ${businessName} tenemos para ti:
 
 ${promoProducts
   .map(
-    (p) => `▶️ ${p.name} - ${formatCurrency(p.price, settings.currencySymbol)}`
+    (p) => `▶️ ${p.name} - ${formatCurrency(p.price, settings.currencySymbol)}`,
   )
   .join("\n")}
 
@@ -164,7 +173,7 @@ ${variations.thanks} Por confiar en nosotros ❤️
       case "agradecimiento":
         const randomClient = clients.filter((c) => c.type === "cliente")[
           Math.floor(
-            Math.random() * clients.filter((c) => c.type === "cliente").length
+            Math.random() * clients.filter((c) => c.type === "cliente").length,
           )
         ];
         return `❤️ ¡GRACIAS! ❤️
@@ -186,16 +195,33 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
 
 #Gracias #Clientes #Familia #${businessName.replace(/\s/g, "")}`;
 
+      case "rifa":
+        if (!selectedProduct) return "Selecciona un producto para la rifa";
+        return `🎁 ¡SORTEO ESPECIAL! 🎁
+
+${variations.greeting}
+
+Estamos rifando: ${selectedProduct.name}
+
+Participa y no te lo pierdas.
+
+${variations.closing}
+
+#Sorteo #Rifa #${businessName.replace(/\s/g, "")} #Participa`;
+
       default:
         return "";
     }
   };
 
-  const postContent = generatePost();
+  const postContent = aiResult?.content || generatePost();
+  const copyContent = aiResult?.hashtags?.length
+    ? `${postContent}\n\n${aiResult.hashtags.join(" ")}`
+    : postContent;
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(postContent);
+      await navigator.clipboard.writeText(copyContent);
       setCopied(true);
       toast({
         title: "¡Copiado!",
@@ -212,11 +238,54 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
   };
 
   const handleRegenerate = () => {
+    setAiResult(null);
     setRegenerateKey((prev) => prev + 1);
     toast({
       title: "Regenerado",
       description: "Se ha generado una nueva variación",
     });
+  };
+
+  const handleGenerateWithPolo = async () => {
+    if (
+      (selectedType === "producto" || selectedType === "rifa") &&
+      !selectedProduct
+    ) {
+      toast({
+        title: "Selecciona un producto",
+        description: "Elige un producto para generar el contenido con Polo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const result = await generateSocialPost({
+        appData: data,
+        businessName,
+        businessPhone: settings.businessPhone,
+        currencySymbol: settings.currencySymbol,
+        socialNetwork,
+        postType: selectedType,
+        brief: aiBrief,
+        product: selectedProduct,
+      });
+
+      setAiResult(result);
+      toast({
+        title: "Contenido generado",
+        description: "Polo creo un post adaptado a tu red social.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo generar el contenido con Polo.",
+        variant: "destructive",
+      });
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const postTypes = [
@@ -225,6 +294,16 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
     { value: "promocion", label: "Promoción", icon: Star },
     { value: "logro", label: "Logro", icon: ShoppingCart },
     { value: "agradecimiento", label: "Gracias", icon: Users },
+    { value: "rifa", label: "Rifa", icon: Gift },
+  ];
+
+  const socialNetworks = [
+    "Instagram",
+    "Facebook",
+    "TikTok",
+    "LinkedIn",
+    "X",
+    "WhatsApp",
   ];
 
   if (!isAuthorizedForPage) {
@@ -276,7 +355,7 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
                     "flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center",
                     selectedType === type.value
                       ? "border-primary bg-primary/5"
-                      : "border-border hover:border-muted-foreground"
+                      : "border-border hover:border-muted-foreground",
                   )}
                 >
                   <type.icon
@@ -284,7 +363,7 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
                       "w-5 h-5",
                       selectedType === type.value
                         ? "text-primary"
-                        : "text-muted-foreground"
+                        : "text-muted-foreground",
                     )}
                   />
                   <span className="text-xs font-medium">{type.label}</span>
@@ -293,8 +372,55 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
             </div>
           </div>
 
+          <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
+            <h3 className="font-semibold mb-4">Red social</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {socialNetworks.map((network) => (
+                <button
+                  key={network}
+                  onClick={() => setSocialNetwork(network)}
+                  className={cn(
+                    "flex items-center justify-center p-2 rounded-xl border-2 transition-all text-sm",
+                    socialNetwork === network
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground",
+                  )}
+                >
+                  {network}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              Generar con Polo
+            </h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Polo adapta el contenido, hashtags y estrategia segun la red
+              social.
+            </p>
+            <div className="space-y-2">
+              <Textarea
+                placeholder="Ej: Resaltar beneficios, tono cercano y llamado a la accion"
+                value={aiBrief}
+                onChange={(e) => setAiBrief(e.target.value)}
+                rows={3}
+              />
+              <Button
+                onClick={handleGenerateWithPolo}
+                className="w-full gradient-primary"
+                disabled={aiLoading}
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                {aiLoading ? "Generando..." : "Generar con Polo"}
+              </Button>
+            </div>
+          </div>
+
           {/* Product Selection for producto type */}
-          {selectedType === "producto" && (
+          {(selectedType === "producto" || selectedType === "rifa") && (
             <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
               <h3 className="font-semibold mb-4">Selecciona un producto</h3>
               <div className="max-h-60 overflow-y-auto space-y-2">
@@ -307,7 +433,7 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
                         "w-full flex items-center justify-between p-3 rounded-xl transition-all text-left",
                         selectedProductId === product.id
                           ? "bg-primary/10 border-2 border-primary"
-                          : "bg-muted hover:bg-muted/80 border-2 border-transparent"
+                          : "bg-muted hover:bg-muted/80 border-2 border-transparent",
                       )}
                     >
                       <div>
@@ -317,7 +443,7 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
                         <span className="block text-xs text-muted-foreground">
                           {formatCurrency(
                             product.price,
-                            settings.currencySymbol
+                            settings.currencySymbol,
                           )}{" "}
                           • Stock: {product.quantity}
                         </span>
@@ -340,6 +466,15 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Vista previa</h3>
               <div className="flex gap-2">
+                {aiResult && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setAiResult(null)}
+                  >
+                    Usar plantilla
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" onClick={handleRegenerate}>
                   <RefreshCw className="w-4 h-4" />
                 </Button>
@@ -348,7 +483,7 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
                   onClick={handleCopy}
                   className={cn(
                     "transition-all",
-                    copied ? "bg-success hover:bg-success" : ""
+                    copied ? "bg-success hover:bg-success" : "",
                   )}
                 >
                   {copied ? (
@@ -369,6 +504,33 @@ ${settings.businessPhone ? `📱 ${settings.businessPhone}` : ""}
             <div className="bg-muted rounded-xl p-4 whitespace-pre-wrap text-sm min-h-[200px]">
               {postContent}
             </div>
+
+            {aiResult && (
+              <div className="mt-4 space-y-3">
+                {aiResult.contentType && (
+                  <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-sm">
+                    <span className="font-medium">Tipo recomendado:</span>{" "}
+                    {aiResult.contentType}
+                  </div>
+                )}
+                {aiResult.strategy && (
+                  <div className="bg-card rounded-xl border border-border p-3 text-sm">
+                    <div className="font-medium mb-1">Estrategia sugerida</div>
+                    <div className="text-muted-foreground">
+                      {aiResult.strategy}
+                    </div>
+                  </div>
+                )}
+                {aiResult.hashtags?.length ? (
+                  <div className="bg-card rounded-xl border border-border p-3 text-sm">
+                    <div className="font-medium mb-1">Hashtags</div>
+                    <div className="text-muted-foreground">
+                      {aiResult.hashtags.join(" ")}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
 
           <div className="bg-info/5 border border-info/20 rounded-2xl p-4">

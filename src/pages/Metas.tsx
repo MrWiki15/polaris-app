@@ -9,15 +9,19 @@ import {
   Wallet,
   PiggyBank,
   MoreHorizontal,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { ExportButtons } from "@/components/ui/ExportButtons";
 import { FinancialGoal, formatCurrency } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import { ExportData } from "@/lib/exportUtils";
+import { toast } from "@/hooks/use-toast";
+import { generateFinancialGoals } from "@/lib/ai/goalGenerator";
 
 const goalCategories = [
   { value: "ventas", label: "Ventas", icon: TrendingUp, color: "text-success" },
@@ -43,6 +47,8 @@ export const Metas: React.FC = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<FinancialGoal | null>(null);
+  const [aiBrief, setAiBrief] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     targetAmount: "",
@@ -132,6 +138,55 @@ export const Metas: React.FC = () => {
     updateGoal(goalId, { currentAmount: newAmount });
   };
 
+  const handleGenerateWithPolo = async () => {
+    setAiLoading(true);
+    try {
+      const plan = await generateFinancialGoals({
+        appData: data,
+        currencySymbol: settings.currencySymbol,
+        brief: aiBrief,
+      });
+
+      const validGoals = (plan.goals || []).filter(
+        (goal) =>
+          goal.title && goal.deadline && Number.isFinite(goal.targetAmount),
+      );
+
+      if (!validGoals.length) {
+        throw new Error("No goals generated");
+      }
+
+      validGoals.forEach((goal) => {
+        const currentAmount =
+          typeof goal.currentAmount === "number" && goal.currentAmount > 0
+            ? goal.currentAmount
+            : 0;
+
+        addGoal({
+          title: goal.title,
+          targetAmount: goal.targetAmount,
+          currentAmount,
+          deadline: goal.deadline,
+          category: goal.category,
+        });
+      });
+
+      setAiBrief("");
+      toast({
+        title: "Metas creadas con Polo",
+        description: `Se generaron ${validGoals.length} metas realistas.`,
+      });
+    } catch (error) {
+      toast({
+        title: "No se pudo generar con Polo",
+        description: "Intentalo de nuevo con un brief mas claro.",
+        variant: "destructive",
+      });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       {!!currentProject && (
@@ -174,7 +229,7 @@ export const Metas: React.FC = () => {
                   ],
                   rows: goalsWithProgress.map((goal) => {
                     const catInfo = goalCategories.find(
-                      (c) => c.value === goal.category
+                      (c) => c.value === goal.category,
                     );
                     const isComplete = goal.progress >= 100;
                     return [
@@ -201,7 +256,7 @@ export const Metas: React.FC = () => {
                     },
                   ],
                 }),
-                [goalsWithProgress, goals.length]
+                [goalsWithProgress, goals.length],
               )}
               filename="metas"
               isPremium={isPremium}
@@ -212,6 +267,48 @@ export const Metas: React.FC = () => {
             >
               <Plus className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Nueva Meta</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Polo goal generator */}
+      <div className="bg-card rounded-2xl p-4 sm:p-6 border border-border shadow-soft">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              Generar metas con Polo
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Polo usa tus datos locales y sincronizados para proponer metas
+              realistas.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="poloGoalsBrief">Enfoque opcional</Label>
+            <Textarea
+              id="poloGoalsBrief"
+              placeholder="Ej: Enfocar en ahorro y reducir gastos fijos"
+              value={aiBrief}
+              onChange={(e) => setAiBrief(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              Las metas se crean con fechas y montos alcanzables.
+            </p>
+            <Button
+              onClick={handleGenerateWithPolo}
+              className="gradient-primary"
+              disabled={aiLoading}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {aiLoading ? "Generando..." : "Generar con Polo"}
             </Button>
           </div>
         </div>
@@ -253,7 +350,7 @@ export const Metas: React.FC = () => {
                         "flex items-center gap-2 p-3 rounded-xl border-2 transition-all",
                         formData.category === cat.value
                           ? "border-primary bg-primary/5"
-                          : "border-border hover:border-muted-foreground"
+                          : "border-border hover:border-muted-foreground",
                       )}
                     >
                       <cat.icon className={cn("w-4 h-4", cat.color)} />
@@ -354,13 +451,13 @@ export const Metas: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {goalsWithProgress.map((goal) => {
             const catInfo = goalCategories.find(
-              (c) => c.value === goal.category
+              (c) => c.value === goal.category,
             );
             const Icon = catInfo?.icon || Target;
             const isComplete = goal.progress >= 100;
             const daysLeft = Math.ceil(
               (new Date(goal.deadline).getTime() - Date.now()) /
-                (1000 * 60 * 60 * 24)
+                (1000 * 60 * 60 * 24),
             );
 
             return (
@@ -370,7 +467,7 @@ export const Metas: React.FC = () => {
                   "bg-card rounded-2xl p-4 sm:p-5 shadow-soft border transition-all",
                   isComplete
                     ? "border-success/50 bg-success/5"
-                    : "border-border"
+                    : "border-border",
                 )}
               >
                 <div className="flex items-start justify-between mb-4">
@@ -378,13 +475,13 @@ export const Metas: React.FC = () => {
                     <div
                       className={cn(
                         "p-2 rounded-xl",
-                        isComplete ? "bg-success/20" : "bg-muted"
+                        isComplete ? "bg-success/20" : "bg-muted",
                       )}
                     >
                       <Icon
                         className={cn(
                           "w-5 h-5",
-                          isComplete ? "text-success" : catInfo?.color
+                          isComplete ? "text-success" : catInfo?.color,
                         )}
                       />
                     </div>
@@ -394,8 +491,8 @@ export const Metas: React.FC = () => {
                         {daysLeft > 0
                           ? `${daysLeft} días restantes`
                           : daysLeft === 0
-                          ? "Vence hoy"
-                          : "Vencida"}
+                            ? "Vence hoy"
+                            : "Vencida"}
                       </span>
                     </div>
                   </div>
@@ -425,7 +522,7 @@ export const Metas: React.FC = () => {
                     <span
                       className={cn(
                         "font-semibold",
-                        isComplete && "text-success"
+                        isComplete && "text-success",
                       )}
                     >
                       {goal.progress.toFixed(0)}%
@@ -436,14 +533,14 @@ export const Metas: React.FC = () => {
                     <span className="font-medium">
                       {formatCurrency(
                         goal.currentAmount,
-                        settings.currencySymbol
+                        settings.currencySymbol,
                       )}
                     </span>
                     <span className="text-muted-foreground">
                       de{" "}
                       {formatCurrency(
                         goal.targetAmount,
-                        settings.currencySymbol
+                        settings.currencySymbol,
                       )}
                     </span>
                   </div>
@@ -459,7 +556,7 @@ export const Metas: React.FC = () => {
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             const value = parseFloat(
-                              (e.target as HTMLInputElement).value
+                              (e.target as HTMLInputElement).value,
                             );
                             if (!isNaN(value)) {
                               handleUpdateProgress(goal.id, value);

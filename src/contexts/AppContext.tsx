@@ -142,9 +142,14 @@ interface AppContextType {
   updateServiceIncome: (id: string, income: Partial<ServiceIncome>) => void;
   deleteServiceIncome: (id: string) => void;
   // Custom Tags
+  // Custom Tags
   addCustomTag: (tag: string) => void;
   updateCustomTag: (oldTag: string, newTag: string) => void;
   deleteCustomTag: (tag: string) => void;
+  // Custom Categories
+  addCustomCategory: (category: string) => void;
+  updateCustomCategory: (oldCategory: string, newCategory: string) => void;
+  deleteCustomCategory: (category: string) => void;
   // Settings
   updateSettings: (settings: Partial<AppData["settings"]>) => void;
   // Theme
@@ -816,6 +821,34 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }));
   };
 
+  // Custom Categories operations
+  const addCustomCategory = (category: string) => {
+    if (!data.customCategories.includes(category)) {
+      setData((prev) => ({
+        ...prev,
+        customCategories: [...prev.customCategories, category],
+      }));
+    }
+  };
+
+  const updateCustomCategory = (oldCategory: string, newCategory: string) => {
+    if (!data.customCategories.includes(newCategory)) {
+      setData((prev) => ({
+        ...prev,
+        customCategories: prev.customCategories.map((c) =>
+          c === oldCategory ? newCategory : c,
+        ),
+      }));
+    }
+  };
+
+  const deleteCustomCategory = (category: string) => {
+    setData((prev) => ({
+      ...prev,
+      customCategories: prev.customCategories.filter((c) => c !== category),
+    }));
+  };
+
   // Suppliers operations
   const addSupplier = (supplier: Omit<Supplier, "id" | "createdAt">) => {
     const newSupplier: Supplier = {
@@ -1102,6 +1135,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         addCustomTag,
         updateCustomTag,
         deleteCustomTag,
+        addCustomCategory,
+        updateCustomCategory,
+        deleteCustomCategory,
         updateSettings,
         theme,
         toggleTheme,

@@ -1,6 +1,14 @@
 import React, { useState, useMemo } from "react";
 import { useApp } from "@/contexts/AppContext";
-import { FileText, Download, Plus, Trash2, Users } from "lucide-react";
+import {
+  FileText,
+  Download,
+  Plus,
+  Trash2,
+  Users,
+  Upload,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { DEPARTMENT_PERMISSIONS } from "@/components/layout/AppLayout";
 import jsPDF from "jspdf";
+import { generateInvoiceDraft } from "@/lib/ai/invoiceGenerator";
 
 interface InvoiceItem {
   description: string;
@@ -17,7 +26,13 @@ interface InvoiceItem {
 }
 
 export const Facturador: React.FC = () => {
-  const { data, addSale, currentProject, currentProjectMember } = useApp();
+  const {
+    data,
+    addSale,
+    currentProject,
+    currentProjectMember,
+    updateSettings,
+  } = useApp();
   const { settings, products, clients } = data;
 
   const isProjectSelected = !!currentProject;
@@ -34,6 +49,8 @@ export const Facturador: React.FC = () => {
 
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [items, setItems] = useState<InvoiceItem[]>([
     { description: "", quantity: 1, price: 0 },
@@ -41,6 +58,33 @@ export const Facturador: React.FC = () => {
   const [invoiceNumber, setInvoiceNumber] = useState(
     `FAC-${Date.now().toString().slice(-6)}`,
   );
+  const [issueDate, setIssueDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+  const [dueDate, setDueDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 15);
+    return date.toISOString().split("T")[0];
+  });
+  const [taxRate, setTaxRate] = useState(0);
+  const [amountPaid, setAmountPaid] = useState(0);
+  const [terms, setTerms] = useState("Gracias por su preferencia.");
+  const [notes, setNotes] = useState("");
+  const [logoDataUrl, setLogoDataUrl] = useState<string>(
+    settings.businessLogo || "",
+  );
+  const [businessName, setBusinessName] = useState(settings.businessName || "");
+  const [businessPhone, setBusinessPhone] = useState(
+    settings.businessPhone || "",
+  );
+  const [businessAddress, setBusinessAddress] = useState(
+    settings.businessAddress || "",
+  );
+  const [businessEmail, setBusinessEmail] = useState(
+    settings.businessEmail || "",
+  );
+  const [aiBrief, setAiBrief] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const [registerAsSale, setRegisterAsSale] = useState(true);
 
   const customerClients = useMemo(
@@ -51,6 +95,12 @@ export const Facturador: React.FC = () => {
   const total = useMemo(() => {
     return items.reduce((sum, item) => sum + item.quantity * item.price, 0);
   }, [items]);
+  const taxAmount = useMemo(() => (total * taxRate) / 100, [total, taxRate]);
+  const grandTotal = useMemo(() => total + taxAmount, [total, taxAmount]);
+  const amountDue = useMemo(
+    () => Math.max(0, grandTotal - amountPaid),
+    [grandTotal, amountPaid],
+  );
 
   const handleSelectClient = (clientId: string) => {
     const client = clients.find((c) => c.id === clientId);
@@ -58,6 +108,73 @@ export const Facturador: React.FC = () => {
       setSelectedClientId(clientId);
       setClientName(client.name);
       setClientPhone(client.phone || "");
+      setClientEmail(client.email || "");
+      setClientAddress(client.address || "");
+    }
+  };
+
+  const handleLogoUpload = (file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setLogoDataUrl(result);
+      updateSettings({ businessLogo: result });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleGenerateWithPolo = async () => {
+    setAiLoading(true);
+    try {
+      const draft = await generateInvoiceDraft({
+        appData: data,
+        businessName,
+        businessAddress,
+        businessPhone,
+        businessEmail,
+        clientName,
+        clientAddress,
+        clientEmail,
+        currencySymbol: settings.currencySymbol,
+        brief: aiBrief,
+      });
+
+      if (draft.items?.length) {
+        setItems(
+          draft.items.map((item) => ({
+            description: item.description,
+            quantity: item.quantity || 1,
+            price: item.price || 0,
+          })),
+        );
+      }
+      if (typeof draft.taxRate === "number") {
+        setTaxRate(draft.taxRate);
+      }
+      if (draft.terms) setTerms(draft.terms);
+      if (draft.notes) setNotes(draft.notes);
+
+      // Actualiza datos de empresa y cliente si Polo los extrajo
+      if (draft.businessName) {
+        setBusinessName(draft.businessName);
+      }
+      if (draft.clientName) {
+        setClientName(draft.clientName);
+      }
+
+      toast({
+        title: "Plantilla generada",
+        description: "Polo generó una propuesta editable para tu factura.",
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "No se pudo generar la plantilla con Polo.",
+        variant: "destructive",
+      });
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -108,104 +225,283 @@ export const Facturador: React.FC = () => {
   const generatePDF = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 12;
+    const rightX = pageWidth - marginX;
+    const contentWidth = pageWidth - marginX * 2;
+    const themePrimary = { r: 86, g: 170, b: 235 };
+    const themeLight = { r: 230, g: 244, b: 255 };
+    const themeLine = { r: 195, g: 225, b: 245 };
+    const textMuted = { r: 90, g: 110, b: 125 };
 
-    // Header
-    doc.setFillColor(37, 99, 235);
-    doc.rect(0, 0, pageWidth, 40, "F");
+    const getImageFormat = (dataUrl: string) => {
+      const match = dataUrl.match(/^data:image\/(png|jpg|jpeg);/i);
+      if (!match) return "PNG";
+      const type = match[1].toLowerCase();
+      if (type === "jpg" || type === "jpeg") return "JPEG";
+      return "PNG";
+    };
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text(settings.businessName || "Polaris", 20, 25);
+    // Header band
+    doc.setFillColor(themeLight.r, themeLight.g, themeLight.b);
+    doc.rect(0, 0, pageWidth, 42, "F");
+    doc.setDrawColor(themeLine.r, themeLine.g, themeLine.b);
+    doc.setLineWidth(0.6);
+    doc.line(0, 42, pageWidth, 42);
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    if (settings.businessPhone) {
-      doc.text(`Tel: ${settings.businessPhone}`, pageWidth - 20, 20, {
-        align: "right",
-      });
+    // Logo and business info
+    if (logoDataUrl) {
+      try {
+        doc.addImage(
+          logoDataUrl,
+          getImageFormat(logoDataUrl),
+          marginX,
+          8,
+          24,
+          24,
+        );
+      } catch (err) {
+        // Ignore invalid image
+      }
     }
-    if (settings.businessAddress) {
-      doc.text(settings.businessAddress, pageWidth - 20, 28, {
-        align: "right",
-      });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(themePrimary.r, themePrimary.g, themePrimary.b);
+    doc.text(businessName || settings.businessName || "Polaris", rightX, 18, {
+      align: "right",
+    });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(textMuted.r, textMuted.g, textMuted.b);
+    if (businessPhone) {
+      doc.text(`Tel: ${businessPhone}`, rightX, 25, { align: "right" });
+    }
+    if (businessEmail) {
+      doc.text(businessEmail, rightX, 31, { align: "right" });
+    }
+    if (businessAddress) {
+      doc.text(businessAddress, rightX, 37, { align: "right" });
     }
 
     // Invoice info
+    const headerBottom = 42;
+    const infoTop = headerBottom + 12;
+    doc.setTextColor(themePrimary.r, themePrimary.g, themePrimary.b);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("FACTURA", marginX, infoTop);
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("FACTURA", 20, 55);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text(`Número: ${invoiceNumber}`, 20, 62);
-    doc.text(`Fecha: ${new Date().toLocaleDateString("es-ES")}`, 20, 69);
+    doc.setFontSize(9);
+    doc.text(`Número: ${invoiceNumber}`, marginX, infoTop + 7);
+    doc.text(`Fecha emisión: ${issueDate}`, marginX, infoTop + 13);
+    doc.text(`Vence: ${dueDate}`, marginX, infoTop + 19);
 
-    // Client info
+    // Amount due
     doc.setFont("helvetica", "bold");
-    doc.text("Cliente:", pageWidth - 80, 55);
+    doc.setFontSize(11);
+    doc.setTextColor(textMuted.r, textMuted.g, textMuted.b);
+    doc.text("Monto adeudado", rightX, infoTop + 7, { align: "right" });
+    doc.setFontSize(18);
+    doc.setTextColor(themePrimary.r, themePrimary.g, themePrimary.b);
+    doc.text(
+      formatCurrency(amountDue, settings.currencySymbol),
+      rightX,
+      infoTop + 18,
+      {
+        align: "right",
+      },
+    );
+
+    // Client info box
+    const clientBoxTop = infoTop + 28;
+    doc.setFillColor(themeLight.r, themeLight.g, themeLight.b);
+    doc.rect(marginX, clientBoxTop, contentWidth, 34, "F");
+    doc.setDrawColor(themeLine.r, themeLine.g, themeLine.b);
+    doc.rect(marginX, clientBoxTop, contentWidth, 34);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Facturado a:", marginX + 6, clientBoxTop + 10);
     doc.setFont("helvetica", "normal");
-    doc.text(clientName || "Cliente general", pageWidth - 80, 62);
+    doc.text(clientName || "Cliente general", marginX + 6, clientBoxTop + 17);
+    if (clientAddress) {
+      doc.text(clientAddress, marginX + 6, clientBoxTop + 23);
+    }
+    if (clientEmail) {
+      doc.text(clientEmail, marginX + 6, clientBoxTop + 29);
+    }
     if (clientPhone) {
-      doc.text(`Tel: ${clientPhone}`, pageWidth - 80, 69);
+      doc.text(`Tel: ${clientPhone}`, rightX, clientBoxTop + 17, {
+        align: "right",
+      });
     }
 
     // Table header
-    const tableTop = 85;
-    doc.setFillColor(243, 244, 246);
-    doc.rect(15, tableTop - 6, pageWidth - 30, 10, "F");
+    const tableTop = clientBoxTop + 52;
+    const descX = marginX + 6;
+    const qtyX = marginX + contentWidth * 0.6;
+    const priceX = marginX + contentWidth * 0.75;
+    const totalX = rightX - 2;
 
+    doc.setFillColor(themePrimary.r, themePrimary.g, themePrimary.b);
+    doc.rect(marginX, tableTop - 6, contentWidth, 10, "F");
+    doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
-    doc.text("Descripción", 20, tableTop);
-    doc.text("Cant.", 120, tableTop);
-    doc.text("Precio", 145, tableTop);
-    doc.text("Total", 175, tableTop);
+    doc.text("Descripción", descX, tableTop);
+    doc.text("Cant.", qtyX, tableTop);
+    doc.text("Precio", priceX, tableTop);
+    doc.text("Total", totalX, tableTop, { align: "right" });
 
     // Table content
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(0, 0, 0);
     let y = tableTop + 12;
 
     items
       .filter((i) => i.description)
-      .forEach((item) => {
-        doc.text(item.description.substring(0, 40), 20, y);
-        doc.text(item.quantity.toString(), 120, y);
-        doc.text(formatCurrency(item.price, settings.currencySymbol), 145, y);
+      .forEach((item, index) => {
+        if (index % 2 === 0) {
+          doc.setFillColor(246, 250, 255);
+          doc.rect(marginX, y - 5, contentWidth, 8, "F");
+        }
+        doc.text(item.description.substring(0, 50), descX, y);
+        doc.text(item.quantity.toString(), qtyX, y);
         doc.text(
-          formatCurrency(item.quantity * item.price, settings.currencySymbol),
-          175,
+          formatCurrency(item.price, settings.currencySymbol),
+          priceX,
           y,
         );
+        doc.text(
+          formatCurrency(item.quantity * item.price, settings.currencySymbol),
+          totalX,
+          y,
+          { align: "right" },
+        );
+        doc.setDrawColor(themeLine.r, themeLine.g, themeLine.b);
+        doc.line(marginX, y + 3, rightX, y + 3);
         y += 8;
       });
 
-    // Total
-    y += 5;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(15, y, pageWidth - 15, y);
-    y += 10;
+    // Totals
+    y += 6;
+    doc.setDrawColor(themeLine.r, themeLine.g, themeLine.b);
+    doc.line(marginX, y, rightX, y);
+    y += 8;
 
+    const totalsBoxWidth = contentWidth * 0.45;
+    const totalsBoxX = rightX - totalsBoxWidth;
+    const totalsBoxY = y - 4;
+    const totalsBoxHeight = 34;
+    doc.setFillColor(themeLight.r, themeLight.g, themeLight.b);
+    doc.rect(totalsBoxX, totalsBoxY, totalsBoxWidth, totalsBoxHeight, "F");
+    doc.setDrawColor(themeLine.r, themeLine.g, themeLine.b);
+    doc.rect(totalsBoxX, totalsBoxY, totalsBoxWidth, totalsBoxHeight);
+
+    const totalsLabelX = totalsBoxX + 6;
+    const totalsValueX = rightX - 4;
+    let totalsY = totalsBoxY + 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Subtotal", totalsLabelX, totalsY);
+    doc.text(
+      formatCurrency(total, settings.currencySymbol),
+      totalsValueX,
+      totalsY,
+      {
+        align: "right",
+      },
+    );
+    totalsY += 6;
+    doc.text(`Impuesto (${taxRate}%)`, totalsLabelX, totalsY);
+    doc.text(
+      formatCurrency(taxAmount, settings.currencySymbol),
+      totalsValueX,
+      totalsY,
+      {
+        align: "right",
+      },
+    );
+    totalsY += 6;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("TOTAL:", 145, y);
-    doc.text(formatCurrency(total, settings.currencySymbol), 175, y);
+    doc.text("Total", totalsLabelX, totalsY);
+    doc.text(
+      formatCurrency(grandTotal, settings.currencySymbol),
+      totalsValueX,
+      totalsY,
+      {
+        align: "right",
+      },
+    );
+    totalsY += 6;
+    doc.setFont("helvetica", "normal");
+    doc.text("Pagado", totalsLabelX, totalsY);
+    doc.text(
+      formatCurrency(amountPaid, settings.currencySymbol),
+      totalsValueX,
+      totalsY,
+      {
+        align: "right",
+      },
+    );
+    totalsY += 6;
+    doc.setFont("helvetica", "bold");
+    doc.text("Adeudado", totalsLabelX, totalsY);
+    doc.text(
+      formatCurrency(amountDue, settings.currencySymbol),
+      totalsValueX,
+      totalsY,
+      {
+        align: "right",
+      },
+    );
+
+    // Terms & Notes
+    const termsTop = Math.min(
+      pageHeight - 50,
+      totalsBoxY + totalsBoxHeight + 12,
+    );
+    doc.setFillColor(250, 252, 255);
+    doc.rect(marginX, termsTop, contentWidth, 28, "F");
+    doc.setDrawColor(themeLine.r, themeLine.g, themeLine.b);
+    doc.rect(marginX, termsTop, contentWidth, 28);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(textMuted.r, textMuted.g, textMuted.b);
+    doc.text("Términos:", marginX + 6, termsTop + 9);
+    doc.setFontSize(8);
+    doc.setTextColor(0, 0, 0);
+    doc.text(terms || "", marginX + 6, termsTop + 15);
+    if (notes) {
+      doc.setTextColor(textMuted.r, textMuted.g, textMuted.b);
+      doc.text("Notas:", marginX + 6, termsTop + 22);
+      doc.setTextColor(0, 0, 0);
+      doc.text(notes, marginX + 22, termsTop + 22);
+    }
 
     // Footer
+    doc.setDrawColor(themeLine.r, themeLine.g, themeLine.b);
+    doc.line(marginX, pageHeight - 16, rightX, pageHeight - 16);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.setTextColor(128, 128, 128);
-    doc.text("Gracias por su compra", pageWidth / 2, 280, { align: "center" });
-    doc.text("Generado con Polaris", pageWidth / 2, 285, { align: "center" });
+    doc.setTextColor(textMuted.r, textMuted.g, textMuted.b);
+    doc.text("Generado con Polaris", pageWidth / 2, pageHeight - 8, {
+      align: "center",
+    });
 
     // Save
     doc.save(`factura_${invoiceNumber}.pdf`);
 
     // Register as sale if enabled
-    if (registerAsSale && total > 0) {
+    if (registerAsSale && grandTotal > 0) {
       addSale({
         date: new Date().toISOString().split("T")[0],
-        amount: total,
+        amount: grandTotal,
         category: "Ventas",
         description: `Factura ${invoiceNumber}${
           clientName ? ` - ${clientName}` : ""
@@ -214,7 +510,7 @@ export const Facturador: React.FC = () => {
       toast({
         title: "Venta registrada",
         description: `Se registró una venta por ${formatCurrency(
-          total,
+          grandTotal,
           settings.currencySymbol,
         )}`,
       });
@@ -225,7 +521,14 @@ export const Facturador: React.FC = () => {
     setItems([{ description: "", quantity: 1, price: 0 }]);
     setClientName("");
     setClientPhone("");
+    setClientEmail("");
+    setClientAddress("");
     setSelectedClientId("");
+    const nextIssueDate = new Date().toISOString().split("T")[0];
+    const nextDue = new Date();
+    nextDue.setDate(nextDue.getDate() + 15);
+    setIssueDate(nextIssueDate);
+    setDueDate(nextDue.toISOString().split("T")[0]);
 
     toast({
       title: "Factura generada",
@@ -270,18 +573,103 @@ export const Facturador: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Main Form */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Invoice & Client Info */}
+          {/* Business Info */}
           <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
-            <h3 className="font-semibold mb-4">Información de la factura</h3>
+            <h3 className="font-semibold mb-4">Datos del negocio</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="invoiceNumber">Número de factura</Label>
+                <Label htmlFor="businessName">Nombre del negocio</Label>
                 <Input
-                  id="invoiceNumber"
-                  value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                  id="businessName"
+                  placeholder="Tu negocio"
+                  value={businessName}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setBusinessName(value);
+                    updateSettings({ businessName: value });
+                  }}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="businessPhone">Teléfono</Label>
+                <Input
+                  id="businessPhone"
+                  placeholder="+53..."
+                  value={businessPhone}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setBusinessPhone(value);
+                    updateSettings({ businessPhone: value });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="businessEmail">Email</Label>
+                <Input
+                  id="businessEmail"
+                  placeholder="contacto@empresa.com"
+                  value={businessEmail}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setBusinessEmail(value);
+                    updateSettings({ businessEmail: value });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="businessAddress">Dirección</Label>
+                <Input
+                  id="businessAddress"
+                  placeholder="Calle, ciudad"
+                  value={businessAddress}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setBusinessAddress(value);
+                    updateSettings({ businessAddress: value });
+                  }}
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Logotipo</Label>
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                  <label className="inline-flex items-center gap-2 px-3 py-2 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
+                    <Upload className="w-4 h-4" />
+                    <span className="text-sm">Subir logo</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleLogoUpload(e.target.files?.[0])}
+                    />
+                  </label>
+                  {logoDataUrl && (
+                    <img
+                      src={logoDataUrl}
+                      alt="Logo"
+                      className="h-12 w-12 rounded object-cover border border-border"
+                    />
+                  )}
+                  {logoDataUrl && (
+                    <button
+                      type="button"
+                      className="text-xs text-destructive"
+                      onClick={() => {
+                        setLogoDataUrl("");
+                        updateSettings({ businessLogo: "" });
+                      }}
+                    >
+                      Quitar logo
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Client Info */}
+          <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
+            <h3 className="font-semibold mb-4">Datos del cliente</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="clientName">Nombre del cliente</Label>
                 <Input
@@ -295,12 +683,85 @@ export const Facturador: React.FC = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="clientPhone">Teléfono (opcional)</Label>
+                <Label htmlFor="clientPhone">Teléfono</Label>
                 <Input
                   id="clientPhone"
                   placeholder="+53..."
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clientEmail">Email</Label>
+                <Input
+                  id="clientEmail"
+                  placeholder="cliente@correo.com"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clientAddress">Dirección</Label>
+                <Input
+                  id="clientAddress"
+                  placeholder="Dirección del cliente"
+                  value={clientAddress}
+                  onChange={(e) => setClientAddress(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Invoice Meta */}
+          <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
+            <h3 className="font-semibold mb-4">Información de la factura</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="invoiceNumber">Número de factura</Label>
+                <Input
+                  id="invoiceNumber"
+                  value={invoiceNumber}
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="issueDate">Fecha de emisión</Label>
+                <Input
+                  id="issueDate"
+                  type="date"
+                  value={issueDate}
+                  onChange={(e) => setIssueDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dueDate">Fecha de vencimiento</Label>
+                <Input
+                  id="dueDate"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="taxRate">Impuesto (%)</Label>
+                <Input
+                  id="taxRate"
+                  type="number"
+                  step="0.01"
+                  value={taxRate}
+                  onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="amountPaid">Monto pagado</Label>
+                <Input
+                  id="amountPaid"
+                  type="number"
+                  step="0.01"
+                  value={amountPaid}
+                  onChange={(e) =>
+                    setAmountPaid(parseFloat(e.target.value) || 0)
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -393,11 +854,56 @@ export const Facturador: React.FC = () => {
             </div>
 
             {/* Total */}
-            <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-              <span className="font-semibold text-lg">Total</span>
-              <span className="text-2xl font-bold text-primary">
-                {formatCurrency(total, settings.currencySymbol)}
-              </span>
+            <div className="mt-4 pt-4 border-t border-border space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatCurrency(total, settings.currencySymbol)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Impuesto</span>
+                <span>
+                  {formatCurrency(taxAmount, settings.currencySymbol)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-lg font-semibold">
+                <span>Total</span>
+                <span className="text-primary">
+                  {formatCurrency(grandTotal, settings.currencySymbol)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Monto adeudado</span>
+                <span>
+                  {formatCurrency(amountDue, settings.currencySymbol)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Terms & Notes */}
+          <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
+            <h3 className="font-semibold mb-4">Condiciones y notas</h3>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="terms">Términos</Label>
+                <textarea
+                  id="terms"
+                  value={terms}
+                  onChange={(e) => setTerms(e.target.value)}
+                  className="w-full min-h-[80px] px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="Condiciones de pago, garantías, etc."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notas</Label>
+                <textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full min-h-[80px] px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="Nota breve de cortesía o detalles adicionales"
+                />
+              </div>
             </div>
           </div>
 
@@ -414,6 +920,33 @@ export const Facturador: React.FC = () => {
 
         {/* Sidebar */}
         <div className="space-y-4">
+          <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Polo - Factura inteligente
+            </h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              Polo puede generar una plantilla editable a partir de datos
+              básicos.
+            </p>
+            <div className="space-y-3">
+              <textarea
+                value={aiBrief}
+                onChange={(e) => setAiBrief(e.target.value)}
+                className="w-full min-h-[90px] px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="Describe brevemente el tipo de servicio, alcance o detalles que quieres en la factura..."
+              />
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={handleGenerateWithPolo}
+                disabled={aiLoading}
+              >
+                {aiLoading ? "Generando..." : "Generar con Polo"}
+              </Button>
+            </div>
+          </div>
+
           {/* Clients from CRM */}
           {customerClients.length > 0 && (
             <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-soft border border-border">

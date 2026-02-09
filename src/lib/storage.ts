@@ -228,6 +228,7 @@ export interface AppData {
   services: Service[];
   serviceIncomes: ServiceIncome[];
   customTags: string[];
+  customCategories: string[];
   departmentBudgetTransactions?: DepartmentBudgetTransaction[];
   settings: {
     currency: string;
@@ -238,6 +239,7 @@ export interface AppData {
     businessLogo?: string;
     businessPhone?: string;
     businessAddress?: string;
+    businessEmail?: string;
     isPremium?: boolean;
   };
 }
@@ -267,12 +269,24 @@ export const defaultData: AppData = {
     "Servicio",
     "Temporada",
   ],
+  customCategories: [
+    "Alimentos",
+    "Bebidas",
+    "Higiene",
+    "Limpieza",
+    "Compras",
+    "Transporte",
+    "Servicios",
+    "Salarios",
+    "Otros",
+  ],
   settings: {
     currency: "CUP",
     currencySymbol: "$",
     language: "es",
     theme: "system",
     isPremium: true,
+    businessEmail: "",
   },
   departmentBudgetTransactions: [],
 };
@@ -361,6 +375,8 @@ export const loadData = (): AppData => {
         services: parsed.services || [],
         serviceIncomes: parsed.serviceIncomes || [],
         customTags: parsed.customTags || defaultData.customTags,
+        customCategories:
+          parsed.customCategories || defaultData.customCategories,
         departmentBudgetTransactions:
           parsed.departmentBudgetTransactions ||
           defaultData.departmentBudgetTransactions ||

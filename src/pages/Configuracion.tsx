@@ -20,6 +20,7 @@ import {
   Tag,
   Edit2,
   X,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ const currencies = [
 ];
 
 import { DataComparisonModal } from "@/components/ui/DataComparisonModal";
+import { CategorySuggestionsModal } from "@/components/ui/CategorySuggestionsModal";
 import type { AppData } from "@/lib/storage";
 
 export const Configuracion: React.FC = () => {
@@ -47,6 +49,9 @@ export const Configuracion: React.FC = () => {
     addCustomTag,
     updateCustomTag,
     deleteCustomTag,
+    addCustomCategory,
+    updateCustomCategory,
+    deleteCustomCategory,
     theme,
     toggleTheme,
     refreshData,
@@ -58,6 +63,9 @@ export const Configuracion: React.FC = () => {
   const [newTag, setNewTag] = useState("");
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [editedTagValue, setEditedTagValue] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editedCategoryValue, setEditedCategoryValue] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -79,6 +87,7 @@ export const Configuracion: React.FC = () => {
     cloudStats: { products: number; sales: number; clients: number };
     localStats: { products: number; sales: number; clients: number };
   } | null>(null);
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
 
   useEffect(() => {
     const check = async () => {
@@ -377,6 +386,72 @@ export const Configuracion: React.FC = () => {
     toast({
       title: "Etiqueta eliminada",
       description: `Se eliminó la etiqueta "${tag}"`,
+    });
+  };
+
+  const handleAddCategory = () => {
+    const trimmedCategory = newCategory.trim();
+    if (!trimmedCategory) {
+      toast({
+        title: "Error",
+        description: "La categoría no puede estar vacía",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (data.customCategories.includes(trimmedCategory)) {
+      toast({
+        title: "Error",
+        description: "Esta categoría ya existe",
+        variant: "destructive",
+      });
+      return;
+    }
+    addCustomCategory(trimmedCategory);
+    setNewCategory("");
+    toast({
+      title: "Categoría creada",
+      description: `Se agregó la categoría "${trimmedCategory}"`,
+    });
+  };
+
+  const handleUpdateCategory = (oldCategory: string) => {
+    const trimmedCategory = editedCategoryValue.trim();
+    if (!trimmedCategory) {
+      toast({
+        title: "Error",
+        description: "La categoría no puede estar vacía",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (
+      trimmedCategory !== oldCategory &&
+      data.customCategories.includes(trimmedCategory)
+    ) {
+      toast({
+        title: "Error",
+        description: "Esta categoría ya existe",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (trimmedCategory !== oldCategory) {
+      updateCustomCategory(oldCategory, trimmedCategory);
+      toast({
+        title: "Categoría actualizada",
+        description: `Cambio: "${oldCategory}" -> "${trimmedCategory}"`,
+      });
+    }
+    setEditingCategory(null);
+    setEditedCategoryValue("");
+  };
+
+  const handleDeleteCategory = (category: string) => {
+    deleteCustomCategory(category);
+    toast({
+      title: "Categoría eliminada",
+      description: `Se eliminó la categoría "${category}"`,
     });
   };
 
@@ -799,22 +874,33 @@ export const Configuracion: React.FC = () => {
         </h3>
 
         {/* Add New Tag Form */}
-        <div className="mb-6 flex gap-2">
-          <input
-            type="text"
-            placeholder="Nueva etiqueta..."
-            value={newTag}
-            onChange={(e) => setNewTag(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-            className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
+        <div className="mb-6 space-y-3">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Nueva etiqueta..."
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleAddTag()}
+              className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <Button
+              onClick={handleAddTag}
+              variant="default"
+              size="sm"
+              className="whitespace-nowrap"
+            >
+              Crear
+            </Button>
+          </div>
           <Button
-            onClick={handleAddTag}
-            variant="default"
+            onClick={() => setShowCategorySuggestions(true)}
+            variant="outline"
             size="sm"
-            className="whitespace-nowrap"
+            className="w-full whitespace-nowrap flex items-center justify-center gap-2"
           >
-            Crear
+            <Sparkles className="w-4 h-4" />
+            Sugerencias de Polo
           </Button>
         </div>
 
@@ -839,8 +925,8 @@ export const Configuracion: React.FC = () => {
                       value={editedTagValue}
                       onChange={(e) => setEditedTagValue(e.target.value)}
                       onKeyPress={(e) => {
-                        if (e.key === 'Enter') handleUpdateTag(tag);
-                        if (e.key === 'Escape') setEditingTag(null);
+                        if (e.key === "Enter") handleUpdateTag(tag);
+                        if (e.key === "Escape") setEditingTag(null);
                       }}
                       autoFocus
                       className="flex-1 px-2 py-1 rounded border border-primary/50 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -879,6 +965,108 @@ export const Configuracion: React.FC = () => {
                       </button>
                       <button
                         onClick={() => handleDeleteTag(tag)}
+                        className="flex items-center justify-center w-8 h-8 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      {/* Categories */}
+      <section className="bg-card rounded-2xl p-5 shadow-soft border border-border">
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <CropIcon className="w-5 h-5" />
+          Categorías Personalizadas
+        </h3>
+
+        {/* Add New Category Form */}
+        <div className="mb-6 flex gap-2">
+          <input
+            type="text"
+            placeholder="Nueva categoría..."
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            onKeyPress={(e) => e.key === "Enter" && handleAddCategory()}
+            className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <Button
+            onClick={handleAddCategory}
+            variant="default"
+            size="sm"
+            className="whitespace-nowrap"
+          >
+            Crear
+          </Button>
+        </div>
+
+        {/* Categories List */}
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {data.customCategories.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No hay categorías personalizadas aún
+            </p>
+          ) : (
+            data.customCategories.map((category) => (
+              <div
+                key={category}
+                className="flex items-center justify-between bg-background rounded-lg p-3 border border-border hover:border-primary/40 transition-colors"
+              >
+                {editingCategory === category ? (
+                  // Edit Mode
+                  <div className="flex flex-1 gap-2 items-center">
+                    <input
+                      type="text"
+                      placeholder="Editar categoría..."
+                      value={editedCategoryValue}
+                      onChange={(e) => setEditedCategoryValue(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") handleUpdateCategory(category);
+                        if (e.key === "Escape") setEditingCategory(null);
+                      }}
+                      autoFocus
+                      className="flex-1 px-2 py-1 rounded border border-primary/50 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <button
+                      onClick={() => handleUpdateCategory(category)}
+                      className="flex items-center justify-center w-8 h-8 rounded hover:bg-primary/10 text-primary transition-colors"
+                      title="Guardar"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingCategory(null)}
+                      className="flex items-center justify-center w-8 h-8 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                      title="Cancelar"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  // View Mode
+                  <>
+                    <span className="inline-block px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                      {category}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingCategory(category);
+                          setEditedCategoryValue(category);
+                        }}
+                        className="flex items-center justify-center w-8 h-8 rounded hover:bg-primary/10 text-primary transition-colors"
+                        title="Editar"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(category)}
                         className="flex items-center justify-center w-8 h-8 rounded hover:bg-destructive/10 text-destructive transition-colors"
                         title="Eliminar"
                       >
@@ -968,7 +1156,7 @@ export const Configuracion: React.FC = () => {
 
       {/* Version */}
       <div className="text-center text-sm text-muted-foreground">
-        <p>Polaris v1.0.3</p>
+        <p>Polaris v1.0.4</p>
         <p>Todos los datos se guardan localmente en tu dispositivo</p>
       </div>
 
@@ -1005,6 +1193,13 @@ export const Configuracion: React.FC = () => {
           variant="destructive"
         />
       )}
+
+      <CategorySuggestionsModal
+        isOpen={showCategorySuggestions}
+        appData={data}
+        onClose={() => setShowCategorySuggestions(false)}
+        onAddTag={addCustomTag}
+      />
     </div>
   );
 };

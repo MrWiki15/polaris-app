@@ -12,12 +12,16 @@ import {
   Edit2,
   AlertTriangle,
   X,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { CalendarEvent } from "@/lib/storage";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
+import { generateAgendaPlan } from "@/lib/ai/agendaPlanner";
 
 const eventTypes = [
   {
@@ -42,6 +46,8 @@ export const Agenda: React.FC = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [aiObjective, setAiObjective] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     date: new Date().toISOString().split("T")[0],
@@ -80,7 +86,8 @@ export const Agenda: React.FC = () => {
 
     debts
       .filter(
-        (d) => !d.paid && d.dueDate && d.dueDate > today && d.dueDate <= weekStr
+        (d) =>
+          !d.paid && d.dueDate && d.dueDate > today && d.dueDate <= weekStr,
       )
       .forEach((debt) => {
         alerts.push({
@@ -97,7 +104,7 @@ export const Agenda: React.FC = () => {
       .forEach((goal) => {
         const daysLeft = Math.ceil(
           (new Date(goal.deadline).getTime() - Date.now()) /
-            (1000 * 60 * 60 * 24)
+            (1000 * 60 * 60 * 24),
         );
         if (daysLeft <= 7 && daysLeft > 0) {
           alerts.push({
@@ -184,6 +191,78 @@ export const Agenda: React.FC = () => {
     }
   };
 
+  const handleScheduleWithPolo = async () => {
+    const objective = aiObjective.trim();
+    if (!objective) {
+      toast({
+        title: "Describe tu objetivo",
+        description:
+          "Escribe lo que quieres lograr para que Polo pueda agendar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const endDate = new Date(today + "T00:00:00");
+      endDate.setDate(endDate.getDate() + 6);
+      const endDateStr = endDate.toISOString().split("T")[0];
+
+      const plan = await generateAgendaPlan({
+        objective,
+        appData: data,
+        existingEvents: events,
+        startDate: today,
+        days: 7,
+      });
+
+      const plannedEvents = (plan.events || []).filter(
+        (event) =>
+          event.title &&
+          event.date &&
+          event.date >= today &&
+          event.date <= endDateStr,
+      );
+
+      if (!plannedEvents.length) {
+        throw new Error("No events generated");
+      }
+
+      plannedEvents.forEach((event) => {
+        const normalizedType: CalendarEvent["type"] =
+          event.type === "cita" ||
+          event.type === "pago" ||
+          event.type === "otro"
+            ? event.type
+            : "recordatorio";
+
+        addEvent({
+          title: event.title,
+          date: event.date,
+          time: event.time || undefined,
+          type: normalizedType,
+          description: event.description || undefined,
+          completed: false,
+        });
+      });
+
+      setAiObjective("");
+      toast({
+        title: "Agenda creada con Polo",
+        description: `Se agendaron ${plannedEvents.length} bloques basados en tu objetivo.`,
+      });
+    } catch (error) {
+      toast({
+        title: "No se pudo agendar con Polo",
+        description: "Intentalo de nuevo con un objetivo mas especifico.",
+        variant: "destructive",
+      });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr + "T00:00:00");
     if (dateStr === today) return "Hoy";
@@ -205,7 +284,7 @@ export const Agenda: React.FC = () => {
       <div
         className={cn(
           "flex items-start gap-3 p-4 bg-card rounded-xl border border-border transition-all",
-          event.completed && "opacity-60"
+          event.completed && "opacity-60",
         )}
       >
         <button
@@ -214,7 +293,7 @@ export const Agenda: React.FC = () => {
             "w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
             event.completed
               ? "bg-success border-success text-success-foreground"
-              : "border-muted-foreground hover:border-primary"
+              : "border-muted-foreground hover:border-primary",
           )}
         >
           {event.completed && <Check className="w-4 h-4" />}
@@ -292,6 +371,48 @@ export const Agenda: React.FC = () => {
             <Plus className="w-4 h-4 sm:mr-2" />
             <span className="hidden sm:inline">Nuevo</span>
           </Button>
+        </div>
+      </div>
+
+      {/* Agenda basada en objetivos (IA) */}
+      <div className="bg-card rounded-2xl p-4 sm:p-6 border border-border shadow-soft">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              Agenda basada en objetivos
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Escribe tu objetivo y Polo agenda tareas, analisis, reuniones y
+              deep work.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="poloObjective">Objetivo de la semana</Label>
+            <Textarea
+              id="poloObjective"
+              placeholder="Ej: Quiero mejorar la conversión del onboarding esta semana"
+              value={aiObjective}
+              onChange={(e) => setAiObjective(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              Polo elegira dias y horas adecuados segun tu agenda actual.
+            </p>
+            <Button
+              onClick={handleScheduleWithPolo}
+              className="gradient-primary"
+              disabled={aiLoading}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {aiLoading ? "Agendando..." : "Agendar con Polo"}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -400,7 +521,7 @@ export const Agenda: React.FC = () => {
                         "flex items-center gap-2 p-3 rounded-xl border-2 transition-all",
                         formData.type === type.value
                           ? "border-primary bg-primary/5"
-                          : "border-border hover:border-muted-foreground"
+                          : "border-border hover:border-muted-foreground",
                       )}
                     >
                       <type.icon className={cn("w-4 h-4", type.color)} />

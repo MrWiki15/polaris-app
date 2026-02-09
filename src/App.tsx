@@ -11,6 +11,7 @@ import Inventario from "@/pages/Inventario";
 import Analisis from "@/pages/Analisis";
 import Comparador from "@/pages/Comparador";
 import Proyecciones from "@/pages/Proyecciones";
+import Reportes from "@/pages/Reportes";
 import Herramientas from "@/pages/Herramientas";
 import Configuracion from "@/pages/Configuracion";
 import Facturador from "@/pages/Facturador";
@@ -27,6 +28,7 @@ import NotFound from "@/pages/NotFound";
 import Teams from "./pages/Teams";
 import History from "./pages/History";
 import Wallet from "./pages/Wallet";
+import Chatbot from "./pages/Chatbot";
 import Onboarding from "./pages/Onboarding";
 import Ingreso from "./pages/Ingreso";
 import Gasto from "./pages/Gasto";
@@ -107,6 +109,7 @@ const App = () => (
               <Route path="/analisis" element={<Analisis />} />
               <Route path="/compar/:pair" element={<Comparador />} />
               <Route path="/proyecciones" element={<Proyecciones />} />
+              <Route path="/reportes" element={<Reportes />} />
               <Route path="/herramientas" element={<Herramientas />} />
               <Route path="/herramientas/facturador" element={<Facturador />} />
               <Route path="/herramientas/agenda" element={<Agenda />} />
@@ -126,6 +129,7 @@ const App = () => (
               <Route path="/teams" element={<Teams />} />
               <Route path="/history" element={<History />} />
               <Route path="/wallet" element={<Wallet />} />
+              <Route path="/chatbot" element={<Chatbot />} />
               <Route path="/configuracion" element={<Configuracion />} />
             </Route>
             <Route path="*" element={<NotFound />} />
