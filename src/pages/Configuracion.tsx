@@ -40,6 +40,7 @@ const currencies = [
 
 import { DataComparisonModal } from "@/components/ui/DataComparisonModal";
 import { CategorySuggestionsModal } from "@/components/ui/CategorySuggestionsModal";
+import { ServiceWorkerManager } from "@/components/ui/ServiceWorkerManager";
 import type { AppData } from "@/lib/storage";
 
 export const Configuracion: React.FC = () => {
@@ -809,6 +810,15 @@ export const Configuracion: React.FC = () => {
             </div>
           </button>
         </div>
+      </section>
+
+      {/* Service Worker & PWA */}
+      <section className="bg-card rounded-2xl p-5 shadow-soft border border-border">
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <FlameKindling className="w-5 h-5" />
+          App & Notificaciones
+        </h3>
+        <ServiceWorkerManager showDetails={true} showUpdatePrompt={false} />
       </section>
 
       {/* Currency */}
