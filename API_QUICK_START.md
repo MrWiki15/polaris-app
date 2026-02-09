@@ -123,7 +123,7 @@ api/
 ├── products/       # CRUD de productos
 ├── clients/        # CRUD de clientes
 ├── services/       # CRUD de servicios
-└── README.md       # Documentación completa
+└── README.md       # Documentación completa .
 ```
 
 ## 📖 Documentación Completa
