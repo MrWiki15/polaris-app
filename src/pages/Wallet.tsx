@@ -2983,7 +2983,7 @@ export default function Wallet() {
                       return (
                         <div
                           key={p.id}
-                          className="min-w-[280px] sm:min-w-[350px] snap-start"
+                          className="min-w-[280px] sm:min-w-[350px] min-h-[200px] snap-start"
                         >
                           <div
                             className={`relative rounded-2xl p-3 sm:p-4 h-40 sm:h-56 shadow-lg overflow-hidden flex flex-col justify-between ${
@@ -2994,7 +2994,7 @@ export default function Wallet() {
                           >
                             <div className="flex items-start justify-between">
                               <img
-                                src="/public/SVG/P001.svg"
+                                src="/image-removebg-preview.png"
                                 alt="Wallet card logo"
                                 className="h-4 sm:h-6"
                               />
