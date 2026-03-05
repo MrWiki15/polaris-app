@@ -1,18 +1,30 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useChatbot } from "@/hooks/use-chatbot";
-import { User, Server } from "lucide-react";
+import { Bot, RefreshCcw, SendHorizontal, Sparkles, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 
 export const ChatbotUI: React.FC = () => {
   const { messages, send, loading, reset, contextSummary, loadingContext } =
     useChatbot();
   const [text, setText] = useState("");
   const listRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, loading]);
+
+  useEffect(() => {
+    const current = textareaRef.current;
+    if (!current) return;
+
+    current.style.height = "auto";
+    current.style.height = `${Math.min(current.scrollHeight, 160)}px`;
+  }, [text]);
 
   const handleSend = async () => {
     if (!text.trim()) return;
@@ -28,6 +40,7 @@ export const ChatbotUI: React.FC = () => {
     "¿Cómo puedo aumentar ventas este mes?",
     "Recomiéndame 3 productos para promocionar",
     "Análisis rápido de mis ventas recientes",
+    "¿Qué decisiones tomarías hoy con mis datos?",
   ];
 
   const [MDRenderer, setMDRenderer] = useState<any>(null);
@@ -62,156 +75,218 @@ export const ChatbotUI: React.FC = () => {
   }, []);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* Chat column */}
-      <div className="md:col-span-2 flex flex-col h-[70vh] bg-card border rounded-lg overflow-hidden">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Chatbot Financiero</h2>
-            <div className="text-sm text-muted-foreground">
-              Pregúntale sobre tu negocio y productos.
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="text-sm btn-ghost" onClick={reset}>
-              Limpiar
-            </button>
-          </div>
-        </div>
-
-        <div ref={listRef} className="p-4 overflow-auto flex-1 space-y-4">
-          {messages.length === 0 && (
-            <div className="text-center text-muted-foreground">
-              Escribe una pregunta para recibir consejos sobre tu negocio.
-            </div>
-          )}
-
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"} max-w-[80%]`}
-              >
-                <div className="flex items-center gap-2 mb-1 text-xs text-muted-foreground">
-                  {m.role === "assistant" ? (
-                    <>
-                      <Server className="w-4 h-4" />
-                      <span>Polo</span>
-                    </>
-                  ) : (
-                    <>
-                      <User className="w-4 h-4" />
-                      <span>Tú</span>
-                    </>
-                  )}
+    <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 lg:grid-cols-12">
+      <section className="lg:col-span-8 xl:col-span-9">
+        <div className="flex h-[calc(100dvh-8.5rem)] min-h-[560px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+          <header className="border-b border-border bg-card/90 px-4 py-3 backdrop-blur-sm sm:px-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-full bg-primary/10 p-1.5 text-primary">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <h2 className="text-base font-semibold sm:text-lg">
+                    Polo AI
+                  </h2>
                 </div>
-
-                <div
-                  className={`px-4 py-2 rounded-xl shadow-sm ${m.role === "user" ? "bg-primary text-white rounded-br-none" : "bg-surface-2 text-foreground rounded-bl-none"}`}
-                >
-                  {m.role === "assistant" && MDRenderer ? (
-                    <div className="prose max-w-none text-sm">
-                      <MDRenderer children={m.text} />
-                    </div>
-                  ) : (
-                    <div className="text-sm whitespace-pre-wrap">{m.text}</div>
-                  )}
-                </div>
+                <p className="text-xs text-muted-foreground sm:text-sm">
+                  Asistente financiero para decisiones de ventas, inventario y
+                  crecimiento.
+                </p>
               </div>
-            </div>
-          ))}
 
-          {/* Typing indicator for Polo */}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="flex flex-col items-start max-w-[60%]">
-                <div className="flex items-center gap-2 mb-1 text-xs text-muted-foreground">
-                  <Server className="w-4 h-4" />
-                  <span>Polo</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                onClick={reset}
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Limpiar
+              </Button>
+            </div>
+          </header>
+
+          <div
+            ref={listRef}
+            className="flex-1 space-y-6 overflow-y-auto bg-muted/20 px-3 py-4 sm:px-5 sm:py-5"
+          >
+            {messages.length === 0 && !loading && (
+              <div className="mx-auto mt-10 flex max-w-2xl flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-6 text-center sm:mt-16">
+                <div className="rounded-full bg-primary/10 p-3 text-primary">
+                  <Bot className="h-5 w-5" />
                 </div>
-                <div className="px-4 py-2 rounded-xl shadow-sm bg-surface-2 text-foreground rounded-bl-none inline-flex items-center">
-                  <div className="flex items-center gap-1">
-                    <span className="w-2 h-2 bg-muted rounded-full animate-pulse" />
-                    <span
-                      className="w-2 h-2 bg-muted rounded-full animate-pulse"
-                      style={{ animationDelay: "0.12s" }}
-                    />
-                    <span
-                      className="w-2 h-2 bg-muted rounded-full animate-pulse"
-                      style={{ animationDelay: "0.24s" }}
-                    />
+                <h3 className="text-base font-semibold">
+                  Empieza una conversación con Polo
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Pide análisis, recomendaciones o próximos pasos accionables
+                  para tu negocio.
+                </p>
+              </div>
+            )}
+
+            {messages.map((m) => {
+              const isUser = m.role === "user";
+
+              return (
+                <article
+                  key={m.id}
+                  className={`mx-auto flex w-full max-w-3xl ${isUser ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`flex w-full max-w-[95%] gap-3 sm:max-w-[90%] ${isUser ? "flex-row-reverse" : ""}`}
+                  >
+                    <div
+                      className={`mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${isUser ? "border-primary/20 bg-primary/10 text-primary" : "border-border bg-secondary text-secondary-foreground"}`}
+                    >
+                      {isUser ? (
+                        <User className="h-4 w-4" />
+                      ) : (
+                        <Bot className="h-4 w-4" />
+                      )}
+                    </div>
+
+                    <div
+                      className={`min-w-0 space-y-1 ${isUser ? "items-end text-right" : "items-start text-left"}`}
+                    >
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {isUser ? "Tú" : "Polo"}
+                      </p>
+
+                      <div
+                        className={`rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow-sm ${isUser ? "border-primary/20 bg-primary text-primary-foreground rounded-tr-md" : "border-border bg-card text-foreground rounded-tl-md"}`}
+                      >
+                        {m.role === "assistant" && MDRenderer ? (
+                          <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-ul:my-2 prose-ol:my-2">
+                            <MDRenderer children={m.text} />
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap break-words">
+                            {m.text}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+
+            {loading && (
+              <article className="mx-auto flex w-full max-w-3xl justify-start">
+                <div className="flex w-full max-w-[95%] gap-3 sm:max-w-[90%]">
+                  <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-secondary-foreground">
+                    <Bot className="h-4 w-4" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Polo
+                    </p>
+                    <div className="inline-flex items-center gap-1.5 rounded-2xl rounded-tl-md border border-border bg-card px-4 py-3 shadow-sm">
+                      <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-pulse" />
+                      <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-pulse [animation-delay:120ms]" />
+                      <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-pulse [animation-delay:240ms]" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="p-3 border-t bg-surface-1">
-          <div className="flex gap-2">
-            <input
-              className="flex-1 rounded-md border bg-white/5 px-3 py-2 focus:outline-none"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSend();
-              }}
-              placeholder="Pregunta sobre ventas, productos, tendencias..."
-            />
-            <button className="btn" onClick={handleSend} disabled={loading}>
-              {loading ? "Enviando..." : "Enviar"}
-            </button>
-          </div>
-          <div className="mt-3 flex gap-2 overflow-x-auto">
-            {quickPrompts.map((q) => (
-              <button
-                key={q}
-                className="px-3 py-1 text-sm rounded-full bg-muted/40"
-                onClick={() => {
-                  setText(q);
-                }}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Context column */}
-      <aside className="hidden md:block">
-        <div className="sticky top-20 space-y-4">
-          <div className="bg-card border rounded-lg p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <Server className="w-5 h-5 text-muted-foreground" />
-              <h3 className="text-sm font-medium">Contexto del negocio</h3>
-            </div>
-            {loadingContext ? (
-              <div className="text-sm text-muted-foreground">
-                Cargando contexto...
-              </div>
-            ) : (
-              <div className="text-sm text-foreground break-words">
-                {contextSummary || "No hay datos disponibles."}
-              </div>
+              </article>
             )}
           </div>
 
-          <div className="bg-card border rounded-lg p-4">
-            <h4 className="text-sm font-medium mb-2">Sugerencias rápidas</h4>
-            <div className="flex flex-col gap-2">
-              {quickPrompts.map((q) => (
-                <button
-                  key={q}
-                  className="text-left px-3 py-2 rounded-md bg-muted/30 text-sm"
-                  onClick={() => setText(q)}
-                >
-                  {q}
-                </button>
-              ))}
+          <footer className="border-t border-border bg-card px-3 py-3 sm:px-5">
+            <div className="mx-auto w-full max-w-3xl space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {quickPrompts.map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    className="rounded-full border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                    onClick={() => setText(q)}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-border bg-background p-2 shadow-inner-glow">
+                <div className="flex items-end gap-2">
+                  <Textarea
+                    ref={textareaRef}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        void handleSend();
+                      }
+                    }}
+                    placeholder="Pregúntale a Polo sobre ventas, márgenes, inventario o estrategia..."
+                    rows={1}
+                    className="max-h-40 min-h-[44px] resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none focus-visible:ring-0"
+                  />
+
+                  <Button
+                    type="button"
+                    onClick={() => void handleSend()}
+                    disabled={loading || !text.trim()}
+                    size="icon"
+                    className="h-10 w-10 rounded-xl"
+                    aria-label="Enviar mensaje"
+                  >
+                    <SendHorizontal className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between px-1">
+                <p className="text-xs text-muted-foreground">
+                  Enter para enviar • Shift + Enter para salto de línea
+                </p>
+                {loading && (
+                  <Badge variant="secondary" className="text-[11px]">
+                    Polo está escribiendo...
+                  </Badge>
+                )}
+              </div>
             </div>
+          </footer>
+        </div>
+      </section>
+
+      <aside className="hidden lg:col-span-4 lg:block xl:col-span-3">
+        <div className="sticky top-20 space-y-4">
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+            <div className="mb-2 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">Contexto activo</h3>
+            </div>
+
+            {loadingContext ? (
+              <p className="text-sm text-muted-foreground">
+                Preparando datos de negocio...
+              </p>
+            ) : (
+              <p className="max-h-60 overflow-y-auto text-sm leading-relaxed text-muted-foreground">
+                {contextSummary || "No hay datos disponibles."}
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+            <h4 className="mb-2 text-sm font-semibold">
+              Cómo aprovechar mejor a Polo
+            </h4>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>
+                • Pide recomendaciones con periodos concretos (semana/mes).
+              </li>
+              <li>
+                • Incluye objetivo: ventas, margen, stock o flujo de caja.
+              </li>
+              <li>• Solicita acciones priorizadas para ejecutar hoy.</li>
+            </ul>
           </div>
         </div>
       </aside>

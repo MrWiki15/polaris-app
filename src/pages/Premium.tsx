@@ -76,7 +76,7 @@ const plans = [
     id: "emprendedor",
     name: "Plan Emprendedor",
     description: "Perfecto para emprendedores individuales",
-    price: "$9.99/mes",
+    price: "$2/mes",
     features: [
       "Hasta 3 proyectos activos",
       "5 GB de almacenamiento en la nube",
@@ -92,7 +92,7 @@ const plans = [
     id: "pequeno",
     name: "Plan Proyectos Pequeños",
     description: "Ideal para equipos pequeños",
-    price: "$24.99/mes",
+    price: "$15/mes",
     features: [
       "Hasta 10 proyectos activos",
       "20 GB de almacenamiento",
@@ -109,7 +109,7 @@ const plans = [
     id: "empresa",
     name: "Plan Empresas",
     description: "Para organizaciones grandes",
-    price: "$99.99/mes",
+    price: "$350/mes",
     features: [
       "Proyectos ilimitados",
       "100 GB de almacenamiento",
@@ -131,9 +131,9 @@ export const Premium: React.FC = () => {
   const { settings } = data;
   const isPremium = settings.isPremium || false;
 
-  // Promoción activa hasta el 25 de febrero
+  // Promoción activa hasta el 3 de octubre
   const promotionActive = true;
-  const promotionEndDate = "25 de febrero";
+  const promotionEndDate = "3 de octubre";
 
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");

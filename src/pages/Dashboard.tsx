@@ -413,7 +413,7 @@ export const Dashboard: React.FC = () => {
       <CashFlowAlerts />
 
       {/* Charts & Recurring Payments */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+      <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-6">
         {/* Weekly Overview */}
         <div className="lg:col-span-2 bg-card rounded-2xl p-3 sm:p-4 md:p-6 lg:p-7 shadow-soft border border-border">
           <div className="flex flex-col gap-3 mb-5">
@@ -636,15 +636,19 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Balance History */}
-        <BalanceHistory />
+        <div className="space-y-4 lg:space-y-6 lg:col-span-2">
+          {/* Balance History */}
+          <BalanceHistory />
 
-        <Separator className="mt-6 lg:mt-8" />
+          <Separator className="my-2 lg:hidden" />
 
-        <GoalsState />
+          <GoalsState />
+        </div>
 
-        {/* Recurring Payments Card */}
-        <RecurringPaymentsCard />
+        <div className="space-y-4 lg:space-y-6">
+          {/* Recurring Payments Card */}
+          <RecurringPaymentsCard />
+        </div>
       </div>
 
       {/* Insights & Alerts */}

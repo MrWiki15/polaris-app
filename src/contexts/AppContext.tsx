@@ -18,6 +18,7 @@ import {
   FinancialGoal,
   ReinvestmentGoal,
   ReinvestmentExecution,
+  WalletFund,
   Debt,
   RecurringPayment,
   Supplier,
@@ -103,6 +104,7 @@ interface AppContextType {
   addReinvestmentExecution: (
     execution: Omit<ReinvestmentExecution, "id">,
   ) => void;
+  addWalletFund: (fund: Omit<WalletFund, "id">) => void;
   addDepartmentBudgetTransaction: (
     tx: Omit<DepartmentBudgetTransaction, "id" | "createdAt">,
   ) => void;
@@ -687,6 +689,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }));
   };
 
+  const addWalletFund = (fund: Omit<WalletFund, "id">) => {
+    const newFund: WalletFund = {
+      ...fund,
+      id: generateId(),
+    };
+    setData((prev) => ({
+      ...prev,
+      walletFunds: [newFund, ...(prev.walletFunds || [])],
+    }));
+  };
+
   const addDepartmentBudgetTransaction = (
     tx: Omit<DepartmentBudgetTransaction, "id" | "createdAt">,
   ) => {
@@ -1110,6 +1123,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         deleteGoal,
         addReinvestmentGoal,
         addReinvestmentExecution,
+        addWalletFund,
         addDepartmentBudgetTransaction,
         updateDepartmentBudgetTransaction,
         addDebt,

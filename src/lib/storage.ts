@@ -154,6 +154,14 @@ export interface ReinvestmentExecution {
   amount: number;
 }
 
+export interface WalletFund {
+  id: string;
+  date: string;
+  amount: number;
+  description: string;
+  type: "fund";
+}
+
 export interface Debt {
   id: string;
   personName: string;
@@ -221,6 +229,7 @@ export interface AppData {
   goals: FinancialGoal[];
   reinvestmentGoals?: ReinvestmentGoal[];
   reinvestmentExecutions?: ReinvestmentExecution[];
+  walletFunds?: WalletFund[];
   debts: Debt[];
   recurringPayments: RecurringPayment[];
   suppliers: Supplier[];
@@ -256,6 +265,7 @@ export const defaultData: AppData = {
   goals: [],
   reinvestmentGoals: [],
   reinvestmentExecutions: [],
+  walletFunds: [],
   debts: [],
   recurringPayments: [],
   suppliers: [],

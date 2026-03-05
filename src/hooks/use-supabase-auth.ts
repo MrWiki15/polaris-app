@@ -4,6 +4,7 @@ import type { AuthUser } from "@/lib/supabase";
 import { ethers } from "ethers";
 import { encrypt } from "@/lib/crypto";
 import { createHederaWallet } from "@/lib/wallet";
+import { createPersonalWallet } from "@/lib/personalWallets";
 
 export const useSupabaseAuth = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -74,6 +75,7 @@ export const useSupabaseAuth = () => {
         });
 
         try {
+          // Crear wallet de Hedera (testnet)
           const { data: existing, error: checkError } = await supabase
             .from("wallets")
             .select("*")
@@ -86,10 +88,7 @@ export const useSupabaseAuth = () => {
           if (!existing) {
             const wallet = await createHederaWallet();
             const passphrase = import.meta.env.VITE_ENCRIPTED_KEY || "";
-            const encryptedKey = encrypt(
-              wallet.privateKey,
-              passphrase,
-            );
+            const encryptedKey = encrypt(wallet.privateKey, passphrase);
 
             const { error: insertError } = await supabase
               .from("wallets")
@@ -101,6 +100,32 @@ export const useSupabaseAuth = () => {
             if (insertError) {
               console.error("Wallet insert error:", insertError);
             }
+          }
+
+          // Crear wallets personales automáticamente: Principal y USDC
+          const {
+            data: existingPersonalWallets,
+            error: personalWalletsCheckError,
+          } = await supabase
+            .from("personal_wallets")
+            .select("*")
+            .eq("userId", data.user.id);
+
+          if (personalWalletsCheckError) {
+            console.error(
+              "Personal wallets check error:",
+              personalWalletsCheckError,
+            );
+          }
+
+          if (
+            !existingPersonalWallets ||
+            existingPersonalWallets.length === 0
+          ) {
+            // Crear wallet Principal
+            await createPersonalWallet(data.user.id, "Principal", 0);
+            // Crear wallet USDC automáticamente
+            await createPersonalWallet(data.user.id, "USDC", 0);
           }
         } catch (err) {
           console.error("Wallet creation error:", err);

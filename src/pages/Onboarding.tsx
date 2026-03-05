@@ -1,212 +1,61 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApp } from "@/contexts/AppContext";
 import {
-  ShoppingCart,
-  Receipt,
-  Package,
-  BarChart3,
-  TrendingUp,
-  Wrench,
-  Users,
-  CreditCard,
-  Target,
-  Zap,
+  ArrowRight,
+  CheckCircle2,
+  CircleDollarSign,
+  Mail,
   Lock,
-  Cloud,
-  ChevronRight,
-  Check,
+  Sparkles,
+  TrendingUp,
+  ShieldCheck,
+  UserPlus,
+  LogIn,
 } from "lucide-react";
 
-type Feature = {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  details: string[];
-  color: string;
-};
-
-const FEATURES: Feature[] = [
-  {
-    icon: <ShoppingCart className="w-8 h-8" />,
-    title: "Gestión de Ingresos",
-    description: "Registra y controla todos tus ingresos",
-    details: [
-      "Registra ingresos manuales o desde inventario",
-      "Categorización automática de ventas",
-      "Historial completo de transacciones",
-      "Exporta reportes de ingresos",
-    ],
-    color: "from-green-500 to-emerald-600",
-  },
-  {
-    icon: <Receipt className="w-8 h-8" />,
-    title: "Control de Gastos",
-    description: "Administra y monitorea tus gastos",
-    details: [
-      "Registra gastos con categorías personalizadas",
-      "Pagos recurrentes automáticos",
-      "Análisis de gastos por categoría",
-      "Alertas de presupuesto",
-    ],
-    color: "from-red-500 to-orange-600",
-  },
-  {
-    icon: <Package className="w-8 h-8" />,
-    title: "Inventario",
-    description: "Gestiona tu stock de productos",
-    details: [
-      "Control en tiempo real del inventario",
-      "Códigos de barras para escaneo rápido",
-      "Alertas de stock bajo",
-      "Costos y precios por producto",
-      "Historial de movimientos",
-    ],
-    color: "from-blue-500 to-cyan-600",
-  },
-  {
-    icon: <Users className="w-8 h-8" />,
-    title: "CRM Integrado",
-    description: "Gestiona clientes y relaciones",
-    details: [
-      "Base de datos de clientes",
-      "Historial de compras por cliente",
-      "Contactos y información de negocio",
-      "Seguimiento de interacciones",
-    ],
-    color: "from-purple-500 to-pink-600",
-  },
-  {
-    icon: <BarChart3 className="w-8 h-8" />,
-    title: "Análisis y Reportes",
-    description: "Visualiza tu desempeño comercial",
-    details: [
-      "Gráficos interactivos en tiempo real",
-      "Análisis de tendencias de ventas",
-      "Comparación de períodos",
-      "Exportación a PDF y Excel",
-    ],
-    color: "from-indigo-500 to-blue-600",
-  },
-  {
-    icon: <TrendingUp className="w-8 h-8" />,
-    title: "Proyecciones",
-    description: "Planifica el futuro de tu negocio",
-    details: [
-      "Proyecciones de ingresos",
-      "Análisis de rentabilidad",
-      "Metas y objetivos",
-      "Alertas automáticas",
-    ],
-    color: "from-yellow-500 to-orange-600",
-  },
-  {
-    icon: <Target className="w-8 h-8" />,
-    title: "Metas y Objetivos",
-    description: "Establece y alcanza tus metas",
-    details: [
-      "Crear metas financieras",
-      "Seguimiento de progreso",
-      "Reinversión automática",
-      "Objetivos por período",
-    ],
-    color: "from-rose-500 to-pink-600",
-  },
-  {
-    icon: <CreditCard className="w-8 h-8" />,
-    title: "Control de Deudas",
-    description: "Gestiona deudas y obligaciones",
-    details: [
-      "Registro de deudas pendientes",
-      "Seguimiento de pagos",
-      "Alertas de vencimiento",
-      "Historial de transacciones",
-    ],
-    color: "from-orange-500 to-red-600",
-  },
-  {
-    icon: <Wrench className="w-8 h-8" />,
-    title: "Herramientas Avanzadas",
-    description: "Potencia tu negocio con herramientas profesionales",
-    details: [
-      "Facturador digital integrado",
-      "Precios dinámicos según demanda",
-      "Gestión de proveedores",
-      "Redes sociales y marketing",
-    ],
-    color: "from-slate-500 to-gray-600",
-  },
-  {
-    icon: <Lock className="w-8 h-8" />,
-    title: "Seguridad Premium",
-    description: "Protege tus datos con la versión premium",
-    details: [
-      "Sincronización en la nube",
-      "Backups automáticos",
-      "Encriptación de datos",
-      "Acceso desde cualquier dispositivo",
-    ],
-    color: "from-teal-500 to-cyan-600",
-  },
+const BUSINESS_POINTS = [
+  "Controla ingresos, gastos e inventario en un solo lugar",
+  "Mide utilidades con reportes y proyecciones en tiempo real",
+  "Sincroniza tus datos y mantén respaldo en la nube",
 ];
 
-const PREMIUM_FEATURES = [
-  { icon: <Cloud className="w-6 h-6" />, text: "Sincronización en la nube" },
+const KPI_CARDS = [
   {
-    icon: <Users className="w-6 h-6" />,
-    text: "Gestión de proyectos en equipo",
+    title: "Crecimiento",
+    value: "+27%",
+    caption: "Promedio mensual",
+    icon: TrendingUp,
+    gradient: "from-emerald-400 to-cyan-400",
   },
-  { icon: <BarChart3 className="w-6 h-6" />, text: "Reportes avanzados" },
-  { icon: <Zap className="w-6 h-6" />, text: "Automatización de procesos" },
-  { icon: <Lock className="w-6 h-6" />, text: "Encriptación de datos" },
-  { icon: <TrendingUp className="w-6 h-6" />, text: "Análisis predictivo" },
+  {
+    title: "Seguridad",
+    value: "24/7",
+    caption: "Protección de datos",
+    icon: ShieldCheck,
+    gradient: "from-blue-400 to-indigo-400",
+  },
+  {
+    title: "Flujo de caja",
+    value: "En vivo",
+    caption: "Métricas actualizadas",
+    icon: CircleDollarSign,
+    gradient: "from-amber-400 to-orange-400",
+  },
 ];
 
 export default function Onboarding() {
-  const navigate = useNavigate();
   const { supabaseAuth } = useApp();
-  const [currentFeature, setCurrentFeature] = useState(0);
-  const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleNext = () => {
-    if (currentFeature < FEATURES.length - 1) {
-      setCurrentFeature(currentFeature + 1);
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentFeature > 0) {
-      setCurrentFeature(currentFeature - 1);
-    }
-  };
-
-  const handleSkip = () => {
-    setAuthMode("login");
-    setShowAuth(true);
-  };
-
-  const handleStart = () => {
-    setAuthMode("register");
-    setShowAuth(true);
-  };
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const handleAuth = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
 
     try {
       const result =
@@ -216,320 +65,258 @@ export default function Onboarding() {
 
       if (result.success) {
         localStorage.setItem("negocio360_onboarding_completed", "true");
-        // Navigation will be handled by PublicRoute redirection
       }
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const feature = FEATURES[currentFeature];
-  const progress = ((currentFeature + 1) / FEATURES.length) * 100;
+  const title = authMode === "login" ? "Bienvenido de nuevo" : "Crea tu cuenta";
+  const subtitle =
+    authMode === "login"
+      ? "Inicia sesión para continuar con tu panel empresarial"
+      : "Empieza gratis y organiza todas tus operaciones desde hoy";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
-      <Dialog open={showAuth} onOpenChange={setShowAuth}>
-        <DialogContent className="sm:max-w-[425px] bg-slate-900 text-white border-slate-800">
-          <DialogHeader>
-            <DialogTitle>
-              {authMode === "login" ? "Iniciar Sesión" : "Crear Cuenta"}
-            </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              {authMode === "login"
-                ? "Ingresa a tu cuenta para continuar"
-                : "Crea una cuenta para comenzar a usar Polaris"}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleAuth} className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="tu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-slate-800 border-slate-700"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="bg-slate-800 border-slate-700"
-                required
-              />
-            </div>
-
-            {supabaseAuth.error && (
-              <p className="text-sm text-red-500">{supabaseAuth.error}</p>
-            )}
-
-            {supabaseAuth.verificationPending && (
-              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-400">
-                Verifica tu email para continuar
-              </div>
-            )}
-
-            <Button
-              type="submit"
-              className="w-full bg-gradient-to-r from-blue-500 to-purple-500"
-              disabled={isLoading}
-            >
-              {isLoading
-                ? "Cargando..."
-                : authMode === "login"
-                ? "Entrar"
-                : "Registrarse"}
-            </Button>
-
-            <div className="text-center text-sm text-slate-400">
-              {authMode === "login" ? (
-                <>
-                  ¿No tienes cuenta?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode("register")}
-                    className="text-blue-400 hover:underline"
-                  >
-                    Regístrate
-                  </button>
-                </>
-              ) : (
-                <>
-                  ¿Ya tienes cuenta?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode("login")}
-                    className="text-blue-400 hover:underline"
-                  >
-                    Inicia sesión
-                  </button>
-                </>
-              )}
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Animated background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute top-1/2 left-1/2 w-80 h-80 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+    <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 text-slate-900">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-20 top-6 h-72 w-72 rounded-full bg-blue-300/35 blur-3xl" />
+        <div className="absolute bottom-[-120px] right-[-80px] h-80 w-80 rounded-full bg-cyan-300/30 blur-3xl" />
+        <div className="absolute left-1/2 top-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-indigo-300/20 blur-3xl" />
       </div>
 
-      {/* Content */}
-      <div className="relative z-10">
-        {/* Header */}
-        <div className="px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
-              <img src="/icon.svg" className="w-10 h-10" alt="Polaris" />
+      <section className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1400px] grid-cols-1 gap-8 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-2 lg:gap-10 lg:px-8 lg:py-10">
+        {/* Columna izquierda - Formulario */}
+        <div className="flex items-center justify-center py-2 sm:py-4 lg:py-0">
+          <div className="max-w-[460px] rounded-3xl border border-slate-200/70 bg-white/80 p-5 shadow-xl backdrop-blur-sm sm:p-6">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/20">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-medium tracking-wide text-slate-500">
+                  My Business Studio
+                </p>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                  {title}
+                </h1>
+              </div>
             </div>
-            <h1 className="text-2xl font-bold">Polaris</h1>
-          </div>
-          <Button
-            variant="ghost"
-            onClick={handleSkip}
-            className="text-sm text-muted-foreground hover:text-white"
-          >
-            Saltar
-          </Button>
-        </div>
 
-        {/* Main content */}
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 min-h-[calc(100vh-80px)] flex flex-col">
-          <div className="flex-1 flex flex-col gap-8">
-            {/* Progress bar */}
-            <div className="w-full bg-slate-700 rounded-full h-1 overflow-hidden">
+            <p className="mb-6 text-sm leading-relaxed text-slate-600">
+              {subtitle}
+            </p>
+
+            <div className="relative mb-6 flex rounded-2xl bg-slate-100 p-1">
               <div
-                className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              ></div>
+                className={`absolute left-1 top-1 h-[calc(100%-8px)] w-[calc(50%-4px)] rounded-xl bg-white shadow-sm transition-transform duration-300 ${
+                  authMode === "register" ? "translate-x-full" : ""
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setAuthMode("login")}
+                className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                  authMode === "login"
+                    ? "text-slate-900"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <LogIn className="h-4 w-4" />
+                Iniciar sesión
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode("register")}
+                className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                  authMode === "register"
+                    ? "text-slate-900"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <UserPlus className="h-4 w-4" />
+                Registrarme
+              </button>
             </div>
 
-            {/* Feature showcase */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-              {/* Feature card */}
-              <div className="order-2 lg:order-1">
-                <div
-                  className={`bg-gradient-to-br ${feature.color} rounded-2xl p-1 shadow-2xl`}
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div className="space-y-2.5">
+                <Label
+                  htmlFor="email"
+                  className="text-sm font-medium text-slate-600"
                 >
-                  <div className="bg-slate-800 rounded-2xl p-8 sm:p-12 h-full flex flex-col justify-between">
-                    <div className="mb-6 text-6xl text-white opacity-80">
-                      {feature.icon}
-                    </div>
-                    <div>
-                      <h2 className="text-3xl sm:text-4xl font-bold mb-3">
-                        {feature.title}
-                      </h2>
-                      <p className="text-lg text-slate-300 mb-8">
-                        {feature.description}
-                      </p>
-                      <ul className="space-y-3">
-                        {feature.details.map((detail, idx) => (
-                          <li
-                            key={idx}
-                            className="flex items-start gap-3 animate-fade-in"
-                            style={{ animationDelay: `${idx * 100}ms` }}
-                          >
-                            <div className="mt-1">
-                              <Check className="w-5 h-5 text-green-400" />
-                            </div>
-                            <span className="text-slate-300">{detail}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
+                  Email
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="tu@email.com"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="h-10 border-slate-200 bg-white pl-10 text-slate-900 placeholder:text-slate-400 focus:border-blue-400/70 focus:ring-2 focus:ring-blue-400/20"
+                    required
+                  />
                 </div>
               </div>
 
-              {/* Features grid */}
-              <div className="order-1 lg:order-2">
-                <h3 className="text-2xl font-bold mb-6">
-                  Más herramientas disponibles
-                </h3>
-                <div className="grid grid-cols-2 gap-4 mb-8">
-                  {FEATURES.map((f, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => setCurrentFeature(idx)}
-                      className={`p-4 rounded-lg cursor-pointer transition-all duration-300 ${
-                        currentFeature === idx
-                          ? "bg-gradient-to-br from-blue-500 to-purple-500 shadow-lg"
-                          : "bg-slate-700/50 hover:bg-slate-700 border border-slate-600"
-                      }`}
-                    >
-                      <div className="text-3xl mb-2 opacity-90">{f.icon}</div>
-                      <h4 className="text-sm font-semibold leading-tight">
-                        {f.title}
-                      </h4>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Feature counter */}
-                <div className="text-sm text-slate-400">
-                  Característica {currentFeature + 1} de {FEATURES.length}
+              <div className="space-y-2.5">
+                <Label
+                  htmlFor="password"
+                  className="text-sm font-medium text-slate-600"
+                >
+                  Contraseña
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="h-10 border-slate-200 bg-white pl-10 text-slate-900 placeholder:text-slate-400 focus:border-blue-400/70 focus:ring-2 focus:ring-blue-400/20"
+                    required
+                  />
                 </div>
               </div>
-            </div>
 
-            {/* Navigation buttons */}
-            <div className="flex items-center justify-between gap-4 mt-auto pt-8">
-              <Button
-                onClick={handlePrev}
-                disabled={currentFeature === 0}
-                variant="outline"
-                className="flex-1 sm:flex-none"
-              >
-                Anterior
-              </Button>
+              {supabaseAuth.error && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
+                    !
+                  </span>
+                  {supabaseAuth.error}
+                </div>
+              )}
 
-              <div className="flex gap-2">
-                {Array.from({ length: Math.min(5, FEATURES.length) }).map(
-                  (_, idx) => (
-                    <div
-                      key={idx}
-                      className={`h-2 rounded-full transition-all ${
-                        idx < Math.ceil((currentFeature + 1) / 2)
-                          ? "bg-purple-500 w-8"
-                          : "bg-slate-600 w-2"
-                      }`}
-                    ></div>
-                  ),
-                )}
-              </div>
+              {supabaseAuth.verificationPending && (
+                <div className="flex items-center gap-2 rounded-lg  border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                  <CheckCircle2 className="h-5 w-5 text-blue-600" />
+                  Revisa tu correo ({supabaseAuth.registeredEmail ?? email})
+                  para verificar tu cuenta.
+                </div>
+              )}
 
               <Button
-                onClick={
-                  currentFeature === FEATURES.length - 1
-                    ? handleSkip
-                    : handleNext
-                }
-                className="flex-1 sm:flex-none bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                type="submit"
+                disabled={isSubmitting}
+                className="group relative h-10 w-full overflow-hidden rounded-xl bg-primary font-semibold text-primary-foreground shadow-sm transition-all duration-200 hover:bg-primary/90 disabled:opacity-70"
               >
-                {currentFeature === FEATURES.length - 1 ? (
-                  <>
-                    Comenzar <ChevronRight className="w-4 h-4 ml-2" />
-                  </>
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24">
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        fill="none"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Procesando...
+                  </span>
                 ) : (
-                  <>
-                    Siguiente <ChevronRight className="w-4 h-4 ml-2" />
-                  </>
+                  <span className="flex items-center justify-center gap-2">
+                    {authMode === "login" ? "Continuar" : "Crear cuenta"}
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
                 )}
               </Button>
+            </form>
+
+            <p className="mt-5 text-center text-sm text-slate-500">
+              {authMode === "login"
+                ? "¿No tienes cuenta?"
+                : "¿Ya tienes cuenta?"}{" "}
+              <button
+                type="button"
+                className="font-semibold text-primary transition-colors hover:text-primary/80"
+                onClick={() =>
+                  setAuthMode(authMode === "login" ? "register" : "login")
+                }
+              >
+                {authMode === "login" ? "Crearla ahora" : "Iniciar sesión"}
+              </button>
+            </p>
+          </div>
+        </div>
+
+        {/* Columna derecha - Hero/Beneficios */}
+        <div className="flex items-center justify-center py-2 sm:py-4 lg:py-0">
+          <div className="relative w-full overflow-hidden rounded-3xl  border-blue-200/80 bg-gradient-to-br from-blue-100 via-indigo-100 to-cyan-100 p-7 shadow-xl sm:p-9 lg:h-[86vh] lg:max-h-[820px]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.45),transparent_55%),radial-gradient(circle_at_80%_70%,rgba(59,130,246,0.15),transparent_45%)]" />
+
+            <div className="relative z-10 flex h-full flex-col justify-between gap-8">
+              <div className="space-y-5">
+                <p className="inline-flex items-center rounded-full bg-white/70 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-blue-700">
+                  <Sparkles className="mr-2 h-3 w-3" />
+                  Plataforma empresarial
+                </p>
+                <h2 className="max-w-lg text-3xl font-bold leading-tight text-slate-900 sm:text-4xl lg:text-5xl">
+                  Gestiona ventas, gastos e inventario desde un solo panel.
+                </h2>
+                <p className="max-w-xl text-sm leading-relaxed text-slate-700 sm:text-base">
+                  Convierte tus datos en decisiones: reportes accionables,
+                  control financiero y colaboración para tu equipo en tiempo
+                  real.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {KPI_CARDS.map((card) => {
+                  const Icon = card.icon;
+                  return (
+                    <article
+                      key={card.title}
+                      className="rounded-2xl bg-white/75 p-4 shadow-sm"
+                    >
+                      <div
+                        className={`mb-3 inline-flex rounded-xl bg-gradient-to-br ${card.gradient} p-2.5 text-white shadow-sm`}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                        {card.title}
+                      </p>
+                      <p className="text-2xl font-bold text-slate-900">
+                        {card.value}
+                      </p>
+                      <p className="text-xs text-slate-500">{card.caption}</p>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-2xl bg-white/75 p-6 shadow-sm">
+                <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-600">
+                  Lo que obtienes al entrar
+                </p>
+                <ul className="space-y-4">
+                  {BUSINESS_POINTS.map((point) => (
+                    <li
+                      key={point}
+                      className="flex items-start gap-3 text-sm text-slate-700"
+                    >
+                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </span>
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
-
-          {/* Premium section */}
-          {currentFeature === Math.floor(FEATURES.length / 2) && (
-            <div className="mt-12 p-6 sm:p-8 rounded-2xl bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 animate-fade-in">
-              <div className="flex items-center gap-3 mb-4">
-                <Zap className="w-6 h-6 text-yellow-400" />
-                <h3 className="text-xl font-bold">Versión Premium</h3>
-              </div>
-              <p className="text-slate-300 mb-4">
-                Desbloquea todas las características premium y lleva tu negocio
-                al siguiente nivel
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {PREMIUM_FEATURES.map((feat, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <div className="text-purple-400">{feat.icon}</div>
-                    <span className="text-sm text-slate-300">{feat.text}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
-      </div>
-
-      <style>{`
-        @keyframes blob {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-        }
-
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateX(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-
-        .animate-fade-in {
-          animation: fade-in 0.5s ease-out forwards;
-        }
-
-        .gradient-primary {
-          background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-        }
-      `}</style>
-    </div>
+      </section>
+    </main>
   );
 }

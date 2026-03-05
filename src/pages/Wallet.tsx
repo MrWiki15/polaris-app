@@ -31,6 +31,8 @@ import {
   Repeat2,
   Edit2,
   Trash2,
+  MoreVertical,
+  PlusCircle,
 } from "lucide-react";
 import {
   getPersonalWallets,
@@ -153,6 +155,7 @@ export default function Wallet() {
     currentProjectMember,
     addReinvestmentGoal,
     addReinvestmentExecution,
+    addWalletFund,
   } = useApp();
   const [wallet, setWallet] = useState<UserWallet | null>(null);
   const [hederaAccountId, setHederaAccountId] = useState<string | null>(null);
@@ -184,14 +187,37 @@ export default function Wallet() {
   const [transferAmount, setTransferAmount] = useState("");
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
   const [editingWalletName, setEditingWalletName] = useState("");
+  const [optionsModalOpen, setOptionsModalOpen] = useState(false);
+  const [activeOptionsTab, setActiveOptionsTab] = useState<
+    "create" | "transfer" | "goals" | "fund"
+  >("create");
+  // Estados para fondeo
+  const [fundAmount, setFundAmount] = useState("");
+  const [fundDescription, setFundDescription] = useState("");
+  // Estados para USDC
+  const [usdcMode, setUsdcMode] = useState<"send" | "receive" | null>(null);
+  const [usdcSendType, setUsdcSendType] = useState<
+    "polaris" | "external" | null
+  >(null);
+  const [userSearchEmail, setUserSearchEmail] = useState("");
+  const [searchedUsers, setSearchedUsers] = useState<
+    Array<{ id: string; email: string; hederaAddress: string }>
+  >([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [externalAddress, setExternalAddress] = useState("");
   const isPersonalMode = !currentProject;
   const toNumber = (value: string | number | undefined | null) => {
     const n = typeof value === "number" ? value : Number(value || 0);
     return Number.isFinite(n) ? n : 0;
   };
+  // Total de fondeos manuales agregados
+  const totalWalletFunds = useMemo(() => {
+    return (data.walletFunds || []).reduce((sum, fund) => sum + fund.amount, 0);
+  }, [data.walletFunds]);
+
   const transferableBalance = useMemo(() => {
-    return toNumber(balance);
-  }, [balance]);
+    return toNumber(balance) + totalWalletFunds;
+  }, [balance, totalWalletFunds]);
 
   // Total ingresos brutos de ventas (no ganancia, sino monto total)
   const salesRevenue = useMemo(() => {
@@ -222,7 +248,7 @@ export default function Wallet() {
   }, [personalWallets, transferHistory]);
 
   // Balance de la wallet principal en modo personal
-  // = PUSD balance + ingresos de ventas - gastos - transferencias OUT
+  // = PUSD balance + fondeos + ingresos de ventas - gastos - transferencias OUT
   const nonTransferableBalance = useMemo(() => {
     if (!isPersonalMode) return 0;
     return salesRevenue - totalExpenses - transfersOut;
@@ -564,6 +590,69 @@ export default function Wallet() {
     }
   };
 
+  const handleFundWallet = async () => {
+    const amount = parseFloat(fundAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Monto inválido",
+        description: "Por favor ingresa un monto válido mayor a 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const principal = personalWallets.find((w) => w.name === "Principal");
+    if (!principal) {
+      toast({
+        title: "Error",
+        description: "No se encontró la wallet Principal",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Aumentar el balance de la wallet principal
+      const newBalance = principal.balance + amount;
+      await updateWalletBalance(principal.id, newBalance);
+
+      // Registrar el fondeo en el historial
+      const fundRecord = {
+        date: new Date().toISOString(),
+        amount,
+        description: fundDescription || "Fondeo manual",
+        type: "fund" as const,
+      };
+
+      // Guardar en el contexto
+      addWalletFund(fundRecord);
+
+      // Recargar wallets
+      const updated = await getPersonalWallets(supabaseAuth.user.id);
+      setPersonalWallets(updated);
+
+      toast({
+        title: "Fondeo exitoso",
+        description: `Se agregaron ${formatUsd(amount)} a tu wallet Principal`,
+      });
+
+      // Limpiar formulario
+      setFundAmount("");
+      setFundDescription("");
+    } catch (err) {
+      console.error("Error al fondear wallet:", err);
+      toast({
+        title: "Error",
+        description: "No se pudo completar el fondeo",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const load = async () => {
       if (!supabaseAuth.user?.id) return;
@@ -594,16 +683,34 @@ export default function Wallet() {
         try {
           const wallets = await getPersonalWallets(supabaseAuth.user.id);
           if (wallets.length === 0) {
-            // Initialize main wallet if none exist
-            const main = await createPersonalWallet(
+            // Initialize main wallets if none exist
+            const principal = await createPersonalWallet(
               supabaseAuth.user.id,
               "Principal",
               Number(totalBalance || 0),
             );
-            if (main) {
-              setPersonalWallets([main]);
+            const usdc = await createPersonalWallet(
+              supabaseAuth.user.id,
+              "USDC",
+              0,
+            );
+            if (principal && usdc) {
+              setPersonalWallets([principal, usdc]);
             }
           } else {
+            // Verificar si existe la wallet USDC, si no, crearla
+            const hasUsdc = wallets.some((w) => w.name === "USDC");
+            if (!hasUsdc) {
+              const usdc = await createPersonalWallet(
+                supabaseAuth.user.id,
+                "USDC",
+                0,
+              );
+              if (usdc) {
+                wallets.push(usdc);
+              }
+            }
+
             // Sync Principal wallet balance with totalBalance
             const principal = wallets.find((w) => w.name === "Principal");
             if (principal && principal.balance !== Number(totalBalance || 0)) {
@@ -653,6 +760,7 @@ export default function Wallet() {
     projectDetails,
     projectTotalBalance,
     totalBalance,
+    totalWalletFunds,
   ]);
 
   // Sync Principal wallet balance when totalBalance changes (new sales, etc.)
@@ -781,6 +889,151 @@ export default function Wallet() {
       toast({
         title: "Error",
         description: "Error en la transferencia",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Buscar usuarios por email para envío de USDC
+  const handleSearchUsers = async (email: string) => {
+    if (!email || email.length < 3) {
+      setSearchedUsers([]);
+      return;
+    }
+
+    try {
+      // Usar función RPC de Supabase para buscar usuarios
+      const { data, error } = await supabase.rpc("search_users_by_email", {
+        search_email: email,
+      });
+
+      if (error) {
+        console.error("Error searching users:", error);
+        return;
+      }
+
+      // Obtener las wallets de Hedera de los usuarios encontrados
+      const usersWithWallets = await Promise.all(
+        (data || []).map(async (user: { id: string; email: string }) => {
+          const wallet = await getUserWallet(user.id);
+          return {
+            id: user.id,
+            email: user.email,
+            hederaAddress: wallet?.address || "",
+          };
+        }),
+      );
+
+      setSearchedUsers(usersWithWallets.filter((u) => u.hederaAddress));
+    } catch (err) {
+      console.error("Error searching users:", err);
+      setSearchedUsers([]);
+    }
+  };
+
+  // Enviar USDC a usuario de Polaris o wallet externa
+  const handleSendUsdc = async () => {
+    if (!supabaseAuth.user?.id) return;
+
+    const usdcWallet = personalWallets.find((w) => w.name === "USDC");
+    if (!usdcWallet) {
+      toast({ title: "Wallet USDC no encontrada", variant: "destructive" });
+      return;
+    }
+
+    const amount = Number(transferAmount || 0);
+    if (amount <= 0) {
+      toast({ title: "Monto inválido", variant: "destructive" });
+      return;
+    }
+
+    if (usdcWallet.balance < amount) {
+      toast({ title: "Saldo USDC insuficiente", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      if (usdcSendType === "polaris") {
+        // Envío a otro usuario de Polaris
+        if (!selectedUserId) {
+          toast({ title: "Selecciona un usuario", variant: "destructive" });
+          return;
+        }
+
+        const targetUser = searchedUsers.find((u) => u.id === selectedUserId);
+        if (!targetUser || !targetUser.hederaAddress) {
+          toast({ title: "Usuario no válido", variant: "destructive" });
+          return;
+        }
+
+        // Obtener la wallet Hedera del usuario actual para hacer la transferencia
+        const myWallet = await getUserWallet(supabaseAuth.user.id);
+        if (!myWallet) {
+          toast({ title: "No se encontró tu wallet", variant: "destructive" });
+          return;
+        }
+
+        // Por ahora, registramos la transferencia internamente
+        // En producción, aquí harías la transferencia real en Hedera blockchain
+        // usando sendHbar o una función similar para tokens
+
+        // Actualizar balance de la wallet USDC
+        await updateWalletBalance(usdcWallet.id, usdcWallet.balance - amount);
+
+        toast({
+          title: "USDC enviado",
+          description: `${formatUsd(amount)} enviados a ${targetUser.email}`,
+        });
+      } else if (usdcSendType === "external") {
+        // Envío a wallet externa
+        if (!externalAddress || externalAddress.trim() === "") {
+          toast({
+            title: "Ingresa una dirección válida",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Obtener la wallet Hedera del usuario actual
+        const myWallet = await getUserWallet(supabaseAuth.user.id);
+        if (!myWallet) {
+          toast({ title: "No se encontró tu wallet", variant: "destructive" });
+          return;
+        }
+
+        // Por ahora, registramos la transferencia
+        // En producción, aquí harías la transferencia real en Hedera
+
+        // Actualizar balance de la wallet USDC
+        await updateWalletBalance(usdcWallet.id, usdcWallet.balance - amount);
+
+        toast({
+          title: "USDC enviado",
+          description: `${formatUsd(amount)} enviados a ${externalAddress}`,
+        });
+      }
+
+      // Recargar wallets
+      const wallets = await getPersonalWallets(supabaseAuth.user.id);
+      setPersonalWallets(wallets);
+
+      // Limpiar formulario
+      setTransferAmount("");
+      setSelectedUserId("");
+      setExternalAddress("");
+      setUserSearchEmail("");
+      setSearchedUsers([]);
+      setUsdcMode(null);
+      setUsdcSendType(null);
+    } catch (err) {
+      console.error("Error sending USDC:", err);
+      toast({
+        title: "Error",
+        description: "No se pudo enviar USDC",
         variant: "destructive",
       });
     } finally {
@@ -1570,6 +1823,8 @@ export default function Wallet() {
                         className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
                         value={assignmentDept}
                         onChange={(e) => setAssignmentDept(e.target.value)}
+                        aria-label="Seleccionar departamento"
+                        aria-label="Seleccionar departamento"
                       >
                         <option value="">Selecciona</option>
                         {allWallets
@@ -1620,6 +1875,7 @@ export default function Wallet() {
                         className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
                         value={emergencyDept}
                         onChange={(e) => setEmergencyDept(e.target.value)}
+                        aria-label="Seleccionar departamento origen para extracción"
                       >
                         <option value="">Selecciona</option>
                         {allWallets
@@ -1675,6 +1931,7 @@ export default function Wallet() {
                       className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
                       value={emergencyRequestDept}
                       onChange={(e) => setEmergencyRequestDept(e.target.value)}
+                      aria-label="Seleccionar departamento origen para solicitud"
                     >
                       <option value="">Selecciona</option>
                       {allWallets
@@ -2025,6 +2282,673 @@ export default function Wallet() {
             </div>
           ) : (
             <div className="space-y-2 sm:space-y-4">
+              {/* Header con título y botón de opciones */}
+              <div className="flex items-center justify-between px-2">
+                <h3 className="font-semibold text-sm sm:text-base">
+                  Mis Wallets
+                </h3>
+                <Dialog
+                  open={optionsModalOpen}
+                  onOpenChange={setOptionsModalOpen}
+                >
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Opciones de Wallets</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      {/* Tabs */}
+                      <div className="flex gap-2 border-b border-border">
+                        <button
+                          onClick={() => setActiveOptionsTab("create")}
+                          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                            activeOptionsTab === "create"
+                              ? "border-primary text-primary"
+                              : "border-transparent text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Crear Wallet
+                        </button>
+                        <button
+                          onClick={() => setActiveOptionsTab("transfer")}
+                          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                            activeOptionsTab === "transfer"
+                              ? "border-primary text-primary"
+                              : "border-transparent text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Transferir
+                        </button>
+                        <button
+                          onClick={() => setActiveOptionsTab("fund")}
+                          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                            activeOptionsTab === "fund"
+                              ? "border-primary text-primary"
+                              : "border-transparent text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Fondear
+                        </button>
+                        <button
+                          onClick={() => setActiveOptionsTab("goals")}
+                          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                            activeOptionsTab === "goals"
+                              ? "border-primary text-primary"
+                              : "border-transparent text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Objetivos
+                        </button>
+                      </div>
+
+                      {/* Contenido de las tabs */}
+                      {activeOptionsTab === "create" && (
+                        <div className="border border-border rounded-xl p-4">
+                          <h4 className="font-semibold text-sm mb-3">
+                            Crear nueva wallet
+                          </h4>
+                          <div className="space-y-3">
+                            <div>
+                              <Label>Nombre</Label>
+                              <Input
+                                value={newWalletName}
+                                onChange={(e) =>
+                                  setNewWalletName(e.target.value)
+                                }
+                                placeholder="Reinversion"
+                              />
+                            </div>
+                            <Button
+                              className="w-full"
+                              onClick={() => {
+                                handleCreatePersonalWallet();
+                                setOptionsModalOpen(false);
+                              }}
+                            >
+                              Crear wallet
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {activeOptionsTab === "transfer" && (
+                        <div className="border border-border rounded-xl p-4">
+                          <h4 className="font-semibold text-sm mb-3">
+                            Transferir entre wallets
+                          </h4>
+                          <div className="space-y-3">
+                            <div>
+                              <Label>Desde</Label>
+                              <select
+                                className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                                value={transferFrom}
+                                onChange={(e) => {
+                                  setTransferFrom(e.target.value);
+                                  // Reset USDC mode cuando cambia la wallet
+                                  const selectedWallet = personalWallets.find(
+                                    (w) => w.id === e.target.value,
+                                  );
+                                  if (selectedWallet?.name !== "USDC") {
+                                    setUsdcMode(null);
+                                    setUsdcSendType(null);
+                                  }
+                                }}
+                                aria-label="Seleccionar wallet origen"
+                              >
+                                <option value="">Selecciona</option>
+                                {personalWallets.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name} · {formatUsd(p.balance)}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* UI especial para USDC */}
+                            {transferFrom &&
+                            personalWallets.find((w) => w.id === transferFrom)
+                              ?.name === "USDC" ? (
+                              <div className="space-y-3 border-t pt-3">
+                                <div className="text-sm font-medium mb-2">
+                                  Operaciones con USDC (Hedera)
+                                </div>
+
+                                {/* Botones Enviar/Recibir */}
+                                {!usdcMode && (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => setUsdcMode("send")}
+                                      className="w-full"
+                                    >
+                                      <Send className="w-4 h-4 mr-2" />
+                                      Enviar
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => setUsdcMode("receive")}
+                                      className="w-full"
+                                    >
+                                      <Download className="w-4 h-4 mr-2" />
+                                      Recibir
+                                    </Button>
+                                  </div>
+                                )}
+
+                                {/* Modo Recibir */}
+                                {usdcMode === "receive" && (
+                                  <div className="space-y-2">
+                                    <Label>
+                                      Tu dirección Hedera para recibir USDC
+                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        readOnly
+                                        value={
+                                          wallet?.address ||
+                                          hederaAccountId ||
+                                          "No disponible"
+                                        }
+                                        className="font-mono text-xs"
+                                      />
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={async () => {
+                                          const address =
+                                            wallet?.address || hederaAccountId;
+                                          if (address) {
+                                            await navigator.clipboard.writeText(
+                                              address,
+                                            );
+                                            toast({
+                                              title: "Dirección copiada",
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        <Copy className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Comparte esta dirección para recibir USDC
+                                      en Hedera Testnet
+                                    </p>
+                                    <Button
+                                      variant="ghost"
+                                      onClick={() => setUsdcMode(null)}
+                                      className="w-full"
+                                    >
+                                      Volver
+                                    </Button>
+                                  </div>
+                                )}
+
+                                {/* Modo Enviar */}
+                                {usdcMode === "send" && (
+                                  <div className="space-y-3">
+                                    {!usdcSendType ? (
+                                      <>
+                                        <Label>¿A quién deseas enviar?</Label>
+                                        <div className="grid grid-cols-1 gap-2">
+                                          <Button
+                                            variant="outline"
+                                            onClick={() =>
+                                              setUsdcSendType("polaris")
+                                            }
+                                            className="w-full justify-start"
+                                          >
+                                            <WalletIcon className="w-4 h-4 mr-2" />
+                                            A otro usuario de Polaris
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            onClick={() =>
+                                              setUsdcSendType("external")
+                                            }
+                                            className="w-full justify-start"
+                                          >
+                                            <ExternalLink className="w-4 h-4 mr-2" />
+                                            A una wallet externa
+                                          </Button>
+                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          onClick={() => setUsdcMode(null)}
+                                          className="w-full"
+                                        >
+                                          Volver
+                                        </Button>
+                                      </>
+                                    ) : usdcSendType === "polaris" ? (
+                                      <>
+                                        <div>
+                                          <Label>
+                                            Buscar usuario por email
+                                          </Label>
+                                          <Input
+                                            value={userSearchEmail}
+                                            onChange={(e) => {
+                                              setUserSearchEmail(
+                                                e.target.value,
+                                              );
+                                              handleSearchUsers(e.target.value);
+                                            }}
+                                            placeholder="usuario@ejemplo.com"
+                                          />
+                                        </div>
+
+                                        {searchedUsers.length > 0 && (
+                                          <div>
+                                            <Label>Selecciona usuario</Label>
+                                            <div className="border border-border rounded-lg mt-1 max-h-40 overflow-y-auto">
+                                              {searchedUsers.map((user) => (
+                                                <button
+                                                  key={user.id}
+                                                  onClick={() =>
+                                                    setSelectedUserId(user.id)
+                                                  }
+                                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors ${
+                                                    selectedUserId === user.id
+                                                      ? "bg-accent"
+                                                      : ""
+                                                  }`}
+                                                >
+                                                  <div className="font-medium">
+                                                    {user.email}
+                                                  </div>
+                                                  <div className="text-xs text-muted-foreground truncate">
+                                                    {user.hederaAddress}
+                                                  </div>
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {selectedUserId && (
+                                          <div>
+                                            <Label>Monto USDC</Label>
+                                            <Input
+                                              type="number"
+                                              value={transferAmount}
+                                              onChange={(e) =>
+                                                setTransferAmount(
+                                                  e.target.value,
+                                                )
+                                              }
+                                              placeholder="10.00"
+                                            />
+                                          </div>
+                                        )}
+
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="ghost"
+                                            onClick={() => {
+                                              setUsdcSendType(null);
+                                              setSelectedUserId("");
+                                              setUserSearchEmail("");
+                                              setSearchedUsers([]);
+                                            }}
+                                            className="w-full"
+                                          >
+                                            Volver
+                                          </Button>
+                                          <Button
+                                            onClick={() => {
+                                              handleSendUsdc();
+                                              setOptionsModalOpen(false);
+                                            }}
+                                            disabled={
+                                              !selectedUserId ||
+                                              !transferAmount ||
+                                              loading
+                                            }
+                                            className="w-full"
+                                          >
+                                            Enviar USDC
+                                          </Button>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <div>
+                                          <Label>
+                                            Dirección Hedera de destino
+                                          </Label>
+                                          <Input
+                                            value={externalAddress}
+                                            onChange={(e) =>
+                                              setExternalAddress(e.target.value)
+                                            }
+                                            placeholder="0.0.xxxxx"
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <Label>Monto USDC</Label>
+                                          <Input
+                                            type="number"
+                                            value={transferAmount}
+                                            onChange={(e) =>
+                                              setTransferAmount(e.target.value)
+                                            }
+                                            placeholder="10.00"
+                                          />
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="ghost"
+                                            onClick={() => {
+                                              setUsdcSendType(null);
+                                              setExternalAddress("");
+                                            }}
+                                            className="w-full"
+                                          >
+                                            Volver
+                                          </Button>
+                                          <Button
+                                            onClick={() => {
+                                              handleSendUsdc();
+                                              setOptionsModalOpen(false);
+                                            }}
+                                            disabled={
+                                              !externalAddress ||
+                                              !transferAmount ||
+                                              loading
+                                            }
+                                            className="w-full"
+                                          >
+                                            Enviar USDC
+                                          </Button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : transferFrom &&
+                              personalWallets.find((w) => w.id === transferFrom)
+                                ?.name !== "USDC" ? (
+                              /* UI normal para otras wallets */
+                              <>
+                                <div>
+                                  <Label>Hacia</Label>
+                                  <select
+                                    className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                                    value={transferTo}
+                                    onChange={(e) =>
+                                      setTransferTo(e.target.value)
+                                    }
+                                    aria-label="Seleccionar wallet destino"
+                                  >
+                                    <option value="">Selecciona</option>
+                                    {personalWallets.map((p) => (
+                                      <option key={p.id} value={p.id}>
+                                        {p.name} · {formatUsd(p.balance)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <Label>Monto (USD)</Label>
+                                  <Input
+                                    value={transferAmount}
+                                    onChange={(e) =>
+                                      setTransferAmount(e.target.value)
+                                    }
+                                    placeholder="10"
+                                  />
+                                </div>
+                                <Button
+                                  className="w-full"
+                                  onClick={() => {
+                                    handleTransferBetweenPersonal();
+                                    setOptionsModalOpen(false);
+                                  }}
+                                >
+                                  Transferir
+                                </Button>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                      )}
+
+                      {activeOptionsTab === "fund" && (
+                        <div className="border border-border rounded-xl p-4 space-y-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <PlusCircle className="w-5 h-5 text-primary" />
+                            <h4 className="font-semibold text-sm">
+                              Fondear wallet principal
+                            </h4>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Agrega fondos a tu wallet Principal para aumentar tu
+                            capital disponible.
+                          </p>
+                          <div className="space-y-3">
+                            <div>
+                              <Label>Monto (USD)</Label>
+                              <Input
+                                type="number"
+                                value={fundAmount}
+                                onChange={(e) => setFundAmount(e.target.value)}
+                                placeholder="100.00"
+                                min="0"
+                                step="0.01"
+                              />
+                            </div>
+                            <div>
+                              <Label>Descripción (opcional)</Label>
+                              <Input
+                                value={fundDescription}
+                                onChange={(e) =>
+                                  setFundDescription(e.target.value)
+                                }
+                                placeholder="Ej: Capital inicial, Inversión adicional..."
+                              />
+                            </div>
+                            <Button
+                              className="w-full"
+                              onClick={() => {
+                                handleFundWallet();
+                                setOptionsModalOpen(false);
+                              }}
+                              disabled={loading || !fundAmount}
+                            >
+                              <PlusCircle className="w-4 h-4 mr-2" />
+                              Fondear Wallet
+                            </Button>
+                          </div>
+
+                          {/* Historial de fondeos */}
+                          {data.walletFunds && data.walletFunds.length > 0 && (
+                            <div className="pt-4 border-t border-border">
+                              <h5 className="text-sm font-semibold mb-3">
+                                Historial de fondeos
+                              </h5>
+                              <div className="space-y-2 max-h-60 overflow-y-auto">
+                                {data.walletFunds
+                                  .slice()
+                                  .reverse()
+                                  .map((fund) => (
+                                    <div
+                                      key={fund.id}
+                                      className="flex items-center justify-between rounded-lg border border-border p-3"
+                                    >
+                                      <div className="flex-1">
+                                        <div className="text-sm font-medium">
+                                          {formatUsd(fund.amount)}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {new Date(
+                                            fund.date,
+                                          ).toLocaleDateString()}{" "}
+                                          · {fund.description}
+                                        </div>
+                                      </div>
+                                      <div className="text-xs text-success font-medium">
+                                        +{formatUsd(fund.amount)}
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {activeOptionsTab === "goals" && (
+                        <div className="border border-border rounded-xl p-4 space-y-4">
+                          <h4 className="font-semibold text-sm">
+                            Objetivos de reinversión mensual
+                          </h4>
+                          <div className="space-y-3">
+                            <div>
+                              <Label>Nombre del objetivo</Label>
+                              <Input
+                                value={goalName}
+                                onChange={(e) => setGoalName(e.target.value)}
+                                placeholder="Reinvertir en inventario"
+                              />
+                            </div>
+                            <div>
+                              <Label>Wallet destino para reinvertir</Label>
+                              <select
+                                value={goalWallet}
+                                onChange={(e) => setGoalWallet(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                                aria-label="Seleccionar wallet destino para reinversión"
+                              >
+                                <option value="">Selecciona una wallet</option>
+                                {personalWallets.map((wallet) => (
+                                  <option key={wallet.id} value={wallet.id}>
+                                    {wallet.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex gap-3">
+                              <div className="flex-1">
+                                <Label>Porcentaje de ganancias</Label>
+                                <Input
+                                  type="number"
+                                  value={goalPercentage}
+                                  onChange={(e) =>
+                                    setGoalPercentage(e.target.value)
+                                  }
+                                  min={1}
+                                  max={100}
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <Label>Día del mes</Label>
+                                <Input
+                                  type="number"
+                                  value={goalDay}
+                                  onChange={(e) => setGoalDay(e.target.value)}
+                                  min={1}
+                                  max={31}
+                                />
+                              </div>
+                            </div>
+                            <Button onClick={handleCreateGoal}>
+                              Crear objetivo
+                            </Button>
+                          </div>
+
+                          {reinvestmentGoals.length > 0 && (
+                            <div className="space-y-2 pt-2 border-t border-border">
+                              <h5 className="text-sm font-medium">
+                                Objetivos activos
+                              </h5>
+                              {reinvestmentGoals.map((goal) => {
+                                const suggestedAmount =
+                                  (remainingNonTransferable * goal.percentage) /
+                                  100;
+                                const targetWallet = personalWallets.find(
+                                  (w) => w.id === goal.walletId,
+                                );
+                                const walletLabel =
+                                  targetWallet?.name || "Principal";
+                                return (
+                                  <div
+                                    key={goal.id}
+                                    className="flex items-center justify-between rounded-lg border border-border p-3"
+                                  >
+                                    <div>
+                                      <div className="text-sm font-medium">
+                                        {goal.name}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Cada mes, el día {goal.dayOfMonth} se
+                                        enviara {goal.percentage}% de tus
+                                        ganancias para → {walletLabel} ·
+                                        Aproximado: {formatUsd(suggestedAmount)}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        handleExecuteReinvestment(goal)
+                                      }
+                                    >
+                                      Realizar
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {data.reinvestmentExecutions &&
+                            data.reinvestmentExecutions.length > 0 && (
+                              <div className="pt-2 border-t border-border">
+                                <h5 className="text-sm font-semibold mb-2">
+                                  Historial de reinversiones
+                                </h5>
+                                <div className="space-y-2">
+                                  {data.reinvestmentExecutions.map((item) => {
+                                    const goal = reinvestmentGoals.find(
+                                      (g) => g.id === item.goalId,
+                                    );
+                                    return (
+                                      <div
+                                        key={item.id}
+                                        className="flex items-center justify-between text-sm"
+                                      >
+                                        <div>
+                                          <div className="font-medium">
+                                            {goal?.name || "Reinversión"}
+                                          </div>
+                                          <div className="text-xs text-muted-foreground">
+                                            {new Date(
+                                              item.date,
+                                            ).toLocaleDateString()}{" "}
+                                            · {formatUsd(item.amount)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                        </div>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
               <div className="py-2">
                 {loading && (
                   <div className="flex items-center justify-center py-4 sm:py-8 px-2">
@@ -2070,7 +2994,8 @@ export default function Wallet() {
                           >
                             <div className="flex items-start justify-between">
                               <img
-                                src={"/public/SVG/P001.svg"}
+                                src="/public/SVG/P001.svg"
+                                alt="Wallet card logo"
                                 className="h-4 sm:h-6"
                               />
                               <div className="text-xxs sm:text-xs opacity-80">
@@ -2170,80 +3095,6 @@ export default function Wallet() {
                   </div>
                 )}
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="border border-border rounded-xl p-3 sm:p-4">
-                  <h4 className="font-semibold text-xs sm:text-sm mb-2">
-                    Crear nueva wallet
-                  </h4>
-                  <div className="space-y-2">
-                    <Label>Nombre</Label>
-                    <Input
-                      value={newWalletName}
-                      onChange={(e) => setNewWalletName(e.target.value)}
-                      placeholder="Reinversion"
-                    />
-                    <Button
-                      className="w-full"
-                      onClick={handleCreatePersonalWallet}
-                    >
-                      Crear wallet
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="border border-border rounded-xl p-3 sm:p-4">
-                  <h4 className="font-semibold text-xs sm:text-sm mb-2">
-                    Transferir entre wallets
-                  </h4>
-                  <div className="space-y-2">
-                    <div>
-                      <Label>Desde</Label>
-                      <select
-                        className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
-                        value={transferFrom}
-                        onChange={(e) => setTransferFrom(e.target.value)}
-                      >
-                        <option value="">Selecciona</option>
-                        {personalWallets.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} · {formatUsd(p.balance)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <Label>Hacia</Label>
-                      <select
-                        className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
-                        value={transferTo}
-                        onChange={(e) => setTransferTo(e.target.value)}
-                      >
-                        <option value="">Selecciona</option>
-                        {personalWallets.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} · {formatUsd(p.balance)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <Label>Monto (USD)</Label>
-                      <Input
-                        value={transferAmount}
-                        onChange={(e) => setTransferAmount(e.target.value)}
-                        placeholder="10"
-                      />
-                    </div>
-                    <Button
-                      className="w-full"
-                      onClick={handleTransferBetweenPersonal}
-                    >
-                      Transferir
-                    </Button>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
@@ -2312,131 +3163,6 @@ export default function Wallet() {
               </div>
             )}
           </div>
-
-          {isPersonalMode && (
-            <div className="border border-border rounded-xl p-3 sm:p-4 space-y-3 sm:space-y-4">
-              <h3 className="font-semibold text-sm sm:text-base">
-                Objetivos de reinversión mensual
-              </h3>
-              <div className="space-y-2 sm:space-y-3">
-                <div>
-                  <Label>Nombre del objetivo</Label>
-                  <Input
-                    value={goalName}
-                    onChange={(e) => setGoalName(e.target.value)}
-                    placeholder="Reinvertir en inventario"
-                  />
-                </div>
-                <div>
-                  <Label>Wallet destino para reinvertir</Label>
-                  <select
-                    value={goalWallet}
-                    onChange={(e) => setGoalWallet(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
-                    aria-label="Seleccionar wallet destino para reinversión"
-                  >
-                    <option value="">Selecciona una wallet</option>
-                    {personalWallets.map((wallet) => (
-                      <option key={wallet.id} value={wallet.id}>
-                        {wallet.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <Label>Porcentaje de ganancias</Label>
-                    <Input
-                      type="number"
-                      value={goalPercentage}
-                      onChange={(e) => setGoalPercentage(e.target.value)}
-                      min={1}
-                      max={100}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <Label>Día del mes</Label>
-                    <Input
-                      type="number"
-                      value={goalDay}
-                      onChange={(e) => setGoalDay(e.target.value)}
-                      min={1}
-                      max={31}
-                    />
-                  </div>
-                </div>
-                <Button onClick={handleCreateGoal}>Crear objetivo</Button>
-              </div>
-
-              {reinvestmentGoals.length > 0 && (
-                <div className="space-y-2">
-                  {reinvestmentGoals.map((goal) => {
-                    const suggestedAmount =
-                      (remainingNonTransferable * goal.percentage) / 100;
-                    const targetWallet = personalWallets.find(
-                      (w) => w.id === goal.walletId,
-                    );
-                    const walletLabel = targetWallet?.name || "Principal";
-                    return (
-                      <div
-                        key={goal.id}
-                        className="flex items-center justify-between rounded-lg border border-border p-3"
-                      >
-                        <div>
-                          <div className="text-sm font-medium">{goal.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            Cada mes, el día {goal.dayOfMonth} se enviara{" "}
-                            {goal.percentage}% de tus ganancias para →{" "}
-                            {walletLabel} · Aproximado:{" "}
-                            {formatUsd(suggestedAmount)}
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleExecuteReinvestment(goal)}
-                        >
-                          Realizar reinversión
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {data.reinvestmentExecutions &&
-                data.reinvestmentExecutions.length > 0 && (
-                  <div className="pt-2 border-t border-border mt-2">
-                    <h4 className="text-sm font-semibold mb-2">
-                      Historial de reinversiones
-                    </h4>
-                    <div className="space-y-2">
-                      {data.reinvestmentExecutions.map((item) => {
-                        const goal = reinvestmentGoals.find(
-                          (g) => g.id === item.goalId,
-                        );
-                        return (
-                          <div
-                            key={item.id}
-                            className="flex items-center justify-between text-sm"
-                          >
-                            <div>
-                              <div className="font-medium">
-                                {goal?.name || "Reinversión"}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {new Date(item.date).toLocaleDateString()} ·{" "}
-                                {formatUsd(item.amount)}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-            </div>
-          )}
         </div>
       </div>
     </div>
