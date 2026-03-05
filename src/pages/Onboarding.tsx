@@ -88,7 +88,7 @@ export default function Onboarding() {
       <section className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1400px] grid-cols-1 gap-8 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-2 lg:gap-10 lg:px-8 lg:py-10">
         {/* Columna izquierda - Formulario */}
         <div className="flex items-center justify-center py-2 sm:py-4 lg:py-0">
-          <div className="max-w-[460px] rounded-3xl border border-slate-200/70 bg-white/80 p-5 shadow-xl backdrop-blur-sm sm:p-6">
+          <div className="max-w-[660px] rounded-3xl border border-slate-200/70 bg-white/80 p-5 shadow-xl backdrop-blur-sm sm:p-6">
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/20">
                 <Sparkles className="h-5 w-5" />
@@ -251,7 +251,7 @@ export default function Onboarding() {
 
         {/* Columna derecha - Hero/Beneficios */}
         <div className="flex items-center justify-center py-2 sm:py-4 lg:py-0">
-          <div className="relative w-full overflow-hidden rounded-3xl  border-blue-200/80 bg-gradient-to-br from-blue-100 via-indigo-100 to-cyan-100 p-7 shadow-xl sm:p-9 lg:h-[86vh] lg:max-h-[820px]">
+          <div className="relative w-full overflow-hidden rounded-3xl  border-blue-200/80 bg-gradient-to-br from-blue-100 via-indigo-100 to-cyan-100 p-7  sm:p-9 lg:h-[86vh] lg:max-h-[820px]">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.45),transparent_55%),radial-gradient(circle_at_80%_70%,rgba(59,130,246,0.15),transparent_45%)]" />
 
             <div className="relative z-10 flex h-full flex-col justify-between gap-8">
