@@ -1,7 +1,7 @@
 -- ============================================
 -- FUNCIÓN RPC PARA BUSCAR USUARIOS POR EMAIL
 -- ============================================
--- Esta función permite buscar usuarios de Polaris por email
+-- Esta función permite buscar usuarios de My Business  por email
 -- para transferencias de USDC
 
 -- Crear la función

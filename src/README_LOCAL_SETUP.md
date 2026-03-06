@@ -39,7 +39,7 @@ Vercel te preguntará:
 - "Set up and develop?" → **Y** (Yes)
 - "Which scope?" → Selecciona tu cuenta
 - "Link to existing project?" → **N** (No, si es primera vez)
-- "What's your project's name?" → `polaris-hub` (o el que prefieras)
+- "What's your project's name?" → `My Business -hub` (o el que prefieras)
 - "In which directory is your code located?" → `.` (raíz)
 
 ### Paso 4: Probar la API

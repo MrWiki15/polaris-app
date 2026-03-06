@@ -372,7 +372,7 @@ export const Reportes: React.FC = () => {
         <div className="bg-card rounded-2xl p-4 sm:p-6 shadow-soft border border-border space-y-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Download className="w-4 h-4" />
-            PDF multipagina con estilo Polaris
+            PDF multipagina con estilo My Business
           </div>
           <div className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">
             {report ? (

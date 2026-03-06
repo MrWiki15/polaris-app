@@ -272,7 +272,7 @@ export const AppLayout: React.FC = () => {
   const currentPage =
     [...MENU_ITEMS, ...Object.values(EXTRA_MENU_ITEMS)].find(
       (item) => item.path === location.pathname,
-    )?.label || "My Business Studio";
+    )?.label || "My Business";
 
   useEffect(() => {
     const routeSeo = SEO_BY_ROUTE[location.pathname] || {
@@ -281,7 +281,7 @@ export const AppLayout: React.FC = () => {
         "My Business Studio: plataforma de gestion para pymes con ventas, gastos, inventario, reportes y analitica en tiempo real.",
     };
 
-    const fullTitle = `${routeSeo.title} | My Business Studio`;
+    const fullTitle = `${routeSeo.title} | My Business`;
     const fullUrl = `${window.location.origin}${location.pathname}`;
 
     document.title = fullTitle;

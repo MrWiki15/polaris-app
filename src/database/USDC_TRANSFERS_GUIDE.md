@@ -2,7 +2,7 @@
 
 ## Descripción
 
-Este módulo permite a los usuarios de Polaris Hub enviar y recibir USDC (Hedera Testnet) a través de una interfaz intuitiva.
+Este módulo permite a los usuarios de My Business Hub enviar y recibir USDC (Hedera Testnet) a través de una interfaz intuitiva.
 
 ## Características
 
@@ -26,7 +26,7 @@ Cuando se selecciona la wallet USDC en el modal de transferencias, la UI muestra
 
 Dos opciones disponibles:
 
-##### A. Enviar a Usuario de Polaris
+##### A. Enviar a Usuario de My Business
 
 1. Buscar usuario por email (mínimo 3 caracteres)
 2. Seleccionar usuario de la lista de resultados
@@ -98,7 +98,7 @@ VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
 
 ### Transferencias
 
-- **Internas (Polaris)**: Se registran en `personal_wallet_transfers`
+- **Internas (My Business )**: Se registran en `personal_wallet_transfers`
 - **Externas**: Requieren transacción real en Hedera blockchain
 - Balance actualizado automáticamente en la tabla `personal_wallets`
 

@@ -1,7 +1,7 @@
 /**
- * API Client para Polaris Hub
+ * API Client para My Business Hub
  *
- * Cliente TypeScript para consumir la API REST de Polaris Hub
+ * Cliente TypeScript para consumir la API REST de My Business Hub
  * con autenticación JWT y manejo de tokens.
  */
 
@@ -12,7 +12,7 @@ const API_BASE_URL =
  * Storage keys for tokens
  */
 const TOKEN_KEYS = {
-  ACCESS: "polaris_access_token",
+  ACCESS: "My Business_access_token",
   REFRESH: "polaris_refresh_token",
 };
 

@@ -638,7 +638,7 @@ export const Configuracion: React.FC = () => {
 
       {/* Version */}
       <div className="text-center text-sm text-muted-foreground">
-        <p>My Business Studio v1.0.4</p>
+        <p>My Businessnessness Studio v1.0.4</p>
         <p>Todos los datos se guardan localmente en tu dispositivo</p>
       </div>
     </div>
