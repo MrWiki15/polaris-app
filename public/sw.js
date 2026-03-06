@@ -1,9 +1,9 @@
 /* eslint-disable no-restricted-globals */
-// PolarisHub Service Worker
+// My Business Studio Service Worker
 // Versión: 1.0.0
 
-const CACHE_NAME = "polarishub-v1";
-const RUNTIME_CACHE = "polarishub-runtime-v1";
+const CACHE_NAME = "mybusiness-v1";
+const RUNTIME_CACHE = "mybusiness-runtime-v1";
 
 // Recursos críticos para cachear durante la instalación
 const PRECACHE_URLS = [
@@ -173,7 +173,7 @@ self.addEventListener("push", (event) => {
   console.log("[SW] Push notification received");
 
   let notificationData = {
-    title: "PolarisHub",
+    title: "My Business Studio",
     body: "Tienes una nueva notificación",
     icon: "/icon.svg",
     badge: "/icon.svg",

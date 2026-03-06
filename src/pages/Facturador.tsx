@@ -270,9 +270,14 @@ export const Facturador: React.FC = () => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(themePrimary.r, themePrimary.g, themePrimary.b);
-    doc.text(businessName || settings.businessName || "Polaris", rightX, 18, {
-      align: "right",
-    });
+    doc.text(
+      businessName || settings.businessName || "My Business Studio",
+      rightX,
+      18,
+      {
+        align: "right",
+      },
+    );
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(textMuted.r, textMuted.g, textMuted.b);
@@ -492,7 +497,7 @@ export const Facturador: React.FC = () => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(textMuted.r, textMuted.g, textMuted.b);
-    doc.text("Generado con Polaris", pageWidth / 2, pageHeight - 8, {
+    doc.text("Generado con My Business Studio", pageWidth / 2, pageHeight - 8, {
       align: "center",
     });
 

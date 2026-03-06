@@ -1,6 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /api/
 
-Sitemap: https://up-five.vercel.app/sitemap.xml
-
-Sitemap: /sitemap.xml
+Sitemap: https://dashboard.polarisapp.site/sitemap.xml
+Host: dashboard.polarisapp.site

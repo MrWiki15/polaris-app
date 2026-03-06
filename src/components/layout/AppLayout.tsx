@@ -84,6 +84,69 @@ type DepartmentConfig = {
   [key: string]: ("all" | string)[];
 };
 
+type RouteSeo = {
+  title: string;
+  description: string;
+};
+
+const SEO_BY_ROUTE: Record<string, RouteSeo> = {
+  "/": {
+    title: "Dashboard",
+    description:
+      "Panel principal de My Business Studio con resumen financiero, indicadores clave y acceso rapido a tus modulos de gestion.",
+  },
+  "/ingresos": {
+    title: "Ingresos",
+    description:
+      "Registra y analiza ingresos de tu negocio con control detallado por fecha, categoria y fuente.",
+  },
+  "/gastos": {
+    title: "Gastos",
+    description:
+      "Controla egresos, categorias y flujo de caja para mejorar la rentabilidad de tu empresa.",
+  },
+  "/inventario": {
+    title: "Inventario",
+    description:
+      "Gestiona productos, stock y movimientos de inventario en tiempo real desde My Business Studio.",
+  },
+  "/servicios": {
+    title: "Servicios",
+    description:
+      "Administra servicios, ingresos por servicio y seguimiento comercial en una sola vista.",
+  },
+  "/analisis": {
+    title: "Analisis",
+    description:
+      "Visualiza analitica de negocio con tendencias, comparativas y metricas accionables.",
+  },
+  "/proyecciones": {
+    title: "Proyecciones",
+    description:
+      "Proyecta resultados financieros y toma decisiones con escenarios de crecimiento.",
+  },
+  "/reportes": {
+    title: "Reportes",
+    description:
+      "Genera reportes financieros y operativos para controlar y comunicar el rendimiento del negocio.",
+  },
+  "/herramientas": {
+    title: "Herramientas",
+    description:
+      "Accede a herramientas avanzadas para facturacion, CRM, metas, deuda y automatizacion.",
+  },
+  "/premium": {
+    title: "Premium",
+    description:
+      "Desbloquea funcionalidades premium de My Business Studio para escalar la gestion de tu negocio.",
+  },
+  "/configuracion": {
+    title: "Configuracion",
+    description:
+      "Personaliza ajustes, sincronizacion y preferencias de tu cuenta en My Business Studio.",
+  },
+};
+
 export const DEPARTMENT_PERMISSIONS: DepartmentConfig = {
   direccion: ["all"],
   ventas: ["/ingresos", "/herramientas/crm"],
@@ -209,7 +272,70 @@ export const AppLayout: React.FC = () => {
   const currentPage =
     [...MENU_ITEMS, ...Object.values(EXTRA_MENU_ITEMS)].find(
       (item) => item.path === location.pathname,
-    )?.label || "Polaris  |  Gestion";
+    )?.label || "My Business Studio";
+
+  useEffect(() => {
+    const routeSeo = SEO_BY_ROUTE[location.pathname] || {
+      title: currentPage,
+      description:
+        "My Business Studio: plataforma de gestion para pymes con ventas, gastos, inventario, reportes y analitica en tiempo real.",
+    };
+
+    const fullTitle = `${routeSeo.title} | My Business Studio`;
+    const fullUrl = `${window.location.origin}${location.pathname}`;
+
+    document.title = fullTitle;
+
+    const setMeta = (
+      selector: string,
+      attr: "name" | "property",
+      key: string,
+      value: string,
+    ) => {
+      let tag = document.head.querySelector(selector) as
+        | HTMLMetaElement
+        | undefined
+        | null;
+      if (!tag) {
+        tag = document.createElement("meta");
+        tag.setAttribute(attr, key);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute("content", value);
+    };
+
+    setMeta(
+      'meta[name="description"]',
+      "name",
+      "description",
+      routeSeo.description,
+    );
+    setMeta('meta[property="og:title"]', "property", "og:title", fullTitle);
+    setMeta(
+      'meta[property="og:description"]',
+      "property",
+      "og:description",
+      routeSeo.description,
+    );
+    setMeta('meta[property="og:url"]', "property", "og:url", fullUrl);
+    setMeta('meta[name="twitter:title"]', "name", "twitter:title", fullTitle);
+    setMeta(
+      'meta[name="twitter:description"]',
+      "name",
+      "twitter:description",
+      routeSeo.description,
+    );
+
+    let canonical = document.head.querySelector(
+      'link[rel="canonical"]',
+    ) as HTMLLinkElement | null;
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.setAttribute("rel", "canonical");
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute("href", fullUrl);
+  }, [currentPage, location.pathname]);
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -242,7 +368,9 @@ export const AppLayout: React.FC = () => {
               />
             </div>
             <div>
-              <h1 className="font-semibold text-sidebar-foreground">Polaris</h1>
+              <h1 className="font-semibold text-sidebar-foreground">
+                My Business
+              </h1>
               <p className="text-xs text-muted-foreground">Panel de control</p>
             </div>
           </div>

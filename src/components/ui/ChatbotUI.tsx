@@ -77,8 +77,8 @@ export const ChatbotUI: React.FC = () => {
   return (
     <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 lg:grid-cols-12">
       <section className="lg:col-span-8 xl:col-span-9">
-        <div className="flex h-[calc(100dvh-8.5rem)] min-h-[560px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-          <header className="border-b border-border bg-card/90 px-4 py-3 backdrop-blur-sm sm:px-5">
+        <div className="flex h-[calc(100dvh-8.5rem)] min-h-[560px] flex-col overflow-hidden rounded-2xl">
+          <header className="border-b  px-4 py-3  sm:px-5">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -196,7 +196,7 @@ export const ChatbotUI: React.FC = () => {
             )}
           </div>
 
-          <footer className="border-t border-border bg-card px-3 py-3 sm:px-5">
+          <footer className=" px-3 py-3 sm:px-5">
             <div className="mx-auto w-full max-w-3xl space-y-3">
               <div className="flex flex-wrap gap-2">
                 {quickPrompts.map((q) => (

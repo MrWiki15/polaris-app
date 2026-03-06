@@ -188,7 +188,7 @@ export const Reportes: React.FC = () => {
     doc.setFontSize(9);
     doc.setTextColor(textMuted.r, textMuted.g, textMuted.b);
     doc.text(`Periodo: ${dateRange}`, marginX + 20, 24);
-    doc.text("Polaris", rightX, 18, { align: "right" });
+    doc.text("My Business Studio", rightX, 18, { align: "right" });
 
     y = 42;
 

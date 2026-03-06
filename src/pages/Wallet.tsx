@@ -933,7 +933,7 @@ export default function Wallet() {
     }
   };
 
-  // Enviar USDC a usuario de Polaris o wallet externa
+  // Enviar USDC a usuario de My Business o wallet externa
   const handleSendUsdc = async () => {
     if (!supabaseAuth.user?.id) return;
 
@@ -958,7 +958,7 @@ export default function Wallet() {
       setLoading(true);
 
       if (usdcSendType === "polaris") {
-        // Envío a otro usuario de Polaris
+        // Envío a otro usuario de My Business
         if (!selectedUserId) {
           toast({ title: "Selecciona un usuario", variant: "destructive" });
           return;
@@ -1637,7 +1637,7 @@ export default function Wallet() {
                         <Settings className="w-5 h-5" />
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-h-[80vh] overflow-y-auto">
+                    <DialogContent className="w-[calc(100vw-1.5rem)] max-w-xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
                       <DialogHeader>
                         <DialogTitle>Configuración de wallet</DialogTitle>
                       </DialogHeader>
@@ -2196,7 +2196,7 @@ export default function Wallet() {
                     Recibir
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md max-h-[85vh] overflow-y-auto p-4 sm:p-6">
                   <DialogHeader>
                     <DialogTitle>Recibir saldo</DialogTitle>
                   </DialogHeader>
@@ -2205,9 +2205,17 @@ export default function Wallet() {
                       wallet ? (
                         <>
                           <Label>Tu dirección</Label>
-                          <div className="flex items-center gap-2">
-                            <Input readOnly value={wallet.address} />
-                            <Button variant="secondary" onClick={copyAddress}>
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <Input
+                              readOnly
+                              value={wallet.address}
+                              className="min-w-0"
+                            />
+                            <Button
+                              variant="secondary"
+                              onClick={copyAddress}
+                              className="w-full sm:w-auto"
+                            >
                               <Copy className="w-4 h-4" />
                             </Button>
                           </div>
@@ -2220,9 +2228,17 @@ export default function Wallet() {
                     ) : hederaAccountId ? (
                       <>
                         <Label>Dirección del proyecto (Hedera)</Label>
-                        <div className="flex items-center gap-2">
-                          <Input readOnly value={hederaAccountId} />
-                          <Button variant="secondary" onClick={copyAddress}>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <Input
+                            readOnly
+                            value={hederaAccountId}
+                            className="min-w-0"
+                          />
+                          <Button
+                            variant="secondary"
+                            onClick={copyAddress}
+                            className="w-full sm:w-auto"
+                          >
                             <Copy className="w-4 h-4" />
                           </Button>
                         </div>
@@ -2242,7 +2258,7 @@ export default function Wallet() {
                     Enviar saldo
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md max-h-[85vh] overflow-y-auto p-4 sm:p-6">
                   <DialogHeader>
                     <DialogTitle>Enviar saldo</DialogTitle>
                   </DialogHeader>
@@ -2296,16 +2312,16 @@ export default function Wallet() {
                       <MoreVertical className="w-4 h-4" />
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                  <DialogContent className="w-[calc(100vw-1.5rem)] max-w-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
                     <DialogHeader>
                       <DialogTitle>Opciones de Wallets</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                       {/* Tabs */}
-                      <div className="flex gap-2 border-b border-border">
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2 border-b border-border pb-1">
                         <button
                           onClick={() => setActiveOptionsTab("create")}
-                          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                          className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors ${
                             activeOptionsTab === "create"
                               ? "border-primary text-primary"
                               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -2315,7 +2331,7 @@ export default function Wallet() {
                         </button>
                         <button
                           onClick={() => setActiveOptionsTab("transfer")}
-                          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                          className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors ${
                             activeOptionsTab === "transfer"
                               ? "border-primary text-primary"
                               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -2325,7 +2341,7 @@ export default function Wallet() {
                         </button>
                         <button
                           onClick={() => setActiveOptionsTab("fund")}
-                          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                          className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors ${
                             activeOptionsTab === "fund"
                               ? "border-primary text-primary"
                               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -2335,7 +2351,7 @@ export default function Wallet() {
                         </button>
                         <button
                           onClick={() => setActiveOptionsTab("goals")}
-                          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                          className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors ${
                             activeOptionsTab === "goals"
                               ? "border-primary text-primary"
                               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -2445,7 +2461,7 @@ export default function Wallet() {
                                     <Label>
                                       Tu dirección Hedera para recibir USDC
                                     </Label>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                                       <Input
                                         readOnly
                                         value={
@@ -2453,11 +2469,12 @@ export default function Wallet() {
                                           hederaAccountId ||
                                           "No disponible"
                                         }
-                                        className="font-mono text-xs"
+                                        className="font-mono text-xs min-w-0"
                                       />
                                       <Button
                                         variant="secondary"
                                         size="sm"
+                                        className="w-full sm:w-auto"
                                         onClick={async () => {
                                           const address =
                                             wallet?.address || hederaAccountId;
@@ -2503,7 +2520,7 @@ export default function Wallet() {
                                             className="w-full justify-start"
                                           >
                                             <WalletIcon className="w-4 h-4 mr-2" />
-                                            A otro usuario de Polaris
+                                            A otro usuario de My Business
                                           </Button>
                                           <Button
                                             variant="outline"
@@ -3046,7 +3063,7 @@ export default function Wallet() {
                                         <Edit2 className="w-3 h-3 sm:w-4 sm:h-4" />
                                       </Button>
                                     </DialogTrigger>
-                                    <DialogContent>
+                                    <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md p-4 sm:p-6">
                                       <DialogHeader>
                                         <DialogTitle>
                                           Editar nombre de wallet

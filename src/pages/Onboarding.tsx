@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,6 +76,60 @@ export default function Onboarding() {
     authMode === "login"
       ? "Inicia sesión para continuar con tu panel empresarial"
       : "Empieza gratis y organiza todas tus operaciones desde hoy";
+
+  useEffect(() => {
+    const title = "My Business Studio | Gestion para Pymes y Emprendedores";
+    const description =
+      "Gestiona ventas, gastos, inventario, servicios y reportes desde una sola plataforma con My Business Studio.";
+    const fullUrl = `${window.location.origin}/onboarding`;
+
+    document.title = title;
+
+    const setMeta = (
+      selector: string,
+      attr: "name" | "property",
+      key: string,
+      value: string,
+    ) => {
+      let tag = document.head.querySelector(selector) as
+        | HTMLMetaElement
+        | undefined
+        | null;
+      if (!tag) {
+        tag = document.createElement("meta");
+        tag.setAttribute(attr, key);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute("content", value);
+    };
+
+    setMeta('meta[name="description"]', "name", "description", description);
+    setMeta('meta[property="og:title"]', "property", "og:title", title);
+    setMeta(
+      'meta[property="og:description"]',
+      "property",
+      "og:description",
+      description,
+    );
+    setMeta('meta[property="og:url"]', "property", "og:url", fullUrl);
+    setMeta('meta[name="twitter:title"]', "name", "twitter:title", title);
+    setMeta(
+      'meta[name="twitter:description"]',
+      "name",
+      "twitter:description",
+      description,
+    );
+
+    let canonical = document.head.querySelector(
+      'link[rel="canonical"]',
+    ) as HTMLLinkElement | null;
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.setAttribute("rel", "canonical");
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute("href", fullUrl);
+  }, []);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 text-slate-900">

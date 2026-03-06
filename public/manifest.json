@@ -1,6 +1,6 @@
 {
-  "name": "PolarisHub - Gestión Financiera",
-  "short_name": "PolarisHub",
+  "name": "My Business Studio - Gestión Financiera",
+  "short_name": "My Business",
   "description": "Plataforma completa de gestión financiera para emprendedores y pequeños negocios",
   "start_url": "/",
   "display": "standalone",
@@ -56,7 +56,7 @@
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "Ver resumen financiero",
-      "url": "/dashboard",
+      "url": "/",
       "icons": [
         {
           "src": "/icon.svg",
@@ -68,7 +68,7 @@
       "name": "Gastos",
       "short_name": "Gastos",
       "description": "Registrar nuevo gasto",
-      "url": "/gasto",
+      "url": "/gastos",
       "icons": [
         {
           "src": "/icon.svg",
@@ -89,10 +89,10 @@
       ]
     },
     {
-      "name": "Notificaciones",
-      "short_name": "Alertas",
-      "description": "Ver notificaciones",
-      "url": "/notificaciones",
+      "name": "Reportes",
+      "short_name": "Reportes",
+      "description": "Ver reportes del negocio",
+      "url": "/reportes",
       "icons": [
         {
           "src": "/icon.svg",
@@ -115,7 +115,7 @@
   "related_applications": [],
   "protocol_handlers": [
     {
-      "protocol": "web+polarishub",
+      "protocol": "web+mybusinessstudio",
       "url": "/?action=%s"
     }
   ]
