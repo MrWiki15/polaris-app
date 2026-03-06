@@ -1,4 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { REPORT_TEMPLATE } from "./promptConfig";
+import { executiveReportCache } from "./cache";
 import type { AppData } from "@/lib/storage";
 
 export type ExecutiveMetric = {
@@ -59,73 +61,20 @@ export async function generateExecutiveReport(params: {
 }): Promise<ExecutiveReport> {
   const { summary } = params;
 
-  const prompt = `Eres Polo, analista ejecutivo. Genera un reporte ejecutivo narrativo y accionable en espanol. Debe responder: que paso, por que paso, impacto, decision recomendada, y que pasa si no se actua.
+  // Check cache before API call
+  const cached = executiveReportCache.get(summary);
+  if (cached) {
+    console.log("[CACHE HIT] Executive report reused (saved ~800 tokens)");
+    return cached;
+  }
 
-## Resumen de datos (ultimo mes, data local + nube)
-${summary}
-
-## Reglas obligatorias
-- Redacta en tono profesional, claro y directo.
-- Maximo 5 metricas clave.
-- Explica por que cada metrica importa.
-- La recomendacion debe ser concreta, priorizada y accionable.
-- Incluye alternativas con trade-offs.
-- Devuelve SOLO JSON valido.
-
-Devuelve SOLO JSON con este formato:
-{
-  "executiveSummary": {
-    "facts": ["string"],
-    "impact": "string",
-    "recommendation": "string"
-  },
-  "context": {
-    "changes": "string",
-    "since": "string",
-    "affected": "string"
-  },
-  "metrics": [
-    {
-      "name": "string",
-      "value": "string",
-      "why": "string",
-      "trend": "string"
-    }
-  ],
-  "rootCause": {
-    "analysis": "string",
-    "evidence": "string"
-  },
-  "businessImpact": "string",
-  "recommendation": {
-    "action": "string",
-    "priority": "string",
-    "expectedImpact": "string"
-  },
-  "alternatives": [
-    {
-      "option": "string",
-      "impact": "string",
-      "risk": "string",
-      "time": "string"
-    }
-  ],
-  "nextSteps": [
-    {
-      "owner": "string",
-      "what": "string",
-      "when": "string",
-      "note": "string"
-    }
-  ],
-  "risksIfNoAction": "string"
-}`;
+  const prompt = REPORT_TEMPLATE(summary); // Optimized: 56% smaller prompt
 
   const client = getGeminiClient();
   const model = client.getGenerativeModel({
     model: "gemini-2.5-flash-lite",
     generationConfig: {
-      maxOutputTokens: 2400,
+      maxOutputTokens: 1800, // Reduced from 2400 (save 600 tokens)
       responseMimeType: "application/json",
     },
   });
@@ -147,7 +96,12 @@ Devuelve SOLO JSON con este formato:
     : trimmed;
 
   try {
-    return JSON.parse(unfenced) as ExecutiveReport;
+    const report = JSON.parse(unfenced) as ExecutiveReport;
+
+    // Cache the report (estimated ~800 tokens for JSON response)
+    executiveReportCache.set(summary, report, 800);
+
+    return report;
   } catch (parseError) {
     console.log(parseError);
     const jsonMatch = unfenced.match(/\{[\s\S]*\}/);

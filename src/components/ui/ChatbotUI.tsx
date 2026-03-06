@@ -36,12 +36,7 @@ export const ChatbotUI: React.FC = () => {
     }
   };
 
-  const quickPrompts = [
-    "¿Cómo puedo aumentar ventas este mes?",
-    "Recomiéndame 3 productos para promocionar",
-    "Análisis rápido de mis ventas recientes",
-    "¿Qué decisiones tomarías hoy con mis datos?",
-  ];
+  const quickPrompts = [];
 
   const [MDRenderer, setMDRenderer] = useState<any>(null);
 
@@ -89,10 +84,6 @@ export const ChatbotUI: React.FC = () => {
                     Polo AI
                   </h2>
                 </div>
-                <p className="text-xs text-muted-foreground sm:text-sm">
-                  Asistente financiero para decisiones de ventas, inventario y
-                  crecimiento.
-                </p>
               </div>
 
               <Button
@@ -223,7 +214,7 @@ export const ChatbotUI: React.FC = () => {
                         void handleSend();
                       }
                     }}
-                    placeholder="Pregúntale a Polo sobre ventas, márgenes, inventario o estrategia..."
+                    placeholder="Pregúntale a Polo ..."
                     rows={1}
                     className="max-h-40 min-h-[44px] resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none focus-visible:ring-0"
                   />

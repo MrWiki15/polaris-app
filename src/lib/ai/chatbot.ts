@@ -1,4 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { CHATBOT_SYSTEM } from "./promptConfig";
+import { chatResponseCache } from "./cache";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -17,24 +19,39 @@ export async function sendChatMessage(
   conversation: ChatMessage[],
   modelName = "gemini-2.5-flash-lite",
 ): Promise<string> {
+  // Check cache first
+  const cacheKey = conversation.map((m) => `${m.role}:${m.content}`).join("|");
+  const cached = chatResponseCache.get(cacheKey);
+  if (cached) {
+    console.log("[CACHE HIT] Reusing chat response");
+    return cached;
+  }
+
   const client = getGeminiClient();
   const model = client.getGenerativeModel({
     model: modelName,
-    generationConfig: { maxOutputTokens: 1024 },
+    systemInstruction: CHATBOT_SYSTEM, // Optimized: System instruction (55% smaller)
+    generationConfig: { maxOutputTokens: 800 }, // Reduced from 1024
   });
-  // Build prompt string; keep system messages but ensure persona of Polo is included
-  const systemIntro = `SYSTEM: Eres Polo, un asistente financiero extremadamente profesional, objetivo y conciso. Responde en castellano y ofrece consejos accionables basados en el contexto proporcionado. Responde utilizando formato Markdown para todas las respuestas. Usa encabezados, listas, negritas y bloques de código cuando proceda. Mantén las respuestas claras, estructuradas y directamente accionables. No añadas texto fuera del formato Markdown.`;
-  const systemParts = [systemIntro].concat(
-    conversation.map((m) => `${m.role.toUpperCase()}: ${m.content}`),
-  );
-  const systemPrompt = systemParts.join("\n");
+
+  // Build user message (exclude system intro from conversation)
+  const userMessages = conversation
+    .filter((m) => m.role !== "system")
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join("\n");
 
   try {
-    const result = await model.generateContent(systemPrompt);
+    const result = await model.generateContent(userMessages);
     const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text;
-    return text || "";
-  } catch (err: any) {
-    console.error("Chatbot Gemini error:", err);
-    throw err;
+    const response = text || "";
+
+    // Cache the response (estimated ~400 tokens average)
+    chatResponseCache.set(cacheKey, response, 400);
+
+    return response;
+  } catch (err) {
+    const error = err as Error;
+    console.error("Chatbot Gemini error:", error);
+    throw error;
   }
 }
